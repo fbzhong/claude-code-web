@@ -18,7 +18,11 @@
       "Bash(grep:*)",
       "Bash(pkill:*)",
       "Bash(npm start)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(pnpm --filter backend build)",
+      "Bash(pnpm --filter backend dev)",
+      "Bash(kill:*)",
+      "Bash(true)"
     ],
     "deny": []
   }

@@ -41,39 +41,93 @@ class SessionApiService {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return response.json();
+    const text = await response.text();
+    console.log('handleResponse: Raw response text:', text);
+    
+    try {
+      const json = JSON.parse(text);
+      console.log('handleResponse: Parsed JSON:', json);
+      return json;
+    } catch (e) {
+      console.error('handleResponse: Failed to parse JSON:', e);
+      console.error('handleResponse: Raw text was:', text);
+      throw new Error('Invalid JSON response from server');
+    }
   }
 
   async getAllSessions(): Promise<SessionInfo[]> {
+    console.log('Fetching all sessions from:', `${API_BASE}/sessions`);
     const response = await fetch(`${API_BASE}/sessions`, {
       headers: this.getAuthHeaders()
     });
 
     const result = await this.handleResponse(response);
+    console.log('getAllSessions raw response:', result);
+    console.log('getAllSessions data type:', typeof result.data);
+    console.log('getAllSessions data is array:', Array.isArray(result.data));
+    console.log('getAllSessions data content:', JSON.stringify(result.data, null, 2));
     
     if (!result.success) {
       throw new Error(result.error || 'Failed to fetch sessions');
     }
 
+    // Validate the response data
+    if (!Array.isArray(result.data)) {
+      console.error('Invalid sessions response - expected array, got:', typeof result.data, result.data);
+      return [];
+    }
+
+    console.log('Returning sessions:', result.data.length, 'items');
     return result.data || [];
   }
 
   async createSession(request: CreateSessionRequest): Promise<SessionInfo> {
-    console.log('Creating session with request:', request);
-    const response = await fetch(`${API_BASE}/sessions`, {
-      method: 'POST',
-      headers: this.getAuthHeaders(),
-      body: JSON.stringify(request)
-    });
-
-    const result = await this.handleResponse(response);
-    console.log('Create session response:', result);
+    console.log('sessionApi.createSession called with request:', request);
     
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to create session');
-    }
+    try {
+      console.log('sessionApi.createSession: Making fetch request to:', `${API_BASE}/sessions`);
+      console.log('sessionApi.createSession: Headers:', this.getAuthHeaders());
+      console.log('sessionApi.createSession: Body:', JSON.stringify(request));
+      
+      const response = await fetch(`${API_BASE}/sessions`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(request)
+      });
+      
+      console.log('sessionApi.createSession: Got response:', response);
+      console.log('sessionApi.createSession: Response status:', response.status);
+      console.log('sessionApi.createSession: Response ok:', response.ok);
 
-    return result.data;
+      const result = await this.handleResponse(response);
+      console.log('sessionApi.createSession: Parsed response:', result);
+      console.log('sessionApi.createSession: result type:', typeof result);
+      console.log('sessionApi.createSession: result keys:', Object.keys(result));
+      console.log('sessionApi.createSession: result.success:', result.success);
+      console.log('sessionApi.createSession: result.data:', result.data);
+      console.log('sessionApi.createSession: result.data type:', typeof result.data);
+      console.log('sessionApi.createSession: Full result stringified:', JSON.stringify(result));
+      
+      if (!result.success) {
+        console.error('sessionApi.createSession: API returned error:', result.error);
+        throw new Error(result.error || 'Failed to create session');
+      }
+
+      // Ensure all required fields are present
+      const sessionData = result.data || result; // Fallback to result if data is not nested
+      if (!sessionData.lastActivity) {
+        sessionData.lastActivity = sessionData.createdAt || new Date().toISOString();
+      }
+      if (sessionData.connectedClients === undefined) {
+        sessionData.connectedClients = 0;
+      }
+
+      console.log('sessionApi.createSession: Returning session data:', sessionData);
+      return sessionData;
+    } catch (error) {
+      console.error('sessionApi.createSession: Caught error:', error);
+      throw error;
+    }
   }
 
   async getSession(sessionId: string): Promise<SessionInfo> {

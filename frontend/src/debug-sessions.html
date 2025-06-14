@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Sessions</title>
+</head>
+<body>
+    <h1>Debug Sessions Issue</h1>
+    <button onclick="testSessionCreation()">Test Session Creation</button>
+    <div id="output"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:12021/api';
+        const output = document.getElementById('output');
+
+        function log(message) {
+            console.log(message);
+            output.innerHTML += `<pre>${JSON.stringify(message, null, 2)}</pre>`;
+        }
+
+        async function testSessionCreation() {
+            try {
+                // Get token from localStorage
+                const token = localStorage.getItem('token');
+                log({ step: 'Token check', hasToken: !!token });
+
+                // 1. Fetch current sessions
+                const sessionsResponse = await fetch(`${API_BASE}/sessions`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const sessions = await sessionsResponse.json();
+                log({ step: 'Current sessions', count: sessions.data?.length, sessions: sessions.data });
+
+                // 2. Create a new session
+                const createResponse = await fetch(`${API_BASE}/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: `Test Session ${Date.now()}`
+                    })
+                });
+                const createResult = await createResponse.json();
+                log({ step: 'Create session', result: createResult });
+
+                // 3. Fetch sessions again
+                const sessionsResponse2 = await fetch(`${API_BASE}/sessions`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const sessions2 = await sessionsResponse2.json();
+                log({ step: 'Sessions after create', count: sessions2.data?.length, sessions: sessions2.data });
+
+            } catch (error) {
+                log({ error: error.message, stack: error.stack });
+            }
+        }
+    </script>
+</body>
+</html>

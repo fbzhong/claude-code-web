@@ -72,7 +72,10 @@ export default async function sessionsRoutes(fastify: FastifyInstance) {
           name: session.name,
           status: session.status,
           workingDir: session.workingDir,
-          createdAt: session.createdAt
+          createdAt: session.createdAt,
+          lastActivity: session.lastActivity || session.createdAt,
+          connectedClients: session.connectedClients || 0,
+          outputPreview: ''
         },
         timestamp: new Date()
       };

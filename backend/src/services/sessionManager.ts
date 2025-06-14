@@ -29,6 +29,13 @@ export class SessionManager extends EventEmitter {
     setInterval(() => {
       this.cleanupDeadSessions();
     }, 60000); // Every minute
+    
+    // Load active sessions from database on startup
+    setTimeout(() => {
+      this.loadActiveSessionsFromDatabase().catch(err => {
+        this.fastify.log.error('Failed to load sessions from database on startup:', err);
+      });
+    }, 1000); // Delay to ensure database is ready
   }
 
   static getInstance(fastify: any): SessionManager {
@@ -100,15 +107,17 @@ export class SessionManager extends EventEmitter {
       const session = this.sessions.get(sessionId);
       if (session) {
         session.status = 'dead';
-        session.pty = null;
+        session.pty = undefined;
       }
       this.emit('exit', sessionId, exitCode);
     });
 
     this.sessions.set(sessionId, session);
 
-    // Save session to database
-    await this.saveSessionToDb(session);
+    // Save session to database asynchronously (don't block the response)
+    this.saveSessionToDb(session).catch(err => {
+      this.fastify.log.error('Failed to save session to database after creation:', err);
+    });
 
     this.fastify.log.info(`Created new terminal session: ${sessionId} (${sessionName}) for user ${userId}`);
     
@@ -172,12 +181,10 @@ export class SessionManager extends EventEmitter {
 
     session.status = 'dead';
     
-    // Remove from memory after a short delay (allow clients to be notified)
-    setTimeout(() => {
-      this.sessions.delete(sessionId);
-      this.commandBuffer.delete(sessionId);
-      this.sessionSequenceNumbers.delete(sessionId);
-    }, 5000);
+    // Remove from memory immediately (clients will get updated via API refresh)
+    this.sessions.delete(sessionId);
+    this.commandBuffer.delete(sessionId);
+    this.sessionSequenceNumbers.delete(sessionId);
 
     // Update database
     await this.updateSessionInDb(session);
@@ -230,9 +237,15 @@ export class SessionManager extends EventEmitter {
   }
 
   getUserSessions(userId: string): SessionInfo[] {
-    return Array.from(this.sessions.values())
-      .filter(s => s.userId === userId)
-      .map(s => this.sessionToInfo(s));
+    const allSessions = Array.from(this.sessions.values());
+    const userSessions = allSessions.filter(s => s.userId === userId && s.status !== 'dead');
+    
+    this.fastify.log.info(`Getting sessions for user ${userId}: ${userSessions.length} of ${allSessions.length} total sessions`);
+    userSessions.forEach(s => {
+      this.fastify.log.info(`  - Session ${s.id}: ${s.name} (${s.status})`);
+    });
+    
+    return userSessions.map(s => this.sessionToInfo(s));
   }
 
   getAllSessions(): SessionInfo[] {
@@ -299,8 +312,13 @@ export class SessionManager extends EventEmitter {
         [sessionId, data, sequenceNumber, new Date()]
       );
       client.release();
-    } catch (err) {
-      this.fastify.log.error('Failed to save output buffer to database:', err);
+    } catch (err: any) {
+      this.fastify.log.error('Failed to save output buffer to database:', {
+        error: err.message,
+        sessionId: sessionId,
+        dataLength: data.length
+      });
+      // Don't throw error - allow terminal to continue working even if DB save fails
     }
   }
 
@@ -368,8 +386,15 @@ export class SessionManager extends EventEmitter {
         ]
       );
       client.release();
-    } catch (err) {
-      this.fastify.log.error('Failed to save session to database:', err);
+      this.fastify.log.info(`Session ${session.id} saved to database successfully`);
+    } catch (err: any) {
+      this.fastify.log.error('Failed to save session to database:', {
+        error: err.message,
+        stack: err.stack,
+        sessionId: session.id,
+        userId: session.userId
+      });
+      // Don't throw error - allow session creation to continue even if DB save fails
     }
   }
 
@@ -417,12 +442,12 @@ export class SessionManager extends EventEmitter {
         );
         
         // Reverse to get chronological order
-        const outputChunks = bufferResult.rows.map(r => r.output_data).reverse();
+        const outputChunks = bufferResult.rows.map((r: any) => r.output_data).reverse();
         restoredSession.outputBuffer = outputChunks;
         
         // Set the sequence number to continue from where we left off
         if (bufferResult.rows.length > 0) {
-          const maxSequence = Math.max(...bufferResult.rows.map(r => r.sequence_number));
+          const maxSequence = Math.max(...bufferResult.rows.map((r: any) => r.sequence_number));
           this.sessionSequenceNumbers.set(sessionId, maxSequence);
         }
         
@@ -439,6 +464,88 @@ export class SessionManager extends EventEmitter {
       }
       this.fastify.log.error('Failed to restore session from database:', err);
       throw err;
+    }
+  }
+
+  private async loadActiveSessionsFromDatabase(): Promise<void> {
+    let client;
+    try {
+      client = await this.fastify.pg.connect();
+      
+      // Load all active and detached sessions from database
+      const result = await client.query(
+        `SELECT * FROM persistent_sessions 
+         WHERE status IN ('active', 'detached') 
+         ORDER BY last_activity DESC`
+      );
+      
+      this.fastify.log.info(`Found ${result.rows.length} sessions in database to restore`);
+      
+      for (const row of result.rows) {
+        try {
+          this.fastify.log.info(`Processing session from DB: ${row.id} (${row.name})`);
+          
+          // Check if session already exists in memory
+          if (this.sessions.has(row.id)) {
+            this.fastify.log.info(`Session ${row.id} already exists in memory, skipping`);
+            continue;
+          }
+          
+          // Create session object without PTY (sessions are detached)
+          const session: TerminalSession = {
+            id: row.id,
+            userId: row.user_id,
+            name: row.name,
+            pty: undefined, // No PTY for loaded sessions until reattached
+            history: [],
+            createdAt: new Date(row.created_at),
+            lastActivity: new Date(row.last_activity),
+            workingDir: row.working_dir,
+            environment: typeof row.environment === 'string' ? JSON.parse(row.environment) : row.environment || {},
+            status: 'detached', // Always detached when loaded from DB
+            outputBuffer: [],
+            connectedClients: 0
+          };
+          
+          // Load output buffer from database
+          try {
+            const bufferResult = await client.query(
+              'SELECT output_data, sequence_number FROM session_output_buffer WHERE session_id = $1 ORDER BY sequence_number DESC LIMIT $2',
+              [row.id, this.maxOutputBuffer]
+            );
+            
+            // Reverse to get chronological order
+            const outputChunks = bufferResult.rows.map((r: any) => r.output_data).reverse();
+            session.outputBuffer = outputChunks;
+            
+            // Set the sequence number to continue from where we left off
+            if (bufferResult.rows.length > 0) {
+              const maxSequence = Math.max(...bufferResult.rows.map((r: any) => r.sequence_number));
+              this.sessionSequenceNumbers.set(row.id, maxSequence);
+            }
+            
+            this.fastify.log.info(`Loaded session ${row.id} (${row.name}) with ${outputChunks.length} output chunks`);
+          } catch (err) {
+            this.fastify.log.error(`Failed to load output buffer for session ${row.id}:`, err);
+          }
+          
+          // Add session to memory
+          this.sessions.set(row.id, session);
+          
+        } catch (err: any) {
+          this.fastify.log.error(`Failed to restore session ${row.id}:`, err);
+          this.fastify.log.error('Error details:', { message: err.message, stack: err.stack });
+        }
+      }
+      
+      this.fastify.log.info(`Successfully restored ${this.sessions.size} sessions to memory`);
+      
+      client.release();
+    } catch (err) {
+      if (client) {
+        client.release();
+      }
+      this.fastify.log.error('Failed to load sessions from database:', err);
     }
   }
 

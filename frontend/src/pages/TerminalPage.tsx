@@ -17,6 +17,7 @@ import {
   Snackbar,
   Paper,
   LinearProgress,
+  CircularProgress,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -33,332 +34,352 @@ import {
 } from '@mui/icons-material';
 import { SessionInfo } from '../components/SessionList';
 import { sessionApi } from '../services/sessionApi';
-// import { Terminal, TerminalHandle } from '../components/Terminal';
-// import { SimpleTerminal as Terminal, TerminalHandle } from '../components/SimpleTerminal';
-// import { MinimalTerminalWithRef as Terminal } from '../components/MinimalTerminal';
-// import type { MinimalTerminalHandle as TerminalHandle } from '../components/MinimalTerminal';
-// import { SafeTerminal as Terminal } from '../components/SafeTerminal';
-// import type { SafeTerminalHandle as TerminalHandle } from '../components/SafeTerminal';
-// import { BareTerminal as Terminal } from '../components/BareTerminal';
-// import type { BareTerminalHandle as TerminalHandle } from '../components/BareTerminal';
-// import { FixedTerminal as Terminal } from '../components/FixedTerminal';
-// import type { FixedTerminalHandle as TerminalHandle } from '../components/FixedTerminal';
 import { StableTerminal as Terminal } from '../components/StableTerminal';
 import type { StableTerminalHandle as TerminalHandle } from '../components/StableTerminal';
 import { wsService } from '../services/websocket';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 
+// Unified operation states
+interface OperationStates {
+  creating: boolean;
+  refreshing: boolean;
+  selecting: string | null;
+  deleting: Set<string>;
+  renaming: Set<string>;
+}
+
 export const TerminalPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, token, logout } = useAuthStore();
+  
+  // UI states
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [claudeStatus, setClaudeStatus] = useState<'stopped' | 'starting' | 'running' | 'error'>('stopped');
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<SessionInfo[]>([]);
-  const [commandHistory, setCommandHistory] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  
+  // Session states
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [commandHistory, setCommandHistory] = useState<any[]>([]);
+  
+  // Claude status
+  const [claudeStatus, setClaudeStatus] = useState<'stopped' | 'starting' | 'running' | 'error'>('stopped');
+  
+  // Operation states
+  const [operationStates, setOperationStates] = useState<OperationStates>({
+    creating: false,
+    refreshing: false,
+    selecting: null,
+    deleting: new Set(),
+    renaming: new Set(),
+  });
+  
   const terminalRef = useRef<TerminalHandle>(null);
+  const isCreatingRef = useRef(false);
+  
+  // Helper to update operation states
+  const updateOperationState = useCallback((updates: Partial<OperationStates>) => {
+    console.log('updateOperationState called with:', updates);
+    setOperationStates(prev => {
+      console.log('updateOperationState: prev state:', prev);
+      const newState = { ...prev, ...updates };
+      console.log('updateOperationState: new state:', newState);
+      return newState;
+    });
+    console.log('updateOperationState completed');
+  }, []);
 
-  // Session Management Functions
-  const refreshSessions = useCallback(async () => {
+  // Refresh sessions from server
+  const refreshSessions = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      updateOperationState({ refreshing: true });
+    }
+    
     try {
-      setRefreshing(true);
-      console.log('Refreshing sessions...');
       const sessionList = await sessionApi.getAllSessions();
-      console.log('Fetched sessions:', sessionList);
       setSessions(sessionList);
     } catch (err: any) {
       console.error('Failed to fetch sessions:', err);
-      setError(err.message || 'Failed to fetch sessions');
+      // Don't show error for background refresh
+      if (showLoading) {
+        setError('Failed to fetch sessions');
+      }
     } finally {
-      setRefreshing(false);
+      if (showLoading) {
+        updateOperationState({ refreshing: false });
+      }
     }
-  }, []);
+  }, [updateOperationState]);
 
-  const createNewSession = useCallback(async (name: string, workingDir?: string) => {
-    try {
-      setLoading(true);
-      console.log('Creating new session:', name);
-      
-      // First disconnect from current session if any
-      if (sessionId && wsService.isConnected()) {
-        wsService.disconnect();
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      
-      const newSession = await sessionApi.createSession({ name, workingDir });
-      console.log('New session created:', newSession);
-      
-      await refreshSessions();
-      console.log('Sessions refreshed after create');
-      
-      // Small delay to ensure UI updates before WebSocket connection
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      setSessionId(newSession.id);
-      setCommandHistory([]);
-      
-      // Clear terminal before connecting to new session
-      if (terminalRef.current?.clear) {
-        terminalRef.current.clear();
-      }
-      
-      setError(null);
-    } catch (err: any) {
-      console.error('Failed to create session:', err);
-      setError(err.message || 'Failed to create session');
-    } finally {
-      setLoading(false);
+  // Create new session
+  const createNewSession = useCallback((name: string, workingDir?: string) => {
+    console.log('createNewSession called with:', name, workingDir);
+    
+    // Check and set creating state using ref
+    if (isCreatingRef.current) {
+      console.log('createNewSession: Already creating, skipping');
+      return;
     }
-  }, [refreshSessions, sessionId]);
-
-  const selectSession = useCallback(async (selectedSessionId: string) => {
-    try {
-      setLoading(true);
-      
-      // First disconnect from current session if any
-      if (sessionId && wsService.isConnected()) {
-        wsService.disconnect();
-        // Add a small delay to ensure proper cleanup
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      
-      await sessionApi.attachToSession(selectedSessionId);
-      setSessionId(selectedSessionId);
-      setCommandHistory([]);
-      
-      // Clear terminal before connecting to new session
-      if (terminalRef.current?.clear) {
-        terminalRef.current.clear();
-      }
-      
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to attach to session');
-    } finally {
-      setLoading(false);
-    }
-  }, [sessionId]);
-
-  const deleteSession = useCallback(async (sessionIdToDelete: string) => {
-    try {
-      setLoading(true);
-      console.log('Deleting session:', sessionIdToDelete);
-      
-      await sessionApi.deleteSession(sessionIdToDelete);
-      console.log('Session deleted successfully');
-      
-      await refreshSessions();
-      console.log('Sessions refreshed after delete');
-      
-      // If we deleted the current session, clear it
-      if (sessionIdToDelete === sessionId) {
-        setSessionId(null);
+    
+    // Set creating flag
+    isCreatingRef.current = true;
+    updateOperationState({ creating: true });
+    
+    console.log('createNewSession: Starting async work');
+    
+    // Use an IIFE to handle the async work
+    (async () => {
+      try {
+        console.log('createNewSession: Inside async IIFE');
+        
+        // Disconnect from current session if needed
+        if (wsService.isConnected()) {
+          console.log('createNewSession: Disconnecting from current session');
+          wsService.disconnect();
+        }
+        
+        console.log('createNewSession: Calling API to create session');
+        const newSession = await sessionApi.createSession({ name, workingDir });
+        console.log('createNewSession: API returned session:', newSession);
+        
+        // Validate the response has required fields
+        if (!newSession || !newSession.id) {
+          throw new Error('Invalid session response from server');
+        }
+        
+        // Update states
+        setSessions(prev => [...prev, newSession]);
+        setCurrentSessionId(newSession.id);
         setCommandHistory([]);
+        
         if (terminalRef.current?.clear) {
           terminalRef.current.clear();
         }
+        
+        // Background refresh to sync with server
+        refreshSessions(false);
+        
+        console.log('createNewSession: Session created successfully');
+      } catch (err: any) {
+        console.error('createNewSession: Error occurred:', err);
+        setError(err.message || 'Failed to create session');
+        refreshSessions(false);
+      } finally {
+        console.log('createNewSession: Resetting creating state');
+        isCreatingRef.current = false;
+        updateOperationState({ creating: false });
+      }
+    })();
+    
+    console.log('createNewSession: Function returning, async work continues');
+  }, [refreshSessions, updateOperationState]);
+
+  // Select session
+  const selectSession = useCallback(async (sessionId: string) => {
+    // Check if already selecting this session
+    if (operationStates.selecting === sessionId) return;
+    
+    updateOperationState({ selecting: sessionId });
+    
+    try {
+      // Disconnect from current session
+      if (currentSessionId && wsService.isConnected()) {
+        wsService.disconnect();
       }
       
-      setError(null);
+      await sessionApi.attachToSession(sessionId);
+      
+      setCurrentSessionId(sessionId);
+      setCommandHistory([]);
+      
+      if (terminalRef.current?.clear) {
+        terminalRef.current.clear();
+      }
+      
     } catch (err: any) {
-      console.error('Failed to delete session:', err);
+      setError(err.message || 'Failed to attach to session');
+    } finally {
+      updateOperationState({ selecting: null });
+    }
+  }, [currentSessionId, updateOperationState]);
+
+  // Delete session
+  const deleteSession = useCallback(async (sessionId: string) => {
+    // Check if already deleting
+    if (operationStates.deleting.has(sessionId)) return;
+    
+    // Add to deleting set
+    updateOperationState({
+      deleting: new Set([...operationStates.deleting, sessionId])
+    });
+    
+    // Store original sessions for rollback
+    const originalSessions = sessions;
+    
+    // Optimistic update - remove immediately
+    setSessions(prev => prev.filter(s => s.id !== sessionId));
+    
+    // If deleting current session, clear it
+    if (sessionId === currentSessionId) {
+      wsService.disconnect();
+      setCurrentSessionId(null);
+      setCommandHistory([]);
+      if (terminalRef.current?.clear) {
+        terminalRef.current.clear();
+      }
+    }
+    
+    try {
+      await sessionApi.deleteSession(sessionId);
+      
+      // Background refresh to sync with server
+      refreshSessions(false);
+      
+    } catch (err: any) {
+      // Rollback on error
+      setSessions(originalSessions);
       setError(err.message || 'Failed to delete session');
     } finally {
-      setLoading(false);
+      // Remove from deleting set
+      updateOperationState({
+        deleting: new Set([...operationStates.deleting].filter(id => id !== sessionId))
+      });
     }
-  }, [sessionId, refreshSessions]);
+  }, [currentSessionId, sessions, refreshSessions, updateOperationState]);
 
-  const renameSession = useCallback(async (sessionIdToRename: string, newName: string) => {
+  // Rename session
+  const renameSession = useCallback(async (sessionId: string, newName: string) => {
+    // Check if already renaming
+    if (operationStates.renaming.has(sessionId)) return;
+    
+    // Add to renaming set
+    updateOperationState({
+      renaming: new Set([...operationStates.renaming, sessionId])
+    });
+    
+    // Store original name for rollback
+    const originalSessions = sessions;
+    const originalSession = sessions.find(s => s.id === sessionId);
+    
+    // Optimistic update - rename immediately
+    setSessions(prev => prev.map(s => 
+      s.id === sessionId ? { ...s, name: newName } : s
+    ));
+    
     try {
-      setLoading(true);
-      await sessionApi.renameSession(sessionIdToRename, newName);
-      await refreshSessions();
-      setError(null);
+      await sessionApi.renameSession(sessionId, newName);
+      
+      // Background refresh to sync with server
+      refreshSessions(false);
+      
     } catch (err: any) {
+      // Rollback on error
+      setSessions(originalSessions);
       setError(err.message || 'Failed to rename session');
     } finally {
-      setLoading(false);
+      // Remove from renaming set
+      updateOperationState({
+        renaming: new Set([...operationStates.renaming].filter(id => id !== sessionId))
+      });
     }
-  }, [refreshSessions]);
+  }, [sessions, refreshSessions, updateOperationState]);
 
-  // Load sessions on mount and periodically refresh
+  // Load sessions on mount
   useEffect(() => {
     if (token) {
-      console.log('Loading sessions on mount...');
       refreshSessions();
       
-      // Refresh sessions every 30 seconds to update lastActivity times
+      // Periodic refresh for activity times
       const interval = setInterval(() => {
-        refreshSessions();
+        refreshSessions(false);
       }, 30000);
       
       return () => clearInterval(interval);
     }
   }, [token, refreshSessions]);
 
-  // More frequent updates for time display only
+  // Handle WebSocket connection
   useEffect(() => {
-    // Force re-render every 10 seconds to update relative times
-    const interval = setInterval(() => {
-      setSessions(prev => [...prev]); // Force re-render without changing data
-    }, 10000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // Debug: Log current state
-  useEffect(() => {
-    console.log('TerminalPage state:', {
-      sessionId,
-      sessionsCount: sessions.length,
-      sessions: sessions.map(s => ({ id: s.id, name: s.name, status: s.status }))
-    });
-    
-    // Force cleanup any orphaned terminal elements
-    if (!sessionId) {
-      const terminalElements = document.querySelectorAll('.xterm');
-      console.log('Found terminal elements when sessionId is null:', terminalElements.length);
-      terminalElements.forEach((el, index) => {
-        console.log(`Removing orphaned terminal element ${index}`);
-        el.remove();
-      });
-    }
-  }, [sessionId, sessions]);
-
-  // Focus terminal when sessionId changes
-  useEffect(() => {
-    if (sessionId && terminalRef.current?.focus) {
-      // Add a small delay to ensure terminal is ready
-      setTimeout(() => {
-        terminalRef.current?.focus();
-      }, 100);
-    }
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!token || !sessionId) {
-      console.log('Skipping WebSocket connection: token or sessionId missing', { token: !!token, sessionId });
-      return;
-    }
-
-    console.log('Connecting to WebSocket for session:', sessionId);
+    if (!token || !currentSessionId) return;
     
     // Connect to WebSocket
-    wsService.connect(sessionId, token).then(() => {
-      console.log('WebSocket connected successfully for session:', sessionId);
-    }).catch((error) => {
+    wsService.connect(currentSessionId, token).catch((error) => {
       console.error('Failed to connect to WebSocket:', error);
-      setError('Failed to connect to session: ' + error.message);
+      setError('Failed to connect to session');
     });
-
+    
     // Set up message handlers
     const terminalDataHandler = (message: any) => {
       if (terminalRef.current?.write) {
         terminalRef.current.write(message.data);
       }
       
-      // Update session's lastActivity in local state for immediate UI update
-      if (sessionId) {
-        setSessions(prevSessions => 
-          prevSessions.map(s => 
-            s.id === sessionId 
-              ? { ...s, lastActivity: new Date().toISOString() }
-              : s
-          )
-        );
-      }
+      // Update session activity time locally
+      setSessions(prev => prev.map(s => 
+        s.id === currentSessionId 
+          ? { ...s, lastActivity: new Date().toISOString() }
+          : s
+      ));
     };
-
-    const terminalClearHandler = (message: any) => {
-      console.log('Received terminal_clear message');
+    
+    const terminalClearHandler = () => {
       if (terminalRef.current?.clear) {
         terminalRef.current.clear();
       }
     };
-
+    
     const commandHistoryHandler = (message: any) => {
       if (Array.isArray(message.data)) {
         setCommandHistory(message.data);
       } else {
-        setCommandHistory((prev) => [...prev, message.data]);
+        setCommandHistory(prev => [...prev, message.data]);
       }
     };
-
+    
     const claudeStatusHandler = (message: any) => {
       setClaudeStatus(message.data.status || 'stopped');
     };
-
-    const sessionInfoHandler = (message: any) => {
-      console.log('Session info:', message.data);
-    };
-
-    const terminalExitHandler = (message: any) => {
-      console.log('Terminal exited:', message.data);
-      // TODO: Handle terminal exit
-    };
-
+    
     wsService.onMessage('terminal_data', terminalDataHandler);
     wsService.onMessage('terminal_clear', terminalClearHandler);
     wsService.onMessage('command_history', commandHistoryHandler);
     wsService.onMessage('claude_status', claudeStatusHandler);
-    wsService.onMessage('session_info', sessionInfoHandler);
-    wsService.onMessage('terminal_exit', terminalExitHandler);
-
-    // Request initial history after connection is established
+    
+    // Request initial history
     setTimeout(() => {
       if (wsService.isConnected()) {
         wsService.requestHistory();
       }
     }, 500);
-
+    
     return () => {
-      // Clean up all handlers before disconnecting
       wsService.offMessage('terminal_data');
       wsService.offMessage('terminal_clear');
       wsService.offMessage('command_history');
       wsService.offMessage('claude_status');
-      wsService.offMessage('session_info');
-      wsService.offMessage('terminal_exit');
       wsService.disconnect();
     };
-  }, [sessionId, token]);
+  }, [currentSessionId, token]);
 
+  // Terminal handlers
   const handleTerminalData = useCallback((data: string) => {
-    try {
-      if (!wsService.isConnected()) {
-        console.warn('WebSocket not connected, cannot send input');
-        return;
-      }
-      console.log('Sending terminal input:', data);
-      wsService.sendTerminalInput(data);
-      
-      // Update session's lastActivity when user types
-      if (sessionId) {
-        setSessions(prevSessions => 
-          prevSessions.map(s => 
-            s.id === sessionId 
-              ? { ...s, lastActivity: new Date().toISOString() }
-              : s
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Failed to send terminal input:', error);
-    }
-  }, [sessionId]);
+    if (!wsService.isConnected()) return;
+    
+    wsService.sendTerminalInput(data);
+    
+    // Update session activity time locally
+    setSessions(prev => prev.map(s => 
+      s.id === currentSessionId 
+        ? { ...s, lastActivity: new Date().toISOString() }
+        : s
+    ));
+  }, [currentSessionId]);
 
   const handleTerminalResize = useCallback((cols: number, rows: number) => {
-    try {
-      wsService.sendTerminalResize(cols, rows);
-    } catch (error) {
-      console.error('Failed to send terminal resize:', error);
-    }
+    wsService.sendTerminalResize(cols, rows);
   }, []);
 
+  // Claude control handlers
   const handleStartClaude = () => {
     wsService.startClaude({
       workingDir: process.env.HOME || '/tmp',
@@ -379,16 +400,13 @@ export const TerminalPage: React.FC = () => {
     navigate('/login');
   };
 
+  // Utility functions
   const getClaudeStatusColor = () => {
     switch (claudeStatus) {
-      case 'running':
-        return 'success';
-      case 'starting':
-        return 'warning';
-      case 'error':
-        return 'error';
-      default:
-        return 'default';
+      case 'running': return 'success';
+      case 'starting': return 'warning';
+      case 'error': return 'error';
+      default: return 'default';
     }
   };
 
@@ -465,25 +483,25 @@ export const TerminalPage: React.FC = () => {
             <Button
               fullWidth
               variant="contained"
-              startIcon={<AddIcon />}
+              startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
               onClick={() => createNewSession(`Session ${sessions.length + 1}`)}
-              disabled={loading}
+              disabled={operationStates.creating}
               sx={{ mb: 1 }}
             >
-              New Session
+              {operationStates.creating ? 'Creating...' : 'New Session'}
             </Button>
             <Button
               fullWidth
               variant="outlined"
-              onClick={refreshSessions}
-              disabled={refreshing}
+              onClick={() => refreshSessions()}
+              disabled={operationStates.refreshing}
               size="small"
             >
-              Refresh
+              {operationStates.refreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
           </Box>
 
-          {(loading || refreshing) && <LinearProgress />}
+          {operationStates.refreshing && <LinearProgress />}
 
           <Box sx={{ flex: 1, overflow: 'auto' }}>
             {sessions.length === 0 ? (
@@ -498,12 +516,14 @@ export const TerminalPage: React.FC = () => {
                   <ListItem 
                     key={session.id} 
                     button
-                    selected={session.id === sessionId}
+                    selected={session.id === currentSessionId}
                     onClick={() => selectSession(session.id)}
+                    disabled={operationStates.selecting === session.id}
                     sx={{ 
                       borderRadius: 1,
                       mx: 1,
                       mb: 0.5,
+                      opacity: operationStates.selecting === session.id ? 0.6 : 1,
                       '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' },
                       '&.Mui-selected': { 
                         bgcolor: 'rgba(144, 202, 249, 0.15)',
@@ -562,9 +582,14 @@ export const TerminalPage: React.FC = () => {
                             renameSession(session.id, newName.trim());
                           }
                         }}
+                        disabled={operationStates.renaming.has(session.id)}
                         sx={{ color: 'rgba(255,255,255,0.7)' }}
                       >
-                        <EditIcon fontSize="small" />
+                        {operationStates.renaming.has(session.id) ? (
+                          <CircularProgress size={16} sx={{ color: 'rgba(255,255,255,0.7)' }} />
+                        ) : (
+                          <EditIcon fontSize="small" />
+                        )}
                       </IconButton>
                       <IconButton 
                         size="small" 
@@ -574,9 +599,14 @@ export const TerminalPage: React.FC = () => {
                             deleteSession(session.id);
                           }
                         }}
+                        disabled={operationStates.deleting.has(session.id)}
                         sx={{ color: 'rgba(255,255,255,0.7)' }}
                       >
-                        <DeleteIcon fontSize="small" />
+                        {operationStates.deleting.has(session.id) ? (
+                          <CircularProgress size={16} sx={{ color: 'rgba(255,255,255,0.7)' }} />
+                        ) : (
+                          <DeleteIcon fontSize="small" />
+                        )}
                       </IconButton>
                     </Box>
                   </ListItem>
@@ -593,19 +623,19 @@ export const TerminalPage: React.FC = () => {
           flexDirection: 'column', 
           bgcolor: '#0a0a0a', 
           position: 'relative',
-          minHeight: 0, // Important for flexbox
+          minHeight: 0,
           overflow: 'hidden'
         }}>
-          {sessionId ? (
+          {currentSessionId ? (
             <Box sx={{ 
               flex: 1, 
               overflow: 'hidden',
               p: 1,
               display: 'flex',
-              minHeight: 0, // Important for flexbox children
+              minHeight: 0,
             }}>
               <Terminal
-                key={sessionId} // Force re-mount when sessionId changes
+                key={currentSessionId}
                 ref={terminalRef}
                 onData={handleTerminalData}
                 onResize={handleTerminalResize}
@@ -619,8 +649,6 @@ export const TerminalPage: React.FC = () => {
               alignItems: 'center', 
               justifyContent: 'center',
               color: 'rgba(255,255,255,0.6)',
-              position: 'relative',
-              zIndex: 2,
             }}>
               <TerminalIcon sx={{ fontSize: 64, mb: 2, opacity: 0.5 }} />
               <Typography variant="h6" sx={{ mb: 1 }}>
@@ -631,11 +659,11 @@ export const TerminalPage: React.FC = () => {
               </Typography>
               <Button
                 variant="contained"
-                startIcon={<AddIcon />}
+                startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
                 onClick={() => createNewSession(`Session ${sessions.length + 1}`)}
-                disabled={loading}
+                disabled={operationStates.creating}
               >
-                Create New Session
+                {operationStates.creating ? 'Creating...' : 'Create New Session'}
               </Button>
             </Box>
           )}

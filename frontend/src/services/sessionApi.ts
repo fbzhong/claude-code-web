@@ -29,7 +29,16 @@ class SessionApiService {
   }
 
   private async handleResponse(response: Response): Promise<SessionResponse> {
+    console.log('🔍 handleResponse: Processing response:', {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      url: response.url,
+      headers: Object.fromEntries(response.headers.entries())
+    });
+    
     if (response.status === 401) {
+      console.error('❌ Authentication expired (401)');
       // Clear token and redirect to login
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -38,20 +47,26 @@ class SessionApiService {
     }
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('❌ HTTP error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`HTTP ${response.status}: ${response.statusText}\nResponse: ${errorText}`);
     }
 
     const text = await response.text();
-    console.log('handleResponse: Raw response text:', text);
+    console.log('📄 handleResponse: Raw response text:', text);
     
     try {
       const json = JSON.parse(text);
-      console.log('handleResponse: Parsed JSON:', json);
+      console.log('✅ handleResponse: Parsed JSON:', json);
       return json;
     } catch (e) {
-      console.error('handleResponse: Failed to parse JSON:', e);
+      console.error('❌ handleResponse: Failed to parse JSON:', e);
       console.error('handleResponse: Raw text was:', text);
-      throw new Error('Invalid JSON response from server');
+      throw new Error(`Invalid JSON response from server: ${text}`);
     }
   }
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -12,8 +12,9 @@ import {
   useMediaQuery,
   Container,
 } from '@mui/material';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore, setDebugLogger } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
+import { DebugInfo, useDebugLogger } from '../components/DebugInfo';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -44,6 +45,18 @@ export const LoginPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   
+  // Debug logger for mobile debugging
+  const debugLogger = useDebugLogger();
+  
+  // Set up debug logger for auth store
+  useEffect(() => {
+    setDebugLogger(debugLogger);
+    debugLogger.logInfo('LOGIN', 'Login page initialized', { 
+      userAgent: navigator.userAgent,
+      currentURL: window.location.href 
+    });
+  }, [debugLogger]);
+  
   // Responsive design
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -73,10 +86,15 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
+      debugLogger.logInfo('LOGIN', 'Attempting login', { username: loginForm.username });
       await login(loginForm.username, loginForm.password);
+      debugLogger.logSuccess('LOGIN', 'Login successful, navigating to home');
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed');
+      debugLogger.logError('LOGIN', 'Login failed', err);
+      // Display detailed error message
+      const errorMessage = err.message || err.response?.data?.error || 'Login failed';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -251,6 +269,13 @@ export const LoginPage: React.FC = () => {
         </TabPanel>
         </Paper>
       </Container>
+      
+      {/* Debug Info for mobile debugging */}
+      <DebugInfo 
+        logs={debugLogger.logs} 
+        onClear={debugLogger.clearLogs}
+        maxLogs={20}
+      />
     </Box>
   );
 };

@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// Debug logger for mobile debugging
+let debugLogger: any = null;
+export const setDebugLogger = (logger: any) => {
+  debugLogger = logger;
+};
+
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:12021/api';
 
 interface User {
@@ -27,7 +33,11 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       login: async (username: string, password: string) => {
+        debugLogger?.logInfo('AUTH', `Starting login for ${username}`, { apiBase: API_BASE });
+        
         try {
+          debugLogger?.logInfo('AUTH', 'Making login request', { url: `${API_BASE}/auth/login` });
+          
           const response = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: {
@@ -39,17 +49,52 @@ export const useAuthStore = create<AuthState>()(
             }),
           });
 
+          const responseInfo = {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            url: response.url,
+            headers: Object.fromEntries(response.headers.entries())
+          };
+          
+          debugLogger?.logInfo('AUTH', 'Login response received', responseInfo);
+
           if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            const errorDetails = {
+              status: response.status,
+              statusText: response.statusText,
+              body: errorText
+            };
+            debugLogger?.logError('AUTH', 'HTTP error response', errorDetails);
+            throw new Error(`HTTP ${response.status}: ${response.statusText}\nResponse: ${errorText}`);
           }
 
-          const data = await response.json();
+          const responseText = await response.text();
+          debugLogger?.logInfo('AUTH', 'Raw response received', { length: responseText.length });
+          
+          let data;
+          try {
+            data = JSON.parse(responseText);
+            debugLogger?.logSuccess('AUTH', 'Response parsed successfully', { success: data.success });
+          } catch (parseError) {
+            debugLogger?.logError('AUTH', 'Failed to parse JSON response', { 
+              error: parseError.message, 
+              responseText: responseText.substring(0, 200) 
+            });
+            throw new Error(`Invalid JSON response: ${responseText}`);
+          }
           
           if (!data.success) {
+            debugLogger?.logError('AUTH', 'Server returned error', { error: data.error });
             throw new Error(data.error || 'Login failed');
           }
 
           const { token, user } = data.data;
+          debugLogger?.logSuccess('AUTH', 'Login successful', { 
+            username: user.username, 
+            tokenLength: token?.length 
+          });
 
           // Store token in localStorage for other services
           localStorage.setItem('token', token);
@@ -60,8 +105,14 @@ export const useAuthStore = create<AuthState>()(
             token,
             isAuthenticated: true,
           });
+          
+          debugLogger?.logSuccess('AUTH', 'Auth store updated successfully');
         } catch (error) {
-          console.error('Login failed:', error);
+          debugLogger?.logError('AUTH', 'Login failed', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack?.substring(0, 500)
+          });
           throw error;
         }
       },

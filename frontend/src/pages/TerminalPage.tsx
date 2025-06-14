@@ -169,15 +169,24 @@ export const TerminalPage: React.FC = () => {
     // Check if already selecting this session
     if (operationStates.selecting === sessionId) return;
     
+    // If clicking the same session that's already active, just return
+    if (currentSessionId === sessionId && wsService.isConnected()) {
+      console.log('Already connected to session:', sessionId);
+      return;
+    }
+    
     updateOperationState({ selecting: sessionId });
     
     try {
-      // Disconnect from current session
-      if (currentSessionId && wsService.isConnected()) {
+      // Disconnect from current session if switching to a different one
+      if (wsService.isConnected() && currentSessionId !== sessionId) {
         wsService.disconnect();
       }
       
-      await sessionApi.attachToSession(sessionId);
+      // Only call attachToSession API if we're switching to a different session
+      if (currentSessionId !== sessionId) {
+        await sessionApi.attachToSession(sessionId);
+      }
       
       setCurrentSessionId(sessionId);
       
@@ -276,12 +285,19 @@ export const TerminalPage: React.FC = () => {
     if (token) {
       refreshSessions();
       
-      // Connect to session list WebSocket
-      sessionListWsService.connect(token).then(() => {
-        console.log('Connected to session list WebSocket');
-      }).catch((error) => {
-        console.error('Failed to connect to session list WebSocket:', error);
-      });
+      // Connect to session list WebSocket with retry logic
+      const connectSessionListWS = () => {
+        console.log('🔌 Attempting to connect session list WebSocket...');
+        sessionListWsService.connect(token).then(() => {
+          console.log('✅ Connected to session list WebSocket');
+        }).catch((error) => {
+          console.error('❌ Failed to connect to session list WebSocket:', error);
+          // Retry connection after delay
+          setTimeout(connectSessionListWS, 3000);
+        });
+      };
+      
+      connectSessionListWS();
       
       // Setup session list message handlers
       const handleSessionList = (message: any) => {
@@ -290,18 +306,36 @@ export const TerminalPage: React.FC = () => {
       };
       
       const handleSessionUpdated = (message: any) => {
-        console.log('Session updated:', message.data);
+        console.log('🔄 Session updated event received:', message.data);
         const { session, eventType } = message.data;
+        
+        console.log('Session data:', {
+          id: session.id,
+          name: session.name,
+          status: session.status,
+          workingDir: session.workingDir,
+          lastCommand: session.lastCommand,
+          isExecuting: session.isExecuting,
+          connectedClients: session.connectedClients
+        });
         
         setSessions(prev => {
           if (eventType === 'created') {
+            console.log('➕ Adding new session to list');
             // Check if session already exists to avoid duplicates
             const exists = prev.find(s => s.id === session.id);
             return exists ? prev : [...prev, session];
           } else {
+            console.log('🔄 Updating existing session in list');
             // Update existing session
             const updated = prev.map(s => s.id === session.id ? session : s);
-            console.log('Updated sessions:', updated.map(s => ({ id: s.id, workingDir: s.workingDir, lastCommand: s.lastCommand, isExecuting: s.isExecuting })));
+            console.log('Updated sessions list:', updated.map(s => ({ 
+              id: s.id.slice(0, 8), 
+              workingDir: s.workingDir, 
+              lastCommand: s.lastCommand, 
+              isExecuting: s.isExecuting,
+              connectedClients: s.connectedClients
+            })));
             return updated;
           }
         });
@@ -341,6 +375,8 @@ export const TerminalPage: React.FC = () => {
   useEffect(() => {
     if (!token || !currentSessionId) return;
     
+    console.log('Setting up WebSocket connection for session:', currentSessionId);
+    
     // Connect to WebSocket
     wsService.connect(currentSessionId, token).catch((error) => {
       console.error('Failed to connect to WebSocket:', error);
@@ -371,6 +407,7 @@ export const TerminalPage: React.FC = () => {
     wsService.onMessage('terminal_clear', terminalClearHandler);
     
     return () => {
+      console.log('Cleaning up WebSocket connection for session:', currentSessionId);
       wsService.offMessage('terminal_data');
       wsService.offMessage('terminal_clear');
       wsService.disconnect();
@@ -427,21 +464,42 @@ export const TerminalPage: React.FC = () => {
     const match = workingDir.match(homePattern);
     
     if (match) {
+      // Replace home directory with ~
       const relativePath = workingDir.replace(match[1], '~');
-      // If path is too long, show only last 2-3 directories
       const parts = relativePath.split('/').filter(Boolean);
-      if (parts.length > 2) { // ~ counts as one part
-        return `~/.../.${ parts.slice(-2).join('/')}`;
+      
+      if (parts.length === 1) {
+        // Just ~ (home directory)
+        return '~';
+      } else if (parts.length === 2) {
+        // ~/Documents
+        return relativePath;
+      } else {
+        // ~/Documents/Projects/MyProject -> ~/D/P/MyProject
+        const homePart = parts[0]; // ~
+        const middleParts = parts.slice(1, -1); // Documents, Projects
+        const lastPart = parts[parts.length - 1]; // MyProject
+        
+        // Abbreviate middle parts to first letter
+        const abbreviatedMiddle = middleParts.map(part => part.charAt(0).toUpperCase()).join('/');
+        
+        return `${homePart}/${abbreviatedMiddle}/${lastPart}`;
       }
-      return relativePath;
     }
     
-    // For non-home paths, show last 2-3 directories
+    // For non-home paths, abbreviate all directories except the last one
     const parts = workingDir.split('/').filter(Boolean);
-    if (parts.length > 3) {
-      return `.../${parts.slice(-2).join('/')}`;
+    if (parts.length <= 1) {
+      return workingDir;
     }
-    return workingDir;
+    
+    const middleParts = parts.slice(0, -1); // All parts except last
+    const lastPart = parts[parts.length - 1]; // Last directory
+    
+    // Abbreviate middle parts to first letter
+    const abbreviatedMiddle = middleParts.map(part => part.charAt(0).toUpperCase()).join('/');
+    
+    return `/${abbreviatedMiddle}/${lastPart}`;
   };
 
   const getStatusColor = (session: SessionInfo): 'success' | 'warning' | 'error' | 'default' => {

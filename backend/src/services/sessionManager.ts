@@ -23,6 +23,8 @@ export class SessionManager extends EventEmitter {
   private sessionSequenceNumbers = new Map<string, number>();
   private maxOutputBuffer = 10000; // Maximum lines to keep in memory
   private maxSessions = 50; // Maximum sessions per user
+  private cwdCheckTimers = new Map<string, NodeJS.Timeout>(); // Timers for CWD checking
+  private outputUpdateTimers = new Map<string, NodeJS.Timeout>(); // Timers for output update delays
 
   constructor(private fastify: any) {
     super();
@@ -67,6 +69,8 @@ export class SessionManager extends EventEmitter {
 
     const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
     const workingDir = options.workingDir || process.env.HOME || '/tmp';
+    
+    this.fastify.log.info(`Creating session with workingDir: "${workingDir}", length: ${workingDir.length}`);
     
     const ptyProcess = pty.spawn(shell, [], {
       name: 'xterm-color',
@@ -124,7 +128,9 @@ export class SessionManager extends EventEmitter {
     this.fastify.log.info(`Created new terminal session: ${sessionId} (${sessionName}) for user ${userId}`);
     
     // Emit session list update event
-    this.emit('session_created', this.sessionToInfo(session));
+    const sessionInfo = this.sessionToInfo(session);
+    this.fastify.log.info(`Emitting session_created event for session ${sessionId}:`, sessionInfo);
+    this.emit('session_created', sessionInfo);
     
     return session;
   }
@@ -153,7 +159,9 @@ export class SessionManager extends EventEmitter {
     this.fastify.log.info(`User ${userId} attached to session ${sessionId} (${session.connectedClients} clients)`);
 
     // Emit session list update event
-    this.emit('session_updated', this.sessionToInfo(session));
+    const sessionInfo = this.sessionToInfo(session);
+    this.fastify.log.info(`Emitting session_updated event for session ${sessionId}:`, sessionInfo);
+    this.emit('session_updated', sessionInfo);
 
     return session;
   }
@@ -174,7 +182,9 @@ export class SessionManager extends EventEmitter {
     this.fastify.log.info(`User ${userId} detached from session ${sessionId} (${session.connectedClients} clients remaining)`);
 
     // Emit session list update event
-    this.emit('session_updated', this.sessionToInfo(session));
+    const sessionInfo = this.sessionToInfo(session);
+    this.fastify.log.info(`Emitting session_updated event for session ${sessionId}:`, sessionInfo);
+    this.emit('session_updated', sessionInfo);
 
     return true;
   }
@@ -196,6 +206,19 @@ export class SessionManager extends EventEmitter {
     this.sessions.delete(sessionId);
     this.commandBuffer.delete(sessionId);
     this.sessionSequenceNumbers.delete(sessionId);
+    
+    // Clear any pending CWD check timers
+    const cwdTimer = this.cwdCheckTimers.get(sessionId);
+    if (cwdTimer) {
+      clearTimeout(cwdTimer);
+      this.cwdCheckTimers.delete(sessionId);
+    }
+    
+    const outputTimer = this.outputUpdateTimers.get(sessionId);
+    if (outputTimer) {
+      clearTimeout(outputTimer);
+      this.outputUpdateTimers.delete(sessionId);
+    }
 
     // Update database
     await this.updateSessionInDb(session);
@@ -215,12 +238,21 @@ export class SessionManager extends EventEmitter {
     }
 
     // Buffer commands for history tracking
-    if (data === '\r') {
+    if (data === '\r' || data === '\n') {
       const command = this.commandBuffer.get(sessionId) || '';
+      this.fastify.log.info(`Enter pressed (${data === '\r' ? 'CR' : 'LF'}), command buffer: "${command}", length: ${command.length}`);
       if (command.trim()) {
-        this.recordCommand(sessionId, command.trim());
+        // Only record the command to history, don't predict CWD changes
+        // Real CWD will be detected from shell output
+        this.recordCommandOnly(sessionId, command.trim());
       }
       this.commandBuffer.delete(sessionId);
+      
+      // Schedule CWD check 1 second after Enter is pressed
+      this.scheduleCWDCheck(sessionId, 1000);
+    } else if (data === '\t') {
+      // Tab completion - don't process yet, wait for Enter
+      this.fastify.log.debug(`Tab completion in session ${sessionId}`);
     } else if (data === '\u007f' || data === '\b') {
       // Backspace
       const current = this.commandBuffer.get(sessionId) || '';
@@ -228,7 +260,8 @@ export class SessionManager extends EventEmitter {
     } else if (data.charCodeAt(0) >= 32) {
       // Printable characters
       const current = this.commandBuffer.get(sessionId) || '';
-      this.commandBuffer.set(sessionId, current + data);
+      const newBuffer = current + data;
+      this.commandBuffer.set(sessionId, newBuffer);
     }
 
     session.pty.write(data);
@@ -289,7 +322,7 @@ export class SessionManager extends EventEmitter {
     // Check if there's a process running (simplified check)
     const isExecuting = this.isSessionExecuting(session);
     
-    return {
+    const sessionInfo = {
       id: session.id,
       name: session.name || 'Unnamed Session',
       status: session.status,
@@ -301,6 +334,18 @@ export class SessionManager extends EventEmitter {
       lastCommand: lastCommand,
       isExecuting: isExecuting
     };
+    
+    this.fastify.log.info(`SessionToInfo debug:`, {
+      sessionId: session.id.slice(0, 8),
+      originalWorkingDir: session.workingDir,
+      workingDirLength: session.workingDir.length,
+      resultWorkingDir: sessionInfo.workingDir,
+      resultWorkingDirLength: sessionInfo.workingDir.length,
+      lastCommand: lastCommand,
+      historyLength: session.history.length
+    });
+    
+    return sessionInfo;
   }
   
   private isSessionExecuting(session: TerminalSession): boolean {
@@ -338,79 +383,107 @@ export class SessionManager extends EventEmitter {
   }
   
   private analyzeTerminalOutput(sessionId: string, data: string): void {
+    // Only check for execution status changes
+    // CWD detection is now handled by getRealWorkingDirectory()
+  }
+
+  private async getRealWorkingDirectory(sessionId: string): Promise<string | null> {
     const session = this.sessions.get(sessionId);
-    if (!session) return;
-    
-    // Look for working directory changes (cd commands and pwd output)
-    const cdPattern = /(?:^|\n).*?[\$%>#]\s*cd\s+([^\s\n]+)/;
-    const pwdPattern = /(?:^|\n)([^\/\n]*\/[^\n]+)(?=\s*[\$%>#]|\n|$)/;
-    
-    let shouldUpdate = false;
-    
-    // Check for cd command
-    const cdMatch = data.match(cdPattern);
-    if (cdMatch && cdMatch[1]) {
-      let newDir = cdMatch[1];
-      // Handle relative paths
-      if (newDir === '..') {
-        const parts = session.workingDir.split('/');
-        newDir = parts.slice(0, -1).join('/') || '/';
-      } else if (newDir.startsWith('./')) {
-        newDir = session.workingDir + '/' + newDir.substring(2);
-      } else if (!newDir.startsWith('/')) {
-        newDir = session.workingDir + '/' + newDir;
-      }
+    if (!session || !session.pty) return null;
+
+    try {
+      const pid = session.pty.pid;
       
-      if (newDir !== session.workingDir) {
-        this.fastify.log.info(`Session ${sessionId} working directory changed: ${session.workingDir} -> ${newDir}`);
-        session.workingDir = newDir;
-        shouldUpdate = true;
-      }
-    }
-    
-    // Check for pwd output or prompt with path
-    const pwdMatch = data.match(pwdPattern);
-    if (pwdMatch && pwdMatch[1] && pwdMatch[1].startsWith('/')) {
-      const newDir = pwdMatch[1];
-      if (newDir !== session.workingDir) {
-        this.fastify.log.info(`Session ${sessionId} working directory detected: ${session.workingDir} -> ${newDir}`);
-        session.workingDir = newDir;
-        shouldUpdate = true;
-      }
-    }
-    
-    // Check for command execution patterns
-    const commandPattern = /(?:^|\n).*?[\$%>#]\s*([^\n]+?)\s*(?:\n|$)/;
-    const commandMatch = data.match(commandPattern);
-    if (commandMatch && commandMatch[1] && commandMatch[1].trim() && !commandMatch[1].includes('$')) {
-      const command = commandMatch[1].trim();
-      // Don't record really short commands or prompts
-      if (command.length > 2 && !command.match(/^[\$%>#]+$/)) {
-        this.fastify.log.info(`Session ${sessionId} detected command: ${command}`);
-        // Update last command immediately
-        const commandRecord = {
-          id: crypto.randomUUID(),
-          sessionId,
-          command,
-          output: '',
-          exitCode: null,
-          timestamp: new Date(),
-          duration: 0
-        };
-        session.history.push(commandRecord);
-        shouldUpdate = true;
-      }
-    }
-    
-    if (shouldUpdate) {
-      // Emit update with delay to batch multiple changes
-      setTimeout(() => {
-        const session = this.sessions.get(sessionId);
-        if (session) {
-          this.emit('session_updated', this.sessionToInfo(session));
+      if (process.platform === 'darwin') {
+        // macOS: use lsof to get the current working directory
+        const { exec } = require('child_process');
+        return new Promise((resolve) => {
+          // Use a more specific lsof command to get just the working directory
+          exec(`lsof -p ${pid} -a -d cwd | tail -n +2 | awk '{print $NF}'`, (error, stdout) => {
+            if (error) {
+              this.fastify.log.debug(`Failed to get CWD via lsof for PID ${pid}:`, error.message);
+              resolve(null);
+              return;
+            }
+            const lines = stdout.trim().split('\n').filter(Boolean);
+            if (lines.length > 0) {
+              // Use the first (and usually only) CWD entry
+              const cwd = lines[0];
+              this.fastify.log.debug(`Detected CWD for session ${sessionId} (PID ${pid}): ${cwd}`);
+              resolve(cwd || null);
+            } else {
+              this.fastify.log.debug(`No CWD found for PID ${pid}`);
+              resolve(null);
+            }
+          });
+        });
+      } else {
+        // Linux: read from /proc/PID/cwd
+        const fs = require('fs').promises;
+        try {
+          const cwd = await fs.readlink(`/proc/${pid}/cwd`);
+          this.fastify.log.debug(`Detected CWD for session ${sessionId} (PID ${pid}): ${cwd}`);
+          return cwd;
+        } catch (error) {
+          this.fastify.log.debug(`Failed to read /proc/${pid}/cwd:`, error.message);
+          return null;
         }
-      }, 200);
+      }
+    } catch (error) {
+      this.fastify.log.error(`Error getting real working directory for session ${sessionId}:`, error);
+      return null;
     }
+  }
+
+  private async updateWorkingDirectoryFromProcess(sessionId: string): Promise<boolean> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return false;
+
+    const realCwd = await this.getRealWorkingDirectory(sessionId);
+    if (realCwd && realCwd !== session.workingDir) {
+      this.fastify.log.info(`Real CWD detected: ${session.workingDir} -> ${realCwd}`);
+      session.workingDir = realCwd;
+      
+      // Emit session update
+      const sessionInfo = this.sessionToInfo(session);
+      this.emit('session_updated', sessionInfo);
+      return true;
+    }
+    return false;
+  }
+
+  private scheduleCWDCheck(sessionId: string, delay: number = 1000): void {
+    // Clear existing timer if any
+    const existingTimer = this.cwdCheckTimers.get(sessionId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+    
+    // Schedule new check
+    const timer = setTimeout(async () => {
+      await this.updateWorkingDirectoryFromProcess(sessionId);
+      this.cwdCheckTimers.delete(sessionId);
+    }, delay);
+    
+    this.cwdCheckTimers.set(sessionId, timer);
+    this.fastify.log.debug(`Scheduled CWD check for session ${sessionId} in ${delay}ms`);
+  }
+
+  private scheduleOutputBasedCWDCheck(sessionId: string): void {
+    // Clear existing output timer if any
+    const existingTimer = this.outputUpdateTimers.get(sessionId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+    
+    // Schedule check after 1 second of no output activity
+    const timer = setTimeout(async () => {
+      await this.updateWorkingDirectoryFromProcess(sessionId);
+      this.outputUpdateTimers.delete(sessionId);
+      this.fastify.log.debug(`Output-based CWD check completed for session ${sessionId}`);
+    }, 1000);
+    
+    this.outputUpdateTimers.set(sessionId, timer);
   }
 
   private async addToOutputBuffer(sessionId: string, data: string): Promise<void> {
@@ -427,6 +500,9 @@ export class SessionManager extends EventEmitter {
 
     // Check for working directory changes and execution status
     this.analyzeTerminalOutput(sessionId, data);
+    
+    // Schedule output-based CWD check (resets timer each time there's new output)
+    this.scheduleOutputBasedCWDCheck(sessionId);
     
     // Check if execution status changed and emit update
     const wasExecuting = this.isSessionExecuting(session);
@@ -504,6 +580,128 @@ export class SessionManager extends EventEmitter {
     }
   }
 
+  private normalizePath(path: string): string {
+    this.fastify.log.info(`NormalizePath input: "${path}", length: ${path.length}`);
+    
+    // Remove multiple consecutive slashes
+    path = path.replace(/\/+/g, '/');
+    this.fastify.log.info(`After slash normalization: "${path}", length: ${path.length}`);
+    
+    // Split into parts and resolve . and ..
+    const parts = path.split('/').filter(p => p.length > 0);
+    this.fastify.log.info(`Path parts:`, parts);
+    
+    const resolved = [];
+    
+    for (const part of parts) {
+      if (part === '.') {
+        // Current directory, skip
+        continue;
+      } else if (part === '..') {
+        // Parent directory
+        if (resolved.length > 0) {
+          resolved.pop();
+        }
+      } else {
+        resolved.push(part);
+      }
+    }
+    
+    this.fastify.log.info(`Resolved parts:`, resolved);
+    
+    // Rebuild path
+    const result = '/' + resolved.join('/');
+    this.fastify.log.info(`NormalizePath result: "${result}", length: ${result.length}`);
+    return result === '/' ? '/' : result;
+  }
+
+  private async recordCommandOnly(sessionId: string, command: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    this.fastify.log.info(`Recording command for session ${sessionId}: ${command}`);
+
+    const commandRecord: CommandHistory = {
+      id: crypto.randomUUID(),
+      sessionId,
+      command,
+      output: '',
+      exitCode: null,
+      timestamp: new Date(),
+      duration: 0
+    };
+
+    session.history.push(commandRecord);
+
+    // Save to database
+    try {
+      const client = await this.fastify.pg.connect();
+      await client.query(
+        'INSERT INTO command_history (session_id, command, timestamp) VALUES ($1, $2, $3)',
+        [sessionId, command, commandRecord.timestamp]
+      );
+      client.release();
+    } catch (err) {
+      this.fastify.log.error('Failed to save command history:', err);
+    }
+
+    this.emit('command', sessionId, commandRecord);
+    
+    // Emit session update for command change
+    const sessionInfo = this.sessionToInfo(session);
+    this.emit('session_updated', sessionInfo);
+  }
+
+  private async processCommand(sessionId: string, command: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+
+    this.fastify.log.info(`Processing command for session ${sessionId}: ${command}`);
+
+    // Predict working directory changes for cd commands
+    if (command.startsWith('cd ')) {
+      const targetDir = command.substring(3).trim();
+      this.fastify.log.info(`CD command detected: "${command}", target: "${targetDir}"`);
+      
+      if (targetDir) {
+        let newWorkingDir = session.workingDir;
+        
+        if (targetDir === '..') {
+          const parts = session.workingDir.split('/').filter(p => p.length > 0);
+          newWorkingDir = '/' + parts.slice(0, -1).join('/');
+          if (newWorkingDir === '/') newWorkingDir = '/';
+        } else if (targetDir.startsWith('./')) {
+          newWorkingDir = session.workingDir.endsWith('/') 
+            ? session.workingDir + targetDir.substring(2)
+            : session.workingDir + '/' + targetDir.substring(2);
+        } else if (targetDir.startsWith('/')) {
+          newWorkingDir = targetDir;
+        } else if (targetDir === '~') {
+          newWorkingDir = process.env.HOME || '/home/' + (process.env.USER || 'user');
+        } else if (targetDir.startsWith('~/')) {
+          const homeDir = process.env.HOME || '/home/' + (process.env.USER || 'user');
+          newWorkingDir = homeDir + '/' + targetDir.substring(2);
+        } else {
+          // Relative path
+          newWorkingDir = session.workingDir.endsWith('/') 
+            ? session.workingDir + targetDir
+            : session.workingDir + '/' + targetDir;
+        }
+        
+        // Normalize path (remove double slashes, resolve . and ..)
+        newWorkingDir = this.normalizePath(newWorkingDir);
+        
+        this.fastify.log.info(`Working directory change: ${session.workingDir} -> ${newWorkingDir}`);
+        this.fastify.log.info(`New working dir length: ${newWorkingDir.length}, content: "${newWorkingDir}"`);
+        session.workingDir = newWorkingDir;
+        this.fastify.log.info(`Session workingDir after assignment: "${session.workingDir}", length: ${session.workingDir.length}`);
+      }
+    }
+
+    // Record the command
+    await this.recordCommand(sessionId, command);
+  }
+
   private async recordCommand(sessionId: string, command: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) return;
@@ -534,8 +732,10 @@ export class SessionManager extends EventEmitter {
 
     this.emit('command', sessionId, commandRecord);
     
-    // Emit session update for last command change
-    this.emit('session_updated', this.sessionToInfo(session));
+    // Emit session update for last command change (and potential CWD change)
+    const sessionInfo = this.sessionToInfo(session);
+    this.fastify.log.info(`Emitting session_updated event for command processing:`, sessionInfo);
+    this.emit('session_updated', sessionInfo);
   }
 
   private async saveSessionToDb(session: TerminalSession): Promise<void> {
@@ -733,6 +933,19 @@ export class SessionManager extends EventEmitter {
         this.sessions.delete(sessionId);
         this.commandBuffer.delete(sessionId);
         this.sessionSequenceNumbers.delete(sessionId);
+        
+        // Clear any pending CWD check timers
+        const cwdTimer = this.cwdCheckTimers.get(sessionId);
+        if (cwdTimer) {
+          clearTimeout(cwdTimer);
+          this.cwdCheckTimers.delete(sessionId);
+        }
+        
+        const outputTimer = this.outputUpdateTimers.get(sessionId);
+        if (outputTimer) {
+          clearTimeout(outputTimer);
+          this.outputUpdateTimers.delete(sessionId);
+        }
         
         this.fastify.log.info(`Cleaned up dead session: ${sessionId}`);
       }

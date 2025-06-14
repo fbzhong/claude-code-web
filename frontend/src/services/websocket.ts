@@ -14,16 +14,16 @@ export class WebSocketService {
 
   connect(sessionId: string, token: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      // If already connected to the same session, don't create a new connection
+      // If already connected to the same session with a healthy connection, reuse it
       if (this.ws && this.ws.readyState === WebSocket.OPEN && this.sessionId === sessionId) {
-        console.log('Already connected to session:', sessionId);
+        console.log('Already connected to session:', sessionId, 'reusing connection');
         resolve();
         return;
       }
 
-      // Disconnect any existing connection
+      // Disconnect any existing connection if switching sessions or connection is unhealthy
       if (this.ws) {
-        console.log('Disconnecting existing WebSocket connection');
+        console.log('Disconnecting existing WebSocket connection for session switch or reconnection');
         this.disconnect();
       }
 
@@ -265,6 +265,7 @@ export class SessionListWebSocketService {
         this.ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
+            console.log('SessionListWebSocket received message:', message.type, message.data);
             this.handleMessage(message);
           } catch (e) {
             console.error('Failed to parse session list WebSocket message:', e);

@@ -338,12 +338,35 @@ export default async function (fastify: FastifyInstance) {
       timestamp: new Date()
     });
     
+    fastify.log.info(`Broadcasting session update to ${sessionListConnections.size} connections:`, { 
+      sessionId: sessionInfo.id, 
+      eventType, 
+      connectionCount: sessionListConnections.size 
+    });
+    
     // Broadcast to all session list connections
+    const deadConnections = new Set();
     sessionListConnections.forEach(socket => {
       if (socket.readyState === 1) { // WebSocket.OPEN
-        socket.send(message);
+        try {
+          socket.send(message);
+          fastify.log.info(`Sent session update to WebSocket connection`);
+        } catch (error) {
+          fastify.log.error('Failed to send message to WebSocket:', error);
+          deadConnections.add(socket);
+        }
+      } else {
+        fastify.log.warn(`Removing dead WebSocket connection (state: ${socket.readyState})`);
+        deadConnections.add(socket);
       }
     });
+    
+    // Remove dead connections
+    deadConnections.forEach(socket => {
+      sessionListConnections.delete(socket);
+    });
+    
+    fastify.log.info(`Active session list connections after cleanup: ${sessionListConnections.size}`);
   };
   
   const broadcastSessionDeleted = (sessionId: string) => {

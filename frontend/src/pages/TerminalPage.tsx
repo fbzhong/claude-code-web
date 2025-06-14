@@ -611,17 +611,19 @@ export const TerminalPage: React.FC = () => {
                           )}
                         </Box>
                       }
-                      secondary={
-                        <Box>
-                          <Typography variant="caption" color="text.secondary" noWrap>
-                            {session.workingDir}
-                          </Typography>
-                          <br />
-                          <Typography variant="caption" color="text.secondary">
-                            {formatTime(session.lastActivity)}
-                          </Typography>
-                        </Box>
-                      }
+                      secondary={`${session.workingDir}\n${formatTime(session.lastActivity)}`}
+                      secondaryTypographyProps={{
+                        component: 'div',
+                        sx: {
+                          whiteSpace: 'pre-line',
+                          '& > *:first-of-type': {
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            display: 'block'
+                          }
+                        }
+                      }}
                     />
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                       <IconButton 

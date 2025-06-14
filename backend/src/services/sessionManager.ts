@@ -304,21 +304,37 @@ export class SessionManager extends EventEmitter {
   }
   
   private isSessionExecuting(session: TerminalSession): boolean {
-    // Simple heuristic: if there's been recent output activity (within last 5 seconds)
-    // and the last output doesn't look like a prompt, consider it executing
+    // Check if there's been recent output activity
     if (!session.outputBuffer.length) return false;
     
-    const lastOutput = session.outputBuffer.slice(-1)[0] || '';
     const timeSinceActivity = Date.now() - session.lastActivity.getTime();
     
-    // If very recent activity (within 5 seconds) and doesn't end with typical prompt patterns
-    if (timeSinceActivity < 5000) {
-      // Common prompt patterns: $, %, >, #, followed by space or end of line
-      const promptPattern = /[\$%>#]\s*$/;
-      return !promptPattern.test(lastOutput.trim());
+    // If very recent activity (within 3 seconds), likely executing
+    if (timeSinceActivity < 3000) {
+      return true;
     }
     
-    return false;
+    // Check last few outputs for prompt patterns
+    const recentOutput = session.outputBuffer.slice(-3).join('').trim();
+    if (!recentOutput) return false;
+    
+    // Common prompt patterns that indicate shell is waiting for input
+    const promptPatterns = [
+      /[\$%>#]\s*$/,           // Basic shell prompts
+      /^[^\n]*[\$%>#]\s*$/m,   // Prompt at end of line
+      /\[.*\]\s*[\$%>#]\s*$/,  // Prompt with brackets
+      />\s*$/,                // Simple > prompt
+    ];
+    
+    // If ends with a prompt pattern, not executing
+    for (const pattern of promptPatterns) {
+      if (pattern.test(recentOutput)) {
+        return false;
+      }
+    }
+    
+    // If recent activity but no prompt, probably executing
+    return timeSinceActivity < 10000; // 10 seconds threshold
   }
 
   private async addToOutputBuffer(sessionId: string, data: string): Promise<void> {
@@ -332,6 +348,20 @@ export class SessionManager extends EventEmitter {
     if (session.outputBuffer.length > this.maxOutputBuffer) {
       session.outputBuffer = session.outputBuffer.slice(-this.maxOutputBuffer);
     }
+
+    // Check if execution status changed and emit update
+    const wasExecuting = this.isSessionExecuting(session);
+    // After adding new data, check execution status again
+    setTimeout(() => {
+      const session = this.sessions.get(sessionId);
+      if (session) {
+        const nowExecuting = this.isSessionExecuting(session);
+        if (wasExecuting !== nowExecuting) {
+          // Execution status changed, emit update
+          this.emit('session_updated', this.sessionToInfo(session));
+        }
+      }
+    }, 100); // Small delay to let the output settle
 
     // Log buffer size periodically for debugging
     if (session.outputBuffer.length % 20 === 0) {

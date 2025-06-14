@@ -28,6 +28,7 @@ import {
   Edit as EditIcon,
   Circle as CircleIcon,
   Close as CloseIcon,
+  PlayArrow as PlayArrowIcon,
 } from '@mui/icons-material';
 import { SessionInfo } from '../components/SessionList';
 import { sessionApi } from '../services/sessionApi';
@@ -663,17 +664,27 @@ export const TerminalPage: React.FC = () => {
                     }}
                   >
                     <ListItemIcon sx={{ minWidth: 40 }}>
-                      <CircleIcon 
-                        sx={{ 
-                          fontSize: 12, 
-                          color: theme => {
-                            const statusColor = getStatusColor(session);
-                            return statusColor === 'default' 
-                              ? theme.palette.grey[500] 
-                              : theme.palette[statusColor].main;
-                          }
-                        }} 
-                      />
+                      {session.isExecuting ? (
+                        <PlayArrowIcon 
+                          sx={{ 
+                            fontSize: 16, 
+                            color: theme => theme.palette.warning.main,
+                            animation: 'pulse 1.5s ease-in-out infinite'
+                          }} 
+                        />
+                      ) : (
+                        <CircleIcon 
+                          sx={{ 
+                            fontSize: 12, 
+                            color: theme => {
+                              const statusColor = getStatusColor(session);
+                              return statusColor === 'default' 
+                                ? theme.palette.grey[500] 
+                                : theme.palette[statusColor].main;
+                            }
+                          }} 
+                        />
+                      )}
                     </ListItemIcon>
                     <ListItemText
                       primary={
@@ -694,8 +705,7 @@ export const TerminalPage: React.FC = () => {
                       secondary={
                         `${formatWorkingDir(session.workingDir)}\n` +
                         (session.lastCommand ? `$ ${session.lastCommand.slice(0, 30)}${session.lastCommand.length > 30 ? '...' : ''}\n` : '') +
-                        `${formatTime(session.lastActivity)}` +
-                        (session.isExecuting ? ' • Running' : '')
+                        `${formatTime(session.lastActivity)}`
                       }
                       secondaryTypographyProps={{
                         component: 'div',

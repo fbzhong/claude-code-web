@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import { GlobalStyles } from '@mui/material';
 import { TerminalPage } from './pages/TerminalPage';
 import { LoginPage } from './pages/LoginPage';
 import { useAuthStore } from './stores/authStore';
@@ -46,6 +47,24 @@ function App() {
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
+      <GlobalStyles
+        styles={{
+          '@keyframes pulse': {
+            '0%': {
+              opacity: 1,
+              transform: 'scale(1)',
+            },
+            '50%': {
+              opacity: 0.7,
+              transform: 'scale(1.1)',
+            },
+            '100%': {
+              opacity: 1,
+              transform: 'scale(1)',
+            },
+          },
+        }}
+      />
       <Router>
         <Routes>
           <Route 

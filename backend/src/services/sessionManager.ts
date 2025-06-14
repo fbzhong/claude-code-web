@@ -34,6 +34,11 @@ export class SessionManager extends EventEmitter {
       this.cleanupDeadSessions();
     }, 60000); // Every minute
     
+    // Audit connection counts periodically
+    setInterval(() => {
+      this.auditConnectionCounts();
+    }, 30000); // Every 30 seconds
+    
     // Load active sessions from database on startup
     setTimeout(() => {
       this.loadActiveSessionsFromDatabase().catch(err => {
@@ -399,7 +404,7 @@ export class SessionManager extends EventEmitter {
         const { exec } = require('child_process');
         return new Promise((resolve) => {
           // Use a more specific lsof command to get just the working directory
-          exec(`lsof -p ${pid} -a -d cwd | tail -n +2 | awk '{print $NF}'`, (error, stdout) => {
+          exec(`lsof -p ${pid} -a -d cwd | tail -n +2 | awk '{print $NF}'`, (error: any, stdout: string) => {
             if (error) {
               this.fastify.log.debug(`Failed to get CWD via lsof for PID ${pid}:`, error.message);
               resolve(null);
@@ -424,7 +429,7 @@ export class SessionManager extends EventEmitter {
           const cwd = await fs.readlink(`/proc/${pid}/cwd`);
           this.fastify.log.debug(`Detected CWD for session ${sessionId} (PID ${pid}): ${cwd}`);
           return cwd;
-        } catch (error) {
+        } catch (error: any) {
           this.fastify.log.debug(`Failed to read /proc/${pid}/cwd:`, error.message);
           return null;
         }
@@ -922,6 +927,31 @@ export class SessionManager extends EventEmitter {
     }
   }
 
+  private auditConnectionCounts(): void {
+    let hasChanges = false;
+    
+    this.sessions.forEach((session, sessionId) => {
+      // If a session has been detached for more than 5 minutes but still shows connected clients,
+      // it's likely a stale count - reset it
+      if (session.status === 'detached' && session.connectedClients > 0) {
+        const timeSinceActivity = Date.now() - session.lastActivity.getTime();
+        if (timeSinceActivity > 5 * 60 * 1000) { // 5 minutes
+          this.fastify.log.warn(`Resetting stale connection count for session ${sessionId}: was ${session.connectedClients}, now 0`);
+          session.connectedClients = 0;
+          hasChanges = true;
+          
+          // Emit update event
+          const sessionInfo = this.sessionToInfo(session);
+          this.emit('session_updated', sessionInfo);
+        }
+      }
+    });
+    
+    if (hasChanges) {
+      this.fastify.log.info('Connection count audit completed with changes');
+    }
+  }
+  
   private async cleanupDeadSessions(): Promise<void> {
     const now = new Date();
     const deadSessionThreshold = 24 * 60 * 60 * 1000; // 24 hours

@@ -15,6 +15,7 @@ import {
 import { useAuthStore, setDebugLogger } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { DebugInfo, useDebugLogger } from '../components/DebugInfo';
+import { useKeyboardAware } from '../hooks/useKeyboardAware';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -48,18 +49,48 @@ export const LoginPage: React.FC = () => {
   // Debug logger for mobile debugging
   const debugLogger = useDebugLogger();
   
+  // Keyboard awareness for mobile
+  const keyboardState = useKeyboardAware();
+  
+  // Responsive design
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   // Set up debug logger for auth store
   useEffect(() => {
     setDebugLogger(debugLogger);
     debugLogger.logInfo('LOGIN', 'Login page initialized', { 
       userAgent: navigator.userAgent,
-      currentURL: window.location.href 
+      currentURL: window.location.href,
+      viewportHeight: window.innerHeight,
+      isKeyboardOpen: keyboardState.isKeyboardOpen
     });
-  }, [debugLogger]);
-  
-  // Responsive design
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  }, [debugLogger, keyboardState.isKeyboardOpen]);
+
+  // Log keyboard state changes
+  useEffect(() => {
+    debugLogger.logInfo('KEYBOARD', 'Keyboard state changed', {
+      isKeyboardOpen: keyboardState.isKeyboardOpen,
+      keyboardHeight: keyboardState.keyboardHeight,
+      viewportHeight: keyboardState.viewportHeight,
+      originalHeight: window.innerHeight
+    });
+  }, [keyboardState, debugLogger]);
+
+  // Auto-scroll focused input into view when keyboard opens
+  useEffect(() => {
+    if (isMobile && keyboardState.isKeyboardOpen) {
+      const activeElement = document.activeElement;
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        setTimeout(() => {
+          activeElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        }, 300); // Wait for keyboard animation
+      }
+    }
+  }, [keyboardState.isKeyboardOpen, isMobile]);
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
@@ -128,12 +159,25 @@ export const LoginPage: React.FC = () => {
   return (
     <Box
       sx={{
-        height: '100vh',
+        // Use dynamic viewport height for mobile browsers
+        minHeight: ['100vh', '100dvh'],
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         bgcolor: 'background.default',
         p: { xs: 2, sm: 3 },
+        // Adjust layout when keyboard is open on mobile
+        ...(isMobile && keyboardState.isKeyboardOpen && {
+          alignItems: 'flex-start',
+          paddingTop: { xs: 4, sm: 6 },
+          minHeight: keyboardState.viewportHeight,
+        }),
+        // Prevent zooming on iOS when focusing inputs
+        '@media (max-width: 768px)': {
+          '@supports (height: 100dvh)': {
+            minHeight: '100dvh',
+          },
+        },
       }}
     >
       <Container maxWidth="sm">
@@ -142,6 +186,12 @@ export const LoginPage: React.FC = () => {
           sx={{
             width: '100%',
             p: { xs: 2, sm: 3, md: 4 },
+            // Adjust position when keyboard is open on mobile
+            ...(isMobile && keyboardState.isKeyboardOpen && {
+              position: 'relative',
+              transform: `translateY(-${keyboardState.keyboardHeight * 0.3}px)`,
+              transition: 'transform 0.3s ease-in-out',
+            }),
           }}
         >
           <Typography 
@@ -178,7 +228,12 @@ export const LoginPage: React.FC = () => {
                 setLoginForm({ ...loginForm, username: e.target.value })
               }
               required
-              autoFocus
+              autoFocus={!isMobile} // Disable autofocus on mobile to prevent immediate keyboard
+              inputProps={{
+                style: {
+                  fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
+                },
+              }}
             />
             <TextField
               fullWidth
@@ -191,6 +246,11 @@ export const LoginPage: React.FC = () => {
                 setLoginForm({ ...loginForm, password: e.target.value })
               }
               required
+              inputProps={{
+                style: {
+                  fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
+                },
+              }}
             />
             <Button
               type="submit"
@@ -216,6 +276,11 @@ export const LoginPage: React.FC = () => {
                 setRegisterForm({ ...registerForm, username: e.target.value })
               }
               required
+              inputProps={{
+                style: {
+                  fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
+                },
+              }}
             />
             <TextField
               fullWidth
@@ -228,6 +293,11 @@ export const LoginPage: React.FC = () => {
                 setRegisterForm({ ...registerForm, email: e.target.value })
               }
               required
+              inputProps={{
+                style: {
+                  fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
+                },
+              }}
             />
             <TextField
               fullWidth
@@ -240,6 +310,11 @@ export const LoginPage: React.FC = () => {
                 setRegisterForm({ ...registerForm, password: e.target.value })
               }
               required
+              inputProps={{
+                style: {
+                  fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
+                },
+              }}
             />
             <TextField
               fullWidth
@@ -255,6 +330,11 @@ export const LoginPage: React.FC = () => {
                 })
               }
               required
+              inputProps={{
+                style: {
+                  fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
+                },
+              }}
             />
             <Button
               type="submit"

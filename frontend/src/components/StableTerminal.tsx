@@ -20,15 +20,20 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRef = useRef<Terminal | null>(null);
     const fitAddonRef = useRef<FitAddon | null>(null);
+    const writeBufferRef = useRef<string[]>([]);
+    const writeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
       if (!containerRef.current) return;
 
+      // Detect if mobile device
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      
       // Create terminal instance with stable version
       const term = new Terminal({
         cols: 80,
         rows: 24,
-        fontSize: 14,
+        fontSize: isMobile ? 12 : 14,
         fontFamily: 'Menlo, Monaco, "Courier New", monospace',
         theme: {
           background: '#1e1e1e',
@@ -51,15 +56,19 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
           brightCyan: '#29b8db',
           brightWhite: '#e5e5e5'
         },
-        cursorBlink: true,
-        scrollback: 1000,
+        cursorBlink: !isMobile, // Disable cursor blink on mobile to reduce redraws
+        scrollback: isMobile ? 500 : 1000, // Reduce scrollback on mobile
         convertEol: true,
         // 改善CJK输入法支持
         allowTransparency: false,
         macOptionIsMeta: false,
         rightClickSelectsWord: false,
         // 处理输入法相关设置
-        windowsMode: false
+        windowsMode: false,
+        // Mobile optimizations
+        fastScrollModifier: 'shift',
+        fastScrollSensitivity: 5,
+        rendererType: isMobile ? 'dom' : 'canvas', // Use DOM renderer on mobile for better stability
       });
 
       terminalRef.current = term;
@@ -133,18 +142,44 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
 
       // Set up resize observer with debouncing
       let resizeTimeout: NodeJS.Timeout;
-      const resizeObserver = new ResizeObserver(() => {
+      let lastWidth = 0;
+      let lastHeight = 0;
+      
+      const resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+        
+        const { width, height } = entry.contentRect;
+        
+        // Skip resize if dimensions haven't changed significantly (avoid micro-resizes on mobile)
+        if (Math.abs(width - lastWidth) < 5 && Math.abs(height - lastHeight) < 5) {
+          return;
+        }
+        
+        lastWidth = width;
+        lastHeight = height;
+        
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(() => {
           if (fitAddonRef.current && terminalRef.current) {
             try {
-              fitAddonRef.current.fit();
-              console.log('Terminal resized to:', terminalRef.current.cols, 'x', terminalRef.current.rows);
+              // On mobile, be more conservative with fitting
+              if (isMobile) {
+                // Check if terminal is visible before fitting
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (rect && rect.width > 0 && rect.height > 0) {
+                  fitAddonRef.current.fit();
+                  console.log('Terminal resized to:', terminalRef.current.cols, 'x', terminalRef.current.rows);
+                }
+              } else {
+                fitAddonRef.current.fit();
+                console.log('Terminal resized to:', terminalRef.current.cols, 'x', terminalRef.current.rows);
+              }
             } catch (e) {
               console.error('Error fitting terminal on resize:', e);
             }
           }
-        }, 100);
+        }, isMobile ? 300 : 100); // Longer debounce on mobile
       });
 
       resizeObserver.observe(containerRef.current);
@@ -153,6 +188,10 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
 
       // Cleanup
       return () => {
+        // Clear any pending timers
+        if (resizeTimeout) clearTimeout(resizeTimeout);
+        if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
+        
         resizeObserver.disconnect();
         if (fitAddonRef.current) {
           fitAddonRef.current.dispose();
@@ -164,13 +203,50 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
         }
       };
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
+    
+    const flushWriteBuffer = () => {
+      if (writeBufferRef.current.length > 0 && terminalRef.current) {
+        const data = writeBufferRef.current.join('');
+        writeBufferRef.current = [];
+        try {
+          terminalRef.current.write(data);
+        } catch (e) {
+          console.error('Error writing buffered data to terminal:', e);
+        }
+      }
+    };
+    
     // Expose methods via ref
     React.useImperativeHandle(ref, () => ({
       write: (data: string) => {
         if (terminalRef.current) {
           try {
-            terminalRef.current.write(data);
+            // Detect if mobile device
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+              // Buffer writes on mobile to reduce redraws
+              writeBufferRef.current.push(data);
+              
+              // Clear existing timer
+              if (writeTimerRef.current) {
+                clearTimeout(writeTimerRef.current);
+              }
+              
+              // Detect if this is a cursor positioning sequence (common in progress bars)
+              // eslint-disable-next-line no-control-regex
+              const hasCursorPositioning = /\x1b\[\d*[ABCDGJK]|\x1b\[\d*;\d*[Hf]|\r/.test(data);
+              
+              // Flush immediately for cursor positioning, otherwise batch
+              if (hasCursorPositioning) {
+                flushWriteBuffer();
+              } else {
+                writeTimerRef.current = setTimeout(flushWriteBuffer, 50);
+              }
+            } else {
+              // Direct write on desktop
+              terminalRef.current.write(data);
+            }
           } catch (e) {
             console.error('Error writing to terminal:', e);
           }

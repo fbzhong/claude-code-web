@@ -44,6 +44,25 @@ export default async function (fastify: FastifyInstance) {
         timestamp: new Date()
       }));
       
+      // Set up heartbeat for session list connection
+      let heartbeatInterval: NodeJS.Timeout | null = null;
+      let isAlive = true;
+      
+      heartbeatInterval = setInterval(() => {
+        if (!isAlive) {
+          fastify.log.warn(`Session list WebSocket heartbeat failed for user ${user.id}, closing connection`);
+          connection.socket.terminate();
+          return;
+        }
+        
+        isAlive = false;
+        connection.socket.ping();
+      }, 30000);
+      
+      connection.socket.on('pong', () => {
+        isAlive = true;
+      });
+      
       // Handle incoming messages
       connection.socket.on('message', async (message) => {
         try {
@@ -70,6 +89,13 @@ export default async function (fastify: FastifyInstance) {
       // Cleanup on disconnect
       connection.socket.on('close', () => {
         fastify.log.info(`Session list WebSocket disconnected for user ${user.id}`);
+        
+        // Clear heartbeat interval
+        if (heartbeatInterval) {
+          clearInterval(heartbeatInterval);
+          heartbeatInterval = null;
+        }
+        
         sessionListConnections.delete(connection.socket);
       });
     });
@@ -247,9 +273,36 @@ export default async function (fastify: FastifyInstance) {
           }
         });
 
+        // Set up heartbeat to detect stale connections
+        let heartbeatInterval: NodeJS.Timeout | null = null;
+        let isAlive = true;
+        
+        // Send ping every 30 seconds
+        heartbeatInterval = setInterval(() => {
+          if (!isAlive) {
+            fastify.log.warn(`Terminal WebSocket heartbeat failed for session ${sessionId}, closing connection`);
+            connection.socket.terminate();
+            return;
+          }
+          
+          isAlive = false;
+          connection.socket.ping();
+        }, 30000);
+        
+        // Handle pong responses
+        connection.socket.on('pong', () => {
+          isAlive = true;
+        });
+        
         // Cleanup on disconnect
         connection.socket.on('close', () => {
           fastify.log.info(`Terminal WebSocket disconnected: ${sessionId}`);
+          
+          // Clear heartbeat interval
+          if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+          }
           
           // Detach from session (decrements client count)
           sessionManager.detachFromSession(sessionId, user.id);

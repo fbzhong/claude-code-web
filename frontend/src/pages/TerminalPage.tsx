@@ -29,7 +29,9 @@ import {
   Circle as CircleIcon,
   Close as CloseIcon,
   PlayArrow as PlayArrowIcon,
+  Keyboard as KeyboardIcon,
 } from '@mui/icons-material';
+import { Fab } from '@mui/material';
 import { SessionInfo } from '../components/SessionList';
 import { sessionApi } from '../services/sessionApi';
 import { StableTerminal as Terminal } from '../components/StableTerminal';
@@ -37,6 +39,7 @@ import type { StableTerminalHandle as TerminalHandle } from '../components/Stabl
 import { wsService, sessionListWsService } from '../services/websocket';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
+import { MobileKeyboardToolbar, useMobileKeyboardToolbar } from '../components/MobileKeyboardToolbar';
 
 // Unified operation states
 interface OperationStates {
@@ -74,6 +77,9 @@ export const TerminalPage: React.FC = () => {
   // Responsive design
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  // Mobile keyboard toolbar
+  const { isVisible: isKeyboardToolbarVisible, toggleToolbar, isMobile: isMobileKeyboard } = useMobileKeyboardToolbar();
   
   // Helper to update operation states
   const updateOperationState = useCallback((updates: Partial<OperationStates>) => {
@@ -431,6 +437,11 @@ export const TerminalPage: React.FC = () => {
   const handleTerminalResize = useCallback((cols: number, rows: number) => {
     wsService.sendTerminalResize(cols, rows);
   }, []);
+
+  const handleMobileKeyPress = useCallback((key: string) => {
+    if (!wsService.isConnected() || !currentSessionId) return;
+    wsService.sendTerminalInput(key);
+  }, [currentSessionId]);
 
   const handleLogout = () => {
     logout();
@@ -824,6 +835,32 @@ export const TerminalPage: React.FC = () => {
           </Box>
         </Box>
       </Drawer>
+
+      {/* Mobile Keyboard Toggle Button */}
+      {currentSessionId && isMobileKeyboard && (
+        <Fab
+          color="primary"
+          size="medium"
+          onClick={toggleToolbar}
+          sx={{
+            position: 'fixed',
+            bottom: isKeyboardToolbarVisible ? 80 : 16,
+            right: 16,
+            zIndex: 1299,
+            transition: 'bottom 0.3s ease',
+          }}
+        >
+          <KeyboardIcon />
+        </Fab>
+      )}
+
+      {/* Mobile Keyboard Toolbar */}
+      {currentSessionId && (
+        <MobileKeyboardToolbar
+          onKeyPress={handleMobileKeyPress}
+          visible={isKeyboardToolbarVisible}
+        />
+      )}
 
       {/* Error Snackbar */}
       <Snackbar

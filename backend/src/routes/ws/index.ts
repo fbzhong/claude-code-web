@@ -1,9 +1,10 @@
 import { FastifyInstance } from 'fastify';
-import { TerminalService } from '../../services/terminal';
 import { ClaudeService } from '../../services/claude';
+import { SessionManager } from '../../services/sessionManager';
 
 export default async function (fastify: FastifyInstance) {
-  const terminalService = new TerminalService(fastify);
+  // Get the singleton SessionManager instance
+  const sessionManager = SessionManager.getInstance(fastify);
   const claudeService = new ClaudeService(fastify);
 
   // WebSocket route for terminal connections
@@ -32,10 +33,25 @@ export default async function (fastify: FastifyInstance) {
       fastify.log.info(`Terminal WebSocket connected: ${sessionId} for user ${user.id}`);
 
       try {
-        // Create or get existing terminal session
-        let session = terminalService.getSession(sessionId);
+        // Try to attach to existing session or restore from database
+        let session = sessionManager.getSession(sessionId);
+        fastify.log.info(`Looking for session ${sessionId}, found in memory: ${!!session}`);
+        
         if (!session) {
-          session = await terminalService.createSession(user.id, sessionId);
+          // Try to restore from database or create new session
+          try {
+            fastify.log.info(`Attempting to restore session ${sessionId} from database`);
+            session = await sessionManager.attachToSession(sessionId, user.id);
+            fastify.log.info(`Session ${sessionId} restored from database, buffer length: ${session.outputBuffer.length}`);
+          } catch (err) {
+            // Session not found in DB, create new one
+            fastify.log.info(`Session ${sessionId} not found in DB, creating new session`);
+            session = await sessionManager.createSession(user.id, { sessionId });
+          }
+        } else {
+          // Session exists in memory, attach to it
+          fastify.log.info(`Session ${sessionId} exists in memory, buffer length: ${session.outputBuffer.length}`);
+          session = await sessionManager.attachToSession(sessionId, user.id);
         }
 
         // Handle terminal data from PTY
@@ -65,9 +81,33 @@ export default async function (fastify: FastifyInstance) {
           connection.socket.close(1000, 'Terminal exited');
         };
 
-        terminalService.on('data', onData);
-        terminalService.on('command', onCommand);
-        terminalService.on('exit', onExit);
+        // Claude status change handler
+        const onClaudeStatusChange = (processId: string, status: string) => {
+          if (processId.startsWith(sessionId)) {
+            connection.socket.send(JSON.stringify({
+              type: 'claude_status',
+              data: { status },
+              timestamp: new Date()
+            }));
+          }
+        };
+
+        // Claude output handler
+        const onClaudeOutput = (processId: string, output: string) => {
+          if (processId.startsWith(sessionId)) {
+            connection.socket.send(JSON.stringify({
+              type: 'claude_output',
+              data: output,
+              timestamp: new Date()
+            }));
+          }
+        };
+
+        sessionManager.on('data', onData);
+        sessionManager.on('command', onCommand);
+        sessionManager.on('exit', onExit);
+        claudeService.on('status_change', onClaudeStatusChange);
+        claudeService.on('output', onClaudeOutput);
 
         // Handle incoming messages from client
         connection.socket.on('message', async (message) => {
@@ -76,15 +116,16 @@ export default async function (fastify: FastifyInstance) {
             
             switch (data.type) {
               case 'terminal_input':
-                terminalService.writeToSession(sessionId, data.data);
+                sessionManager.writeToSession(sessionId, data.data);
                 break;
                 
               case 'terminal_resize':
-                terminalService.resizeSession(sessionId, data.cols, data.rows);
+                sessionManager.resizeSession(sessionId, data.cols, data.rows);
                 break;
                 
               case 'get_history':
-                const history = await terminalService.getSessionHistory(sessionId);
+                const currentSession = sessionManager.getSession(sessionId);
+                const history = currentSession ? currentSession.history : [];
                 connection.socket.send(JSON.stringify({
                   type: 'command_history',
                   data: history,
@@ -93,7 +134,7 @@ export default async function (fastify: FastifyInstance) {
                 break;
 
               case 'claude_start':
-                const claudeProcess = await claudeService.startClaude(sessionId, {
+                const claudeProcess = await claudeService.startClaude(user.id, sessionId, {
                   workingDir: data.workingDir || process.cwd(),
                   environment: data.environment || {},
                   args: data.args || [],
@@ -102,7 +143,7 @@ export default async function (fastify: FastifyInstance) {
                 
                 connection.socket.send(JSON.stringify({
                   type: 'claude_status',
-                  data: claudeProcess,
+                  data: { status: claudeProcess.status },
                   timestamp: new Date()
                 }));
                 break;
@@ -141,9 +182,16 @@ export default async function (fastify: FastifyInstance) {
         // Cleanup on disconnect
         connection.socket.on('close', () => {
           fastify.log.info(`Terminal WebSocket disconnected: ${sessionId}`);
-          terminalService.off('data', onData);
-          terminalService.off('command', onCommand);
-          terminalService.off('exit', onExit);
+          
+          // Detach from session (decrements client count)
+          sessionManager.detachFromSession(sessionId, user.id);
+          
+          // Remove event listeners
+          sessionManager.off('data', onData);
+          sessionManager.off('command', onCommand);
+          sessionManager.off('exit', onExit);
+          claudeService.off('status_change', onClaudeStatusChange);
+          claudeService.off('output', onClaudeOutput);
         });
 
         // Send initial session info
@@ -151,23 +199,61 @@ export default async function (fastify: FastifyInstance) {
           type: 'session_info',
           data: {
             sessionId: session.id,
+            name: session.name,
             workingDir: session.workingDir,
-            createdAt: session.createdAt
+            createdAt: session.createdAt,
+            status: session.status,
+            connectedClients: session.connectedClients
           },
           timestamp: new Date()
         }));
 
-        // Send a welcome message to the terminal
-        setTimeout(() => {
+        // Send buffered output if session was restored
+        if (session.outputBuffer.length > 0) {
+          fastify.log.info(`Sending buffered output for session ${sessionId}, buffer length: ${session.outputBuffer.length}`);
+          
+          // Clear terminal first before sending history
           connection.socket.send(JSON.stringify({
-            type: 'terminal_data',
-            data: '\x1b[1;32mWelcome to Claude Web Terminal!\x1b[0m\r\n'
+            type: 'terminal_clear',
+            timestamp: new Date()
           }));
-          connection.socket.send(JSON.stringify({
-            type: 'terminal_data',
-            data: 'Type commands to interact with the terminal.\r\n$ '
-          }));
-        }, 100);
+          
+          // Add small delay to ensure terminal is cleared
+          setTimeout(() => {
+            // Send history as a single block to preserve formatting
+            const recentOutput = sessionManager.getSessionOutput(sessionId, 100); // Last 100 chunks
+            const historyBlock = recentOutput.join(''); // Join without adding extra newlines
+            
+            fastify.log.info(`Sending history for session ${sessionId}, length: ${historyBlock.length}, first 100 chars: ${historyBlock.substring(0, 100)}`);
+            
+            if (historyBlock.trim()) {
+              connection.socket.send(JSON.stringify({
+                type: 'terminal_data',
+                data: historyBlock,
+                timestamp: new Date()
+              }));
+            } else {
+              fastify.log.warn(`Session ${sessionId} has empty history block`);
+            }
+          }, 50);
+        } else {
+          fastify.log.info(`Session ${sessionId} has no buffered output`);
+          // Send a welcome message to new terminal
+          setTimeout(() => {
+            connection.socket.send(JSON.stringify({
+              type: 'terminal_data',
+              data: '\x1b[1;32mWelcome to Claude Web Terminal!\x1b[0m\r\n'
+            }));
+            connection.socket.send(JSON.stringify({
+              type: 'terminal_data',
+              data: `Session: ${session.name || session.id}\r\n`
+            }));
+            connection.socket.send(JSON.stringify({
+              type: 'terminal_data',
+              data: 'Type commands to interact with the terminal.\r\n$ '
+            }));
+          }, 100);
+        }
 
       } catch (err) {
         fastify.log.error('Terminal WebSocket error:', err);

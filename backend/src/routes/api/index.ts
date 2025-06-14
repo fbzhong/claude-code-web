@@ -31,7 +31,7 @@ export default async function (fastify: FastifyInstance) {
         }
       }
     }, async (request, reply) => {
-      const { username, password } = request.body;
+      const { username, password } = request.body as { username: string; password: string };
       
       try {
         const client = await fastify.pg.connect();
@@ -104,7 +104,7 @@ export default async function (fastify: FastifyInstance) {
         })
       }
     }, async (request, reply) => {
-      const { username, email, password } = request.body;
+      const { username, email, password } = request.body as { username: string; email: string; password: string };
       
       try {
         const bcrypt = require('bcrypt');
@@ -137,7 +137,7 @@ export default async function (fastify: FastifyInstance) {
           }
         };
       } catch (err) {
-        if (err.code === '23505') { // Unique violation
+        if ((err as any).code === '23505') { // Unique violation
           return reply.status(400).send({
             success: false,
             error: 'Username or email already exists'
@@ -163,120 +163,6 @@ export default async function (fastify: FastifyInstance) {
     });
   });
 
-  // Sessions routes
-  fastify.register(async function (fastify) {
-    fastify.addHook('preHandler', fastify.authenticate);
-
-    // Get user sessions
-    fastify.get('/sessions', async (request) => {
-      const user = (request as any).user;
-      
-      try {
-        const client = await fastify.pg.connect();
-        const result = await client.query(
-          'SELECT * FROM terminal_sessions WHERE user_id = $1 ORDER BY last_activity DESC',
-          [user.id]
-        );
-        client.release();
-
-        return {
-          success: true,
-          data: result.rows.map(row => ({
-            id: row.id,
-            workingDir: row.working_dir,
-            environment: row.environment,
-            createdAt: row.created_at,
-            lastActivity: row.last_activity
-          }))
-        };
-      } catch (err) {
-        fastify.log.error('Get sessions error:', err);
-        return {
-          success: false,
-          error: 'Failed to get sessions'
-        };
-      }
-    });
-
-    // Get session history
-    fastify.get('/sessions/:sessionId/history', async (request) => {
-      const { sessionId } = request.params as { sessionId: string };
-      const user = (request as any).user;
-      
-      try {
-        const client = await fastify.pg.connect();
-        
-        // Verify session belongs to user
-        const sessionResult = await client.query(
-          'SELECT id FROM terminal_sessions WHERE id = $1 AND user_id = $2',
-          [sessionId, user.id]
-        );
-        
-        if (sessionResult.rows.length === 0) {
-          client.release();
-          return {
-            success: false,
-            error: 'Session not found'
-          };
-        }
-
-        const historyResult = await client.query(
-          'SELECT * FROM command_history WHERE session_id = $1 ORDER BY timestamp DESC LIMIT 100',
-          [sessionId]
-        );
-        client.release();
-
-        return {
-          success: true,
-          data: historyResult.rows.map(row => ({
-            id: row.id,
-            command: row.command,
-            output: row.output,
-            exitCode: row.exit_code,
-            timestamp: row.timestamp,
-            duration: row.duration
-          }))
-        };
-      } catch (err) {
-        fastify.log.error('Get session history error:', err);
-        return {
-          success: false,
-          error: 'Failed to get session history'
-        };
-      }
-    });
-
-    // Delete session
-    fastify.delete('/sessions/:sessionId', async (request) => {
-      const { sessionId } = request.params as { sessionId: string };
-      const user = (request as any).user;
-      
-      try {
-        const client = await fastify.pg.connect();
-        const result = await client.query(
-          'DELETE FROM terminal_sessions WHERE id = $1 AND user_id = $2 RETURNING id',
-          [sessionId, user.id]
-        );
-        client.release();
-
-        if (result.rows.length === 0) {
-          return {
-            success: false,
-            error: 'Session not found'
-          };
-        }
-
-        return {
-          success: true,
-          data: { deleted: true }
-        };
-      } catch (err) {
-        fastify.log.error('Delete session error:', err);
-        return {
-          success: false,
-          error: 'Failed to delete session'
-        };
-      }
-    });
-  });
+  // Register sessions routes
+  await fastify.register(import('./sessions.js'));
 }

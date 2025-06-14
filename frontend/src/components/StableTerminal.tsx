@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Terminal } from 'xterm';
+import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { Box } from '@mui/material';
 
@@ -18,6 +19,7 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
   ({ onData, onResize }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const terminalRef = useRef<Terminal | null>(null);
+    const fitAddonRef = useRef<FitAddon | null>(null);
 
     useEffect(() => {
       if (!containerRef.current) return;
@@ -51,17 +53,71 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
         },
         cursorBlink: true,
         scrollback: 1000,
-        convertEol: true
+        convertEol: true,
+        // 改善CJK输入法支持
+        allowTransparency: false,
+        macOptionIsMeta: false,
+        rightClickSelectsWord: false,
+        // 处理输入法相关设置
+        windowsMode: false
       });
 
       terminalRef.current = term;
 
+      // Create and load fit addon
+      const fitAddon = new FitAddon();
+      fitAddonRef.current = fitAddon;
+      term.loadAddon(fitAddon);
+
       // Open terminal
       term.open(containerRef.current);
 
-      // Set up event handlers
+      // Initial fit
+      setTimeout(() => {
+        try {
+          fitAddon.fit();
+        } catch (e) {
+          console.error('Error fitting terminal:', e);
+        }
+      }, 0);
+
+      // Set up event handlers with input filtering
+      let isComposing = false;
+      let lastInputData = '';
+      let lastInputTime = 0;
+      
+      // 处理输入法组合事件
+      const container = containerRef.current;
+      container.addEventListener('compositionstart', () => {
+        isComposing = true;
+      });
+      
+      container.addEventListener('compositionend', () => {
+        isComposing = false;
+      });
+      
       term.onData((data) => {
-        onData(data);
+        const now = Date.now();
+        
+        // 防止重复输入 - 检查相同数据在短时间内的重复
+        if (data === lastInputData && now - lastInputTime < 100) {
+          console.log('Duplicate input detected, ignoring:', data);
+          return;
+        }
+        
+        lastInputData = data;
+        lastInputTime = now;
+        
+        // 如果正在输入法组合中，延迟发送
+        if (isComposing) {
+          setTimeout(() => {
+            if (!isComposing) {
+              onData(data);
+            }
+          }, 100);
+        } else {
+          onData(data);
+        }
       });
 
       if (onResize) {
@@ -70,18 +126,38 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
         });
       }
 
-      // Write welcome message
-      term.writeln('\x1b[1;32mWelcome to Claude Web Terminal\x1b[0m');
-      term.writeln('Terminal ready for input');
-      term.write('$ ');
+      // Don't write welcome message - let the server send initial content
 
       // Focus terminal
       term.focus();
+
+      // Set up resize observer with debouncing
+      let resizeTimeout: NodeJS.Timeout;
+      const resizeObserver = new ResizeObserver(() => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          if (fitAddonRef.current && terminalRef.current) {
+            try {
+              fitAddonRef.current.fit();
+              console.log('Terminal resized to:', terminalRef.current.cols, 'x', terminalRef.current.rows);
+            } catch (e) {
+              console.error('Error fitting terminal on resize:', e);
+            }
+          }
+        }, 100);
+      });
+
+      resizeObserver.observe(containerRef.current);
 
       console.log('StableTerminal initialized with xterm v4.19.0');
 
       // Cleanup
       return () => {
+        resizeObserver.disconnect();
+        if (fitAddonRef.current) {
+          fitAddonRef.current.dispose();
+          fitAddonRef.current = null;
+        }
         if (terminalRef.current) {
           terminalRef.current.dispose();
           terminalRef.current = null;
@@ -103,7 +179,11 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
       clear: () => {
         if (terminalRef.current) {
           try {
+            // Clear both buffer and screen for complete reset
             terminalRef.current.clear();
+            terminalRef.current.reset();
+            // Write a clean prompt to indicate the terminal is ready
+            terminalRef.current.write('\x1b[2J\x1b[H'); // Clear screen and move cursor to top
           } catch (e) {
             console.error('Error clearing terminal:', e);
           }
@@ -133,6 +213,7 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
             padding: '8px',
             width: '100%',
             height: '100%',
+            boxSizing: 'border-box',
           },
           '& .xterm-viewport': {
             width: '100% !important',

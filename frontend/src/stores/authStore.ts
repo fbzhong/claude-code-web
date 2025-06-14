@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import axios from 'axios';
+
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:12021/api';
 
 interface User {
   id: string;
@@ -27,15 +28,32 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (username: string, password: string) => {
         try {
-          const response = await axios.post('/api/auth/login', {
-            username,
-            password,
+          const response = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              username,
+              password,
+            }),
           });
 
-          const { token, user } = response.data.data;
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
 
-          // Set default auth header
-          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          const data = await response.json();
+          
+          if (!data.success) {
+            throw new Error(data.error || 'Login failed');
+          }
+
+          const { token, user } = data.data;
+
+          // Store token in localStorage for other services
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(user));
 
           set({
             user,
@@ -49,7 +67,10 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        delete axios.defaults.headers.common['Authorization'];
+        // Clear localStorage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
         set({
           user: null,
           token: null,
@@ -59,16 +80,33 @@ export const useAuthStore = create<AuthState>()(
 
       register: async (username: string, email: string, password: string) => {
         try {
-          const response = await axios.post('/api/auth/register', {
-            username,
-            email,
-            password,
+          const response = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              username,
+              email,
+              password,
+            }),
           });
 
-          const { token, user } = response.data.data;
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
 
-          // Set default auth header
-          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          const data = await response.json();
+          
+          if (!data.success) {
+            throw new Error(data.error || 'Registration failed');
+          }
+
+          const { token, user } = data.data;
+
+          // Store token in localStorage for other services
+          localStorage.setItem('token', token);
+          localStorage.setItem('user', JSON.stringify(user));
 
           set({
             user,
@@ -84,9 +122,10 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'auth-storage',
       onRehydrateStorage: () => (state) => {
-        // Restore auth header on app load
-        if (state?.token) {
-          axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
+        // Restore token to localStorage on app load
+        if (state?.token && state?.user) {
+          localStorage.setItem('token', state.token);
+          localStorage.setItem('user', JSON.stringify(state.user));
         }
       },
     }

@@ -1,223 +1,305 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import { ClaudeCodeProcess, ClaudeCodeConfig } from '../types';
+import * as path from 'path';
+import * as fs from 'fs';
+
+export interface ClaudeProcessConfig {
+  workingDir?: string;
+  environment?: Record<string, string>;
+  args?: string[];
+  autoRestart?: boolean;
+}
+
+export interface ClaudeProcess {
+  id: string;
+  userId: string;
+  sessionId: string;
+  process: ChildProcess;
+  config: ClaudeProcessConfig;
+  status: 'starting' | 'running' | 'stopped' | 'error';
+  startTime: Date;
+  lastActivity: Date;
+  output: string[];
+}
 
 export class ClaudeService extends EventEmitter {
-  private processes = new Map<string, ClaudeCodeProcess>();
-  private childProcesses = new Map<string, ChildProcess>();
+  private processes = new Map<string, ClaudeProcess>();
+  private maxOutputLines = 1000;
 
   constructor(private fastify: any) {
     super();
   }
 
-  async startClaude(sessionId: string, config: ClaudeCodeConfig): Promise<ClaudeCodeProcess> {
-    const processId = crypto.randomUUID();
+  async startClaude(
+    userId: string, 
+    sessionId: string, 
+    config: ClaudeProcessConfig = {}
+  ): Promise<ClaudeProcess> {
+    const processId = `${sessionId}_claude`;
     
-    try {
-      // Check if Claude Code is available
-      const claudePath = await this.findClaudeExecutable();
-      
-      const claudeProcess = spawn(claudePath, config.args || [], {
-        cwd: config.workingDir || process.cwd(),
-        env: {
-          ...process.env,
-          ...config.environment,
-          CLAUDE_WEB_SESSION: sessionId
-        },
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-
-      const processInfo: ClaudeCodeProcess = {
-        id: processId,
-        sessionId,
-        pid: claudeProcess.pid || 0,
-        status: 'starting',
-        startedAt: new Date(),
-        config
-      };
-
-      this.processes.set(processId, processInfo);
-      this.childProcesses.set(processId, claudeProcess);
-
-      // Handle process events
-      claudeProcess.on('spawn', () => {
-        processInfo.status = 'running';
-        this.fastify.log.info(`Claude Code started for session ${sessionId}`, { pid: claudeProcess.pid });
-        this.emit('started', sessionId, processInfo);
-        this.saveProcessToDb(processInfo);
-      });
-
-      claudeProcess.on('error', (error) => {
-        processInfo.status = 'error';
-        this.fastify.log.error(`Claude Code error for session ${sessionId}:`, error);
-        this.emit('error', sessionId, error);
-        this.cleanup(processId);
-      });
-
-      claudeProcess.on('exit', (code, signal) => {
-        processInfo.status = 'stopped';
-        this.fastify.log.info(`Claude Code exited for session ${sessionId}`, { code, signal });
-        this.emit('exit', sessionId, code);
-        
-        if (config.autoRestart && code !== 0) {
-          this.fastify.log.info(`Auto-restarting Claude Code for session ${sessionId}`);
-          setTimeout(() => this.startClaude(sessionId, config), 5000);
-        }
-        
-        this.cleanup(processId);
-      });
-
-      // Handle stdout/stderr
-      claudeProcess.stdout?.on('data', (data) => {
-        this.emit('stdout', sessionId, data.toString());
-      });
-
-      claudeProcess.stderr?.on('data', (data) => {
-        this.emit('stderr', sessionId, data.toString());
-      });
-
-      return processInfo;
-      
-    } catch (error) {
-      this.fastify.log.error(`Failed to start Claude Code for session ${sessionId}:`, error);
-      throw error;
-    }
-  }
-
-  async stopClaude(sessionId: string): Promise<boolean> {
-    const process = this.getProcessBySession(sessionId);
-    if (!process) {
-      return false;
-    }
-
-    const childProcess = this.childProcesses.get(process.id);
-    if (childProcess) {
-      childProcess.kill('SIGTERM');
-      
-      // Force kill after 10 seconds
-      setTimeout(() => {
-        if (!childProcess.killed) {
-          childProcess.kill('SIGKILL');
-        }
-      }, 10000);
-      
-      return true;
-    }
-
-    return false;
-  }
-
-  async restartClaude(sessionId: string): Promise<ClaudeCodeProcess | null> {
-    const process = this.getProcessBySession(sessionId);
-    if (!process) {
-      return null;
-    }
-
-    await this.stopClaude(sessionId);
-    
-    // Wait a bit before restarting
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    return this.startClaude(sessionId, process.config);
-  }
-
-  sendInput(sessionId: string, input: string): boolean {
-    const process = this.getProcessBySession(sessionId);
-    if (!process) {
-      return false;
-    }
-
-    const childProcess = this.childProcesses.get(process.id);
-    if (childProcess && childProcess.stdin) {
-      childProcess.stdin.write(input);
-      return true;
-    }
-
-    return false;
-  }
-
-  getProcessBySession(sessionId: string): ClaudeCodeProcess | undefined {
-    return Array.from(this.processes.values()).find(p => p.sessionId === sessionId);
-  }
-
-  getAllProcesses(): ClaudeCodeProcess[] {
-    return Array.from(this.processes.values());
-  }
-
-  getProcessStatus(sessionId: string): string {
-    const process = this.getProcessBySession(sessionId);
-    return process?.status || 'stopped';
-  }
-
-  private async findClaudeExecutable(): Promise<string> {
-    // Try to find Claude Code executable
-    const possiblePaths = [
-      'claude',
-      '/usr/local/bin/claude',
-      '/opt/claude/bin/claude',
-      process.env.CLAUDE_PATH || ''
-    ].filter(Boolean);
-
-    for (const path of possiblePaths) {
-      try {
-        const result = spawn(path, ['--version'], { stdio: 'pipe' });
-        await new Promise((resolve, reject) => {
-          result.on('close', (code) => {
-            if (code === 0) resolve(code);
-            else reject(new Error(`Exit code ${code}`));
-          });
-          result.on('error', reject);
-        });
-        return path;
-      } catch {
-        continue;
+    // Check if Claude is already running for this session
+    if (this.processes.has(processId)) {
+      const existing = this.processes.get(processId)!;
+      if (existing.status === 'running' || existing.status === 'starting') {
+        throw new Error('Claude is already running for this session');
       }
     }
 
-    throw new Error('Claude Code executable not found. Please install Claude Code or set CLAUDE_PATH environment variable.');
+    // Find Claude Code executable
+    const claudePath = await this.findClaudeExecutable();
+    if (!claudePath) {
+      throw new Error('Claude Code executable not found. Please ensure Claude Code is installed and in PATH.');
+    }
+
+    const workingDir = config.workingDir || process.env.HOME || '/tmp';
+    const args = config.args || [];
+    const env = {
+      ...process.env,
+      ...config.environment,
+      // Ensure Claude runs in interactive mode
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor'
+    };
+
+    this.fastify.log.info(`Starting Claude Code process`, {
+      processId,
+      claudePath,
+      workingDir,
+      args
+    });
+
+    // Spawn Claude Code process
+    const childProcess = spawn(claudePath, args, {
+      cwd: workingDir,
+      env,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    const claudeProcess: ClaudeProcess = {
+      id: processId,
+      userId,
+      sessionId,
+      process: childProcess,
+      config,
+      status: 'starting',
+      startTime: new Date(),
+      lastActivity: new Date(),
+      output: []
+    };
+
+    this.processes.set(processId, claudeProcess);
+
+    // Handle process events
+    childProcess.on('spawn', () => {
+      claudeProcess.status = 'running';
+      this.fastify.log.info(`Claude Code process started: ${processId}`);
+      this.emit('status_change', processId, 'running');
+    });
+
+    childProcess.on('error', (error) => {
+      claudeProcess.status = 'error';
+      this.fastify.log.error(`Claude Code process error: ${processId}`, error);
+      this.emit('status_change', processId, 'error');
+      this.emit('error', processId, error);
+    });
+
+    childProcess.on('exit', (code, signal) => {
+      claudeProcess.status = 'stopped';
+      this.fastify.log.info(`Claude Code process exited: ${processId}`, { code, signal });
+      this.emit('status_change', processId, 'stopped');
+      this.emit('exit', processId, code, signal);
+
+      // Auto-restart if configured
+      if (config.autoRestart && code !== 0) {
+        setTimeout(() => {
+          this.restartClaude(processId).catch(err => {
+            this.fastify.log.error(`Failed to auto-restart Claude: ${processId}`, err);
+          });
+        }, 2000);
+      }
+    });
+
+    // Handle stdout
+    childProcess.stdout?.on('data', (data) => {
+      const output = data.toString();
+      this.addOutput(processId, output);
+      this.emit('output', processId, output);
+      claudeProcess.lastActivity = new Date();
+    });
+
+    // Handle stderr
+    childProcess.stderr?.on('data', (data) => {
+      const output = data.toString();
+      this.addOutput(processId, `[ERROR] ${output}`);
+      this.emit('output', processId, output);
+      claudeProcess.lastActivity = new Date();
+    });
+
+    return claudeProcess;
   }
 
-  private cleanup(processId: string): void {
-    this.processes.delete(processId);
-    this.childProcesses.delete(processId);
-  }
+  async stopClaude(sessionId: string): Promise<boolean> {
+    const processId = `${sessionId}_claude`;
+    const claudeProcess = this.processes.get(processId);
+    
+    if (!claudeProcess) {
+      return false;
+    }
 
-  private async saveProcessToDb(process: ClaudeCodeProcess): Promise<void> {
+    this.fastify.log.info(`Stopping Claude Code process: ${processId}`);
+    
     try {
-      const client = await this.fastify.pg.connect();
-      await client.query(
-        'INSERT INTO claude_processes (id, session_id, pid, status, started_at, config) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO UPDATE SET status = $4, started_at = $5',
-        [process.id, process.sessionId, process.pid, process.status, process.startedAt, JSON.stringify(process.config)]
-      );
-      client.release();
-    } catch (err) {
-      this.fastify.log.error('Failed to save process to database:', err);
+      // Gracefully terminate
+      claudeProcess.process.kill('SIGTERM');
+      
+      // Wait for process to exit, force kill if it doesn't
+      setTimeout(() => {
+        if (claudeProcess.status !== 'stopped') {
+          claudeProcess.process.kill('SIGKILL');
+        }
+      }, 5000);
+
+      return true;
+    } catch (error) {
+      this.fastify.log.error(`Failed to stop Claude process: ${processId}`, error);
+      return false;
     }
   }
 
-  // Cleanup all processes on shutdown
-  async cleanup(): Promise<void> {
-    const promises = Array.from(this.childProcesses.values()).map(childProcess => {
-      return new Promise<void>((resolve) => {
-        if (childProcess.killed) {
-          resolve();
-          return;
-        }
+  async restartClaude(sessionId: string): Promise<ClaudeProcess> {
+    const processId = `${sessionId}_claude`;
+    const existing = this.processes.get(processId);
+    
+    if (!existing) {
+      throw new Error('No Claude process found for this session');
+    }
 
-        childProcess.on('exit', () => resolve());
-        childProcess.kill('SIGTERM');
-        
-        setTimeout(() => {
-          if (!childProcess.killed) {
-            childProcess.kill('SIGKILL');
+    // Stop existing process
+    await this.stopClaude(sessionId);
+    
+    // Wait a moment for cleanup
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Start new process with same config
+    return this.startClaude(existing.userId, existing.sessionId, existing.config);
+  }
+
+  getClaudeProcess(sessionId: string): ClaudeProcess | undefined {
+    const processId = `${sessionId}_claude`;
+    return this.processes.get(processId);
+  }
+
+  getUserProcesses(userId: string): ClaudeProcess[] {
+    return Array.from(this.processes.values()).filter(p => p.userId === userId);
+  }
+
+  getAllProcesses(): ClaudeProcess[] {
+    return Array.from(this.processes.values());
+  }
+
+  sendInput(sessionId: string, input: string): boolean {
+    const processId = `${sessionId}_claude`;
+    const claudeProcess = this.processes.get(processId);
+    
+    if (!claudeProcess || claudeProcess.status !== 'running') {
+      return false;
+    }
+
+    try {
+      claudeProcess.process.stdin?.write(input);
+      claudeProcess.lastActivity = new Date();
+      return true;
+    } catch (error) {
+      this.fastify.log.error(`Failed to send input to Claude process: ${processId}`, error);
+      return false;
+    }
+  }
+
+  getOutput(sessionId: string, lines?: number): string[] {
+    const processId = `${sessionId}_claude`;
+    const claudeProcess = this.processes.get(processId);
+    
+    if (!claudeProcess) {
+      return [];
+    }
+
+    const outputLines = claudeProcess.output;
+    if (lines && lines > 0) {
+      return outputLines.slice(-lines);
+    }
+    
+    return outputLines;
+  }
+
+  private addOutput(processId: string, output: string): void {
+    const claudeProcess = this.processes.get(processId);
+    if (!claudeProcess) return;
+
+    // Split output by lines and add to buffer
+    const lines = output.split('\n');
+    claudeProcess.output.push(...lines);
+    
+    // Keep only the last N lines to prevent memory issues
+    if (claudeProcess.output.length > this.maxOutputLines) {
+      claudeProcess.output = claudeProcess.output.slice(-this.maxOutputLines);
+    }
+  }
+
+  private async findClaudeExecutable(): Promise<string | null> {
+    // Common paths where Claude Code might be installed
+    const possiblePaths = [
+      'claude',
+      'claude-code',
+      '/usr/local/bin/claude',
+      '/usr/local/bin/claude-code',
+      '/opt/homebrew/bin/claude',
+      '/opt/homebrew/bin/claude-code',
+      path.join(process.env.HOME || '', '.local/bin/claude'),
+      path.join(process.env.HOME || '', '.local/bin/claude-code')
+    ];
+
+    // Check if any of these paths exist and are executable
+    for (const claudePath of possiblePaths) {
+      try {
+        // Try to find in PATH first
+        if (!claudePath.includes('/')) {
+          const { spawn } = require('child_process');
+          const result = await new Promise<boolean>((resolve) => {
+            const child = spawn('which', [claudePath], { stdio: 'pipe' });
+            child.on('exit', (code: number) => resolve(code === 0));
+            child.on('error', () => resolve(false));
+          });
+          
+          if (result) {
+            return claudePath;
           }
-          resolve();
-        }, 5000);
-      });
+        } else {
+          // Check if file exists and is executable
+          if (fs.existsSync(claudePath)) {
+            const stats = fs.statSync(claudePath);
+            if (stats.isFile() && (stats.mode & 0o111)) {
+              return claudePath;
+            }
+          }
+        }
+      } catch (error) {
+        // Continue checking other paths
+      }
+    }
+
+    return null;
+  }
+
+  // Cleanup method to kill all processes on shutdown
+  async cleanup(): Promise<void> {
+    this.fastify.log.info('Cleaning up Claude processes...');
+    
+    const promises = Array.from(this.processes.keys()).map(async (sessionId) => {
+      const sessionIdOnly = sessionId.replace('_claude', '');
+      await this.stopClaude(sessionIdOnly);
     });
 
     await Promise.all(promises);
     this.processes.clear();
-    this.childProcesses.clear();
   }
 }

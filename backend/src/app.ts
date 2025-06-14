@@ -62,7 +62,7 @@ const start = async () => {
     });
 
     // Start server
-    const port = parseInt(process.env.PORT || '3001', 10);
+    const port = parseInt(process.env.PORT || '12021', 10);
     const host = process.env.HOST || '0.0.0.0';
     
     await app.listen({ port, host });

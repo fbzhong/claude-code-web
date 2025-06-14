@@ -1,5 +1,5 @@
 export interface WebSocketMessage {
-  type: 'terminal_data' | 'command_history' | 'claude_status' | 'session_info' | 'error' | 'terminal_exit';
+  type: 'terminal_data' | 'terminal_clear' | 'command_history' | 'claude_status' | 'claude_output' | 'session_info' | 'error' | 'terminal_exit';
   data: any;
   timestamp: Date;
 }
@@ -14,12 +14,26 @@ export class WebSocketService {
 
   connect(sessionId: string, token: string): Promise<void> {
     return new Promise((resolve, reject) => {
+      // If already connected to the same session, don't create a new connection
+      if (this.ws && this.ws.readyState === WebSocket.OPEN && this.sessionId === sessionId) {
+        console.log('Already connected to session:', sessionId);
+        resolve();
+        return;
+      }
+
+      // Disconnect any existing connection
+      if (this.ws) {
+        console.log('Disconnecting existing WebSocket connection');
+        this.disconnect();
+      }
+
       this.sessionId = sessionId;
 
       // Build WebSocket URL with auth token as query parameter
-      const wsUrl = `ws://localhost:3001/ws/terminal/${sessionId}?token=${encodeURIComponent(token)}`;
+      const wsUrl = `ws://localhost:12021/ws/terminal/${sessionId}?token=${encodeURIComponent(token)}`;
       
       try {
+        console.log('Creating new WebSocket connection to:', wsUrl);
         this.ws = new WebSocket(wsUrl);
         
         this.ws.onopen = () => {
@@ -61,7 +75,15 @@ export class WebSocketService {
     }
     
     if (this.ws) {
-      this.ws.close();
+      // Remove event listeners to prevent unwanted reconnection
+      this.ws.onopen = null;
+      this.ws.onmessage = null;
+      this.ws.onerror = null;
+      this.ws.onclose = null;
+      
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+        this.ws.close();
+      }
       this.ws = null;
     }
     this.sessionId = null;

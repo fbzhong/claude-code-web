@@ -33,7 +33,10 @@ export class TerminalService extends EventEmitter {
       createdAt: new Date(),
       lastActivity: new Date(),
       workingDir: process.env.HOME || '/tmp',
-      environment: {}
+      environment: {},
+      status: 'active',
+      outputBuffer: [],
+      connectedClients: 1
     };
 
     // Handle PTY data
@@ -178,7 +181,7 @@ export class TerminalService extends EventEmitter {
       );
       client.release();
 
-      return result.rows.map(row => ({
+      return result.rows.map((row: any) => ({
         id: row.id,
         sessionId: row.session_id,
         command: row.command,

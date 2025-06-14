@@ -1,12 +1,17 @@
 export interface TerminalSession {
   id: string;
   userId: string;
+  name?: string;
   pty?: any;
   history: CommandHistory[];
   createdAt: Date;
   lastActivity: Date;
   workingDir: string;
   environment: Record<string, string>;
+  status: 'active' | 'detached' | 'dead';
+  outputBuffer: string[];
+  connectedClients: number;
+  persistentId?: string; // For database persistence
 }
 
 export interface CommandHistory {

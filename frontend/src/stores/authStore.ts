@@ -78,8 +78,9 @@ export const useAuthStore = create<AuthState>()(
             data = JSON.parse(responseText);
             debugLogger?.logSuccess('AUTH', 'Response parsed successfully', { success: data.success });
           } catch (parseError) {
+            const errorMessage = parseError instanceof Error ? parseError.message : String(parseError);
             debugLogger?.logError('AUTH', 'Failed to parse JSON response', { 
-              error: parseError.message, 
+              error: errorMessage, 
               responseText: responseText.substring(0, 200) 
             });
             throw new Error(`Invalid JSON response: ${responseText}`);
@@ -108,11 +109,16 @@ export const useAuthStore = create<AuthState>()(
           
           debugLogger?.logSuccess('AUTH', 'Auth store updated successfully');
         } catch (error) {
-          debugLogger?.logError('AUTH', 'Login failed', {
+          const errorInfo = error instanceof Error ? {
             name: error.name,
             message: error.message,
             stack: error.stack?.substring(0, 500)
-          });
+          } : {
+            name: 'Unknown',
+            message: String(error),
+            stack: undefined
+          };
+          debugLogger?.logError('AUTH', 'Login failed', errorInfo);
           throw error;
         }
       },

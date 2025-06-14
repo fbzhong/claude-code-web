@@ -21,6 +21,7 @@ export interface SessionResponse {
 class SessionApiService {
   private getAuthHeaders(): HeadersInit {
     const token = localStorage.getItem('token');
+    console.log('SessionAPI using token:', token ? 'present' : 'missing');
     return {
       'Content-Type': 'application/json',
       'Authorization': token ? `Bearer ${token}` : ''
@@ -58,6 +59,7 @@ class SessionApiService {
   }
 
   async createSession(request: CreateSessionRequest): Promise<SessionInfo> {
+    console.log('Creating session with request:', request);
     const response = await fetch(`${API_BASE}/sessions`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
@@ -65,6 +67,7 @@ class SessionApiService {
     });
 
     const result = await this.handleResponse(response);
+    console.log('Create session response:', result);
     
     if (!result.success) {
       throw new Error(result.error || 'Failed to create session');

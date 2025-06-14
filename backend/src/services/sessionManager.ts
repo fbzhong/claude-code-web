@@ -308,6 +308,11 @@ export class SessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (session) {
       session.lastActivity = new Date();
+      
+      // Update database asynchronously (don't await to avoid blocking)
+      this.updateSessionInDb(session).catch(err => {
+        this.fastify.log.error('Failed to update session activity in database:', err);
+      });
     }
   }
 

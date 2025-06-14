@@ -15,7 +15,10 @@
       "Bash(pnpm add:*)",
       "Bash(find:*)",
       "Bash(rg:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(pkill:*)",
+      "Bash(npm start)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

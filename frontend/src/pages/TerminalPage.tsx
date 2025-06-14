@@ -59,32 +59,45 @@ export const TerminalPage: React.FC = () => {
   const [commandHistory, setCommandHistory] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const terminalRef = useRef<TerminalHandle>(null);
 
   // Session Management Functions
   const refreshSessions = useCallback(async () => {
     try {
-      setLoading(true);
+      setRefreshing(true);
+      console.log('Refreshing sessions...');
       const sessionList = await sessionApi.getAllSessions();
+      console.log('Fetched sessions:', sessionList);
       setSessions(sessionList);
     } catch (err: any) {
+      console.error('Failed to fetch sessions:', err);
       setError(err.message || 'Failed to fetch sessions');
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   const createNewSession = useCallback(async (name: string, workingDir?: string) => {
     try {
       setLoading(true);
+      console.log('Creating new session:', name);
       
       // First disconnect from current session if any
       if (sessionId && wsService.isConnected()) {
         wsService.disconnect();
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
       const newSession = await sessionApi.createSession({ name, workingDir });
+      console.log('New session created:', newSession);
+      
       await refreshSessions();
+      console.log('Sessions refreshed after create');
+      
+      // Small delay to ensure UI updates before WebSocket connection
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       setSessionId(newSession.id);
       setCommandHistory([]);
       
@@ -95,6 +108,7 @@ export const TerminalPage: React.FC = () => {
       
       setError(null);
     } catch (err: any) {
+      console.error('Failed to create session:', err);
       setError(err.message || 'Failed to create session');
     } finally {
       setLoading(false);
@@ -132,8 +146,13 @@ export const TerminalPage: React.FC = () => {
   const deleteSession = useCallback(async (sessionIdToDelete: string) => {
     try {
       setLoading(true);
+      console.log('Deleting session:', sessionIdToDelete);
+      
       await sessionApi.deleteSession(sessionIdToDelete);
+      console.log('Session deleted successfully');
+      
       await refreshSessions();
+      console.log('Sessions refreshed after delete');
       
       // If we deleted the current session, clear it
       if (sessionIdToDelete === sessionId) {
@@ -146,6 +165,7 @@ export const TerminalPage: React.FC = () => {
       
       setError(null);
     } catch (err: any) {
+      console.error('Failed to delete session:', err);
       setError(err.message || 'Failed to delete session');
     } finally {
       setLoading(false);
@@ -165,13 +185,30 @@ export const TerminalPage: React.FC = () => {
     }
   }, [refreshSessions]);
 
-  // Load sessions on mount
+  // Load sessions on mount and periodically refresh
   useEffect(() => {
     if (token) {
       console.log('Loading sessions on mount...');
       refreshSessions();
+      
+      // Refresh sessions every 30 seconds to update lastActivity times
+      const interval = setInterval(() => {
+        refreshSessions();
+      }, 30000);
+      
+      return () => clearInterval(interval);
     }
   }, [token, refreshSessions]);
+
+  // More frequent updates for time display only
+  useEffect(() => {
+    // Force re-render every 10 seconds to update relative times
+    const interval = setInterval(() => {
+      setSessions(prev => [...prev]); // Force re-render without changing data
+    }, 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Debug: Log current state
   useEffect(() => {
@@ -222,6 +259,17 @@ export const TerminalPage: React.FC = () => {
     const terminalDataHandler = (message: any) => {
       if (terminalRef.current?.write) {
         terminalRef.current.write(message.data);
+      }
+      
+      // Update session's lastActivity in local state for immediate UI update
+      if (sessionId) {
+        setSessions(prevSessions => 
+          prevSessions.map(s => 
+            s.id === sessionId 
+              ? { ...s, lastActivity: new Date().toISOString() }
+              : s
+          )
+        );
       }
     };
 
@@ -287,10 +335,21 @@ export const TerminalPage: React.FC = () => {
       }
       console.log('Sending terminal input:', data);
       wsService.sendTerminalInput(data);
+      
+      // Update session's lastActivity when user types
+      if (sessionId) {
+        setSessions(prevSessions => 
+          prevSessions.map(s => 
+            s.id === sessionId 
+              ? { ...s, lastActivity: new Date().toISOString() }
+              : s
+          )
+        );
+      }
     } catch (error) {
       console.error('Failed to send terminal input:', error);
     }
-  }, []);
+  }, [sessionId]);
 
   const handleTerminalResize = useCallback((cols: number, rows: number) => {
     try {
@@ -338,10 +397,18 @@ export const TerminalPage: React.FC = () => {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return `${Math.floor(diff / 86400000)}d ago`;
+    if (diff < 5000) return 'Just now';
+    if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+    if (diff < 3600000) {
+      const minutes = Math.floor(diff / 60000);
+      return minutes === 1 ? '1 min ago' : `${minutes} mins ago`;
+    }
+    if (diff < 86400000) {
+      const hours = Math.floor(diff / 3600000);
+      return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+    }
+    const days = Math.floor(diff / 86400000);
+    return days === 1 ? '1 day ago' : `${days} days ago`;
   };
 
   const getStatusColor = (status: SessionInfo['status']): 'success' | 'warning' | 'error' | 'default' => {
@@ -409,14 +476,14 @@ export const TerminalPage: React.FC = () => {
               fullWidth
               variant="outlined"
               onClick={refreshSessions}
-              disabled={loading}
+              disabled={refreshing}
               size="small"
             >
               Refresh
             </Button>
           </Box>
 
-          {loading && <LinearProgress />}
+          {(loading || refreshing) && <LinearProgress />}
 
           <Box sx={{ flex: 1, overflow: 'auto' }}>
             {sessions.length === 0 ? (

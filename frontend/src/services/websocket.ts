@@ -30,7 +30,9 @@ export class WebSocketService {
       this.sessionId = sessionId;
 
       // Build WebSocket URL with auth token as query parameter
-      const wsUrl = `ws://localhost:12021/ws/terminal/${sessionId}?token=${encodeURIComponent(token)}`;
+      const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:12021/api';
+      const baseUrl = apiBase.replace('/api', '').replace('http://', '').replace('https://', '');
+      const wsUrl = `ws://${baseUrl}/ws/terminal/${sessionId}?token=${encodeURIComponent(token)}`;
       
       try {
         console.log('Creating new WebSocket connection to:', wsUrl);
@@ -245,7 +247,9 @@ export class SessionListWebSocketService {
       this.token = token;
 
       // Build WebSocket URL for session list
-      const wsUrl = `ws://localhost:12021/ws/sessions?token=${encodeURIComponent(token)}`;
+      const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:12021/api';
+      const baseUrl = apiBase.replace('/api', '').replace('http://', '').replace('https://', '');
+      const wsUrl = `ws://${baseUrl}/ws/sessions?token=${encodeURIComponent(token)}`;
       
       try {
         console.log('Creating session list WebSocket connection to:', wsUrl);

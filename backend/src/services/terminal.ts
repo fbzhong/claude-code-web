@@ -1,4 +1,4 @@
-import { spawn } from 'node-pty';
+import * as pty from 'node-pty';
 import { EventEmitter } from 'events';
 import { TerminalSession, CommandHistory } from '../types';
 
@@ -13,7 +13,7 @@ export class TerminalService extends EventEmitter {
   async createSession(userId: string, sessionId: string): Promise<TerminalSession> {
     const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
     
-    const pty = spawn(shell, [], {
+    const ptyProcess = pty.spawn(shell, [], {
       name: 'xterm-color',
       cols: 80,
       rows: 24,
@@ -28,7 +28,7 @@ export class TerminalService extends EventEmitter {
     const session: TerminalSession = {
       id: sessionId,
       userId,
-      pty,
+      pty: ptyProcess,
       history: [],
       createdAt: new Date(),
       lastActivity: new Date(),
@@ -37,13 +37,13 @@ export class TerminalService extends EventEmitter {
     };
 
     // Handle PTY data
-    pty.onData((data: string) => {
+    ptyProcess.onData((data: string) => {
       this.emit('data', sessionId, data);
       this.updateActivity(sessionId);
     });
 
     // Handle PTY exit
-    pty.onExit(({ exitCode, signal }) => {
+    ptyProcess.onExit(({ exitCode, signal }) => {
       this.fastify.log.info(`Terminal session ${sessionId} exited`, { exitCode, signal });
       this.emit('exit', sessionId, exitCode);
       this.sessions.delete(sessionId);

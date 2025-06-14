@@ -70,7 +70,8 @@ export class WebSocketService {
 
   sendTerminalInput(data: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket not connected');
+      console.warn('WebSocket not connected, cannot send terminal input');
+      return;
     }
 
     this.ws.send(JSON.stringify({
@@ -81,7 +82,8 @@ export class WebSocketService {
 
   sendTerminalResize(cols: number, rows: number): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket not connected');
+      console.warn('WebSocket not connected, cannot send resize');
+      return;
     }
 
     this.ws.send(JSON.stringify({
@@ -93,7 +95,14 @@ export class WebSocketService {
 
   requestHistory(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket not connected');
+      console.warn('WebSocket not connected, deferring history request');
+      // Retry after a delay
+      setTimeout(() => {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.requestHistory();
+        }
+      }, 1000);
+      return;
     }
 
     this.ws.send(JSON.stringify({

@@ -148,17 +148,17 @@ importers:
         specifier: ^5.2.2
         version: 5.8.3
       xterm:
-        specifier: ^5.3.0
-        version: 5.3.0
+        specifier: ^4.19.0
+        version: 4.19.0
       xterm-addon-fit:
-        specifier: ^0.8.0
-        version: 0.8.0(xterm@5.3.0)
+        specifier: ^0.5.0
+        version: 0.5.0(xterm@4.19.0)
       xterm-addon-search:
-        specifier: ^0.13.0
-        version: 0.13.0(xterm@5.3.0)
+        specifier: ^0.8.2
+        version: 0.8.2(xterm@4.19.0)
       xterm-addon-web-links:
-        specifier: ^0.9.0
-        version: 0.9.0(xterm@5.3.0)
+        specifier: ^0.4.0
+        version: 0.4.0(xterm@4.19.0)
       zustand:
         specifier: ^4.4.7
         version: 4.5.7(@types/react@18.3.23)(react@18.3.1)
@@ -13170,35 +13170,35 @@ packages:
     engines: {node: '>=0.4'}
     dev: false
 
-  /xterm-addon-fit@0.8.0(xterm@5.3.0):
-    resolution: {integrity: sha512-yj3Np7XlvxxhYF/EJ7p3KHaMt6OdwQ+HDu573Vx1lRXsVxOcnVJs51RgjZOouIZOczTsskaS+CpXspK81/DLqw==}
+  /xterm-addon-fit@0.5.0(xterm@4.19.0):
+    resolution: {integrity: sha512-DsS9fqhXHacEmsPxBJZvfj2la30Iz9xk+UKjhQgnYNkrUIN5CYLbw7WEfz117c7+S86S/tpHPfvNxJsF5/G8wQ==}
     deprecated: This package is now deprecated. Move to @xterm/addon-fit instead.
     peerDependencies:
-      xterm: ^5.0.0
+      xterm: ^4.0.0
     dependencies:
-      xterm: 5.3.0
+      xterm: 4.19.0
     dev: false
 
-  /xterm-addon-search@0.13.0(xterm@5.3.0):
-    resolution: {integrity: sha512-sDUwG4CnqxUjSEFh676DlS3gsh3XYCzAvBPSvJ5OPgF3MRL3iHLPfsb06doRicLC2xXNpeG2cWk8x1qpESWJMA==}
+  /xterm-addon-search@0.8.2(xterm@4.19.0):
+    resolution: {integrity: sha512-I1863mjn8P6uVrqm/X+btalVsqjAKLhnhpbP7SavAOpEkI1jJhbHU2UTp7NjeRtcKTks6UWk/ycgds5snDSejg==}
     deprecated: This package is now deprecated. Move to @xterm/addon-search instead.
     peerDependencies:
-      xterm: ^5.0.0
+      xterm: ^4.0.0
     dependencies:
-      xterm: 5.3.0
+      xterm: 4.19.0
     dev: false
 
-  /xterm-addon-web-links@0.9.0(xterm@5.3.0):
-    resolution: {integrity: sha512-LIzi4jBbPlrKMZF3ihoyqayWyTXAwGfu4yprz1aK2p71e9UKXN6RRzVONR0L+Zd+Ik5tPVI9bwp9e8fDTQh49Q==}
+  /xterm-addon-web-links@0.4.0(xterm@4.19.0):
+    resolution: {integrity: sha512-xv8GeiINmx0zENO9hf5k+5bnkaE8mRzF+OBAr9WeFq2eLaQSudioQSiT34M1ofKbzcdjSsKiZm19Rw3i4eXamg==}
     deprecated: This package is now deprecated. Move to @xterm/addon-web-links instead.
     peerDependencies:
-      xterm: ^5.0.0
+      xterm: ^4.0.0
     dependencies:
-      xterm: 5.3.0
+      xterm: 4.19.0
     dev: false
 
-  /xterm@5.3.0:
-    resolution: {integrity: sha512-8QqjlekLUFTrU6x7xck1MsPzPA571K5zNqWm0M0oroYEWVOptZ0+ubQSkQ3uxIEhcIHRujJy6emDWX4A7qyFzg==}
+  /xterm@4.19.0:
+    resolution: {integrity: sha512-c3Cp4eOVsYY5Q839dR5IejghRPpxciGmLWWaP9g+ppfMeBChMeLa1DCA+pmX/jyDZ+zxFOmlJL/82qVdayVoGQ==}
     deprecated: This package is now deprecated. Move to @xterm/xterm instead.
     dev: false
 

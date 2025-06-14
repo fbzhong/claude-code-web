@@ -157,6 +157,18 @@ export default async function (fastify: FastifyInstance) {
           timestamp: new Date()
         }));
 
+        // Send a welcome message to the terminal
+        setTimeout(() => {
+          connection.socket.send(JSON.stringify({
+            type: 'terminal_data',
+            data: '\x1b[1;32mWelcome to Claude Web Terminal!\x1b[0m\r\n'
+          }));
+          connection.socket.send(JSON.stringify({
+            type: 'terminal_data',
+            data: 'Type commands to interact with the terminal.\r\n$ '
+          }));
+        }, 100);
+
       } catch (err) {
         fastify.log.error('Terminal WebSocket error:', err);
         connection.socket.close(1011, 'Internal server error');

@@ -21,11 +21,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onData, onR
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const isInitialized = useRef(false);
 
   useEffect(() => {
-    if (!terminalRef.current) return;
+    if (!terminalRef.current || isInitialized.current) return;
 
-    // Create terminal instance
+    console.log('Initializing terminal...');
+    
+    // Mark as initialized immediately to prevent double initialization
+    isInitialized.current = true;
+
+    // Create terminal instance with conservative settings
     const xterm = new XTerm({
       cursorBlink: true,
       fontSize: 14,
@@ -34,7 +40,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onData, onR
         background: '#0a0a0a',
         foreground: '#ffffff',
         cursor: '#ffffff',
-        selectionBackground: 'rgba(255, 255, 255, 0.3)',
         black: '#000000',
         red: '#ff5555',
         green: '#50fa7b',
@@ -52,33 +57,27 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onData, onR
         brightCyan: '#8be9fd',
         brightWhite: '#ffffff',
       },
+      // Start with fixed dimensions to avoid fit issues
+      cols: 80,
+      rows: 24,
     });
 
-    // Create addons
+    // Store reference before opening
+    xtermRef.current = xterm;
+
+    // Open terminal
+    xterm.open(terminalRef.current);
+
+    // Create and load addons after terminal is open
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
     const searchAddon = new SearchAddon();
 
-    // Load addons
     xterm.loadAddon(fitAddon);
     xterm.loadAddon(webLinksAddon);
     xterm.loadAddon(searchAddon);
-
-    // Open terminal
-    xterm.open(terminalRef.current);
     
-    // Store references
-    xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
-    
-    // Fit terminal after a small delay to ensure proper rendering
-    setTimeout(() => {
-      try {
-        fitAddon.fit();
-      } catch (e) {
-        console.warn('Failed to fit terminal:', e);
-      }
-    }, 100);
 
     // Handle data from terminal
     xterm.onData((data) => {
@@ -90,39 +89,94 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onData, onR
       onResize?.(cols, rows);
     });
 
-    // Handle window resize
-    const handleResize = () => {
-      if (fitAddonRef.current) {
-        try {
+    // Delayed fit to ensure DOM is ready
+    const fitTerminal = () => {
+      if (!fitAddonRef.current || !xtermRef.current) return;
+      
+      try {
+        // Only fit if container has dimensions
+        const container = terminalRef.current;
+        if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
           fitAddonRef.current.fit();
+          console.log('Terminal fitted successfully');
+        } else {
+          console.log('Container not ready, retrying fit...');
+          setTimeout(fitTerminal, 100);
+        }
+      } catch (e) {
+        console.warn('Failed to fit terminal:', e);
+      }
+    };
+
+    // Wait for next tick before fitting
+    requestAnimationFrame(() => {
+      setTimeout(fitTerminal, 100);
+    });
+
+    // Handle window resize with debouncing
+    let resizeTimeout: any;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        if (!fitAddonRef.current || !xtermRef.current) return;
+        
+        try {
+          const container = terminalRef.current;
+          if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
+            fitAddonRef.current.fit();
+          }
         } catch (e) {
           console.warn('Failed to fit terminal on resize:', e);
         }
-      }
+      }, 100);
     };
 
     window.addEventListener('resize', handleResize);
 
-    // Initial focus
-    xterm.focus();
+    // Focus terminal when ready
+    setTimeout(() => {
+      try {
+        xterm.focus();
+      } catch (e) {
+        console.warn('Failed to focus terminal:', e);
+      }
+    }, 300);
 
+    // Cleanup
     return () => {
+      console.log('Cleaning up terminal...');
+      clearTimeout(resizeTimeout);
       window.removeEventListener('resize', handleResize);
-      xterm.dispose();
+      
+      // Dispose addons first
+      try {
+        fitAddon.dispose();
+        webLinksAddon.dispose();
+        searchAddon.dispose();
+      } catch (e) {
+        console.warn('Error disposing addons:', e);
+      }
+      
+      // Then dispose terminal
+      try {
+        xterm.dispose();
+      } catch (e) {
+        console.warn('Error disposing terminal:', e);
+      }
+      
+      isInitialized.current = false;
     };
-  }, [onData, onResize]);
+  }, []); // Empty deps to run only once
 
-  // Public method to write data to terminal
+  // Public methods
   const write = (data: string) => {
     xtermRef.current?.write(data);
   };
 
-  // Public method to clear terminal
   const clear = () => {
     xtermRef.current?.clear();
   };
 
-  // Public method to focus terminal
   const focus = () => {
     xtermRef.current?.focus();
   };
@@ -143,8 +197,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onData, onR
         bgcolor: '#0a0a0a',
         '& .xterm': {
           padding: '10px',
+          height: '100%',
+        },
+        '& .xterm-viewport': {
+          backgroundColor: '#0a0a0a',
         },
       }}
     />
   );
 });
+
+Terminal.displayName = 'Terminal';

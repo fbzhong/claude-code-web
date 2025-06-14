@@ -112,6 +112,11 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
         gap: 0.5,
         overflowX: 'auto',
         WebkitOverflowScrolling: 'touch',
+        // Smooth transition when showing/hiding
+        transform: visible ? 'translateY(0)' : 'translateY(100%)',
+        transition: 'transform 0.3s ease-in-out',
+        // Ensure it stays above the iOS keyboard
+        paddingBottom: 'env(safe-area-inset-bottom)',
         '&::-webkit-scrollbar': {
           height: 4,
         },
@@ -125,6 +130,7 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
       <ButtonGroup size="small" variant="outlined">
         <KeyButton label="ESC" keyCode="\x1B" tooltip="Escape" />
         <KeyButton label="Tab" keyCode="\t" tooltip="Tab completion" />
+        <KeyButton label="↹Tab" keyCode="\x1B[Z" tooltip="Shift+Tab (reverse)" size="medium" />
         <KeyButton label="Ctrl+C" keyCode="\x03" tooltip="Interrupt" />
         <KeyButton label="Ctrl+D" keyCode="\x04" tooltip="Exit" />
       </ButtonGroup>
@@ -165,6 +171,15 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
         <KeyButton label="Ctrl+E" keyCode="\x05" tooltip="End of line" />
         <KeyButton label="Ctrl+Z" keyCode="\x1A" tooltip="Suspend" />
       </ButtonGroup>
+      
+      {/* Vim/Nano specific keys */}
+      <ButtonGroup size="small" variant="outlined">
+        <KeyButton label="Ctrl+W" keyCode="\x17" tooltip="Delete word (nano: search)" />
+        <KeyButton label="Ctrl+K" keyCode="\x0B" tooltip="Kill line (nano: cut)" />
+        <KeyButton label="Ctrl+U" keyCode="\x15" tooltip="Uncut/Paste (nano)" />
+        <KeyButton label="Ctrl+O" keyCode="\x0F" tooltip="Write out (nano save)" />
+        <KeyButton label="Ctrl+X" keyCode="\x18" tooltip="Exit (nano)" />
+      </ButtonGroup>
     </Paper>
   );
 };
@@ -172,6 +187,7 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
 // Hook to manage keyboard toolbar state
 export const useMobileKeyboardToolbar = () => {
   const [isVisible, setIsVisible] = React.useState(false);
+  const [isNativeKeyboardOpen, setIsNativeKeyboardOpen] = React.useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -180,11 +196,81 @@ export const useMobileKeyboardToolbar = () => {
     setIsVisible(prev => !prev);
   };
 
-  // Hide toolbar when not mobile
+  // Detect native keyboard state on iOS
   React.useEffect(() => {
     if (!isMobile) {
       setIsVisible(false);
+      return;
     }
+
+    let lastHeight = window.innerHeight;
+    
+    const detectKeyboard = () => {
+      const currentHeight = window.innerHeight;
+      const viewport = window.visualViewport;
+      
+      // Use visualViewport if available (more accurate on iOS)
+      if (viewport) {
+        const keyboardHeight = window.innerHeight - viewport.height;
+        const isKeyboardOpen = keyboardHeight > 50; // Threshold to detect keyboard
+        
+        setIsNativeKeyboardOpen(isKeyboardOpen);
+        // Auto show/hide toolbar with native keyboard
+        setIsVisible(isKeyboardOpen);
+      } else {
+        // Fallback for older browsers
+        const heightDiff = lastHeight - currentHeight;
+        const isKeyboardOpen = heightDiff > 100; // Keyboard typically > 100px
+        
+        setIsNativeKeyboardOpen(isKeyboardOpen);
+        setIsVisible(isKeyboardOpen);
+      }
+      
+      lastHeight = currentHeight;
+    };
+
+    // Listen to viewport changes
+    const handleViewportChange = () => {
+      detectKeyboard();
+    };
+
+    // Listen to focus/blur events on inputs
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target as HTMLElement;
+      // Check if focused element is in terminal
+      if (target && target.closest('.xterm')) {
+        setTimeout(detectKeyboard, 300); // Wait for keyboard animation
+      }
+    };
+
+    const handleBlur = () => {
+      setTimeout(detectKeyboard, 300); // Wait for keyboard animation
+    };
+
+    // Add event listeners
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+      window.visualViewport.addEventListener('scroll', handleViewportChange);
+    } else {
+      window.addEventListener('resize', handleViewportChange);
+    }
+    
+    document.addEventListener('focusin', handleFocus);
+    document.addEventListener('focusout', handleBlur);
+
+    // Initial detection
+    detectKeyboard();
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportChange);
+        window.visualViewport.removeEventListener('scroll', handleViewportChange);
+      } else {
+        window.removeEventListener('resize', handleViewportChange);
+      }
+      document.removeEventListener('focusin', handleFocus);
+      document.removeEventListener('focusout', handleBlur);
+    };
   }, [isMobile]);
 
   return {
@@ -192,5 +278,6 @@ export const useMobileKeyboardToolbar = () => {
     setIsVisible,
     toggleToolbar,
     isMobile,
+    isNativeKeyboardOpen,
   };
 };

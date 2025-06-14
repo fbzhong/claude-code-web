@@ -3,6 +3,7 @@ import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import 'xterm/css/xterm.css';
 import { Box } from '@mui/material';
+import { useMobileTerminalEnhancements } from '../hooks/useMobileTerminalEnhancements';
 
 interface StableTerminalProps {
   onData: (data: string) => void;
@@ -22,6 +23,11 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
     const fitAddonRef = useRef<FitAddon | null>(null);
     const writeBufferRef = useRef<string[]>([]);
     const writeTimerRef = useRef<NodeJS.Timeout | null>(null);
+    
+    // Use mobile enhancements
+    const mobileEnhancements = useMobileTerminalEnhancements({
+      terminal: terminalRef.current,
+    });
 
     useEffect(() => {
       if (!containerRef.current) return;
@@ -206,8 +212,31 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
     
     const flushWriteBuffer = () => {
       if (writeBufferRef.current.length > 0 && terminalRef.current) {
-        const data = writeBufferRef.current.join('');
+        let data = writeBufferRef.current.join('');
         writeBufferRef.current = [];
+        
+        // On mobile, simplify redundant ANSI sequences
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+          // Remove redundant cursor movements
+          data = data.replace(/(\x1b\[\d*[CD])+/g, (match) => {
+            // Combine multiple right/left movements
+            const total = match.match(/\x1b\[\d*[CD]/g)?.reduce((sum, seq) => {
+              const num = parseInt(seq.match(/\d+/)?.[0] || '1');
+              return seq.includes('C') ? sum + num : sum - num;
+            }, 0) || 0;
+            
+            if (total > 0) return `\x1b[${total}C`;
+            if (total < 0) return `\x1b[${-total}D`;
+            return '';
+          });
+          
+          // Simplify color codes - remove redundant resets
+          data = data.replace(/(\x1b\[0m\x1b\[\d+m)+/g, (match) => {
+            const lastColor = match.match(/\x1b\[\d+m$/)?.[0];
+            return lastColor || match;
+          });
+        }
+        
         try {
           terminalRef.current.write(data);
         } catch (e) {
@@ -233,15 +262,30 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
                 clearTimeout(writeTimerRef.current);
               }
               
-              // Detect if this is a cursor positioning sequence (common in progress bars)
+              // More comprehensive ANSI sequence detection
               // eslint-disable-next-line no-control-regex
-              const hasCursorPositioning = /\x1b\[\d*[ABCDGJK]|\x1b\[\d*;\d*[Hf]|\r/.test(data);
+              const ansiPatterns = {
+                cursorPositioning: /\x1b\[\d*[ABCDGJK]|\x1b\[\d*;\d*[Hf]|\r/,
+                clearLine: /\x1b\[2K|\x1b\[K/,
+                colorCodes: /\x1b\[\d+(;\d+)*m/,
+                saveRestoreCursor: /\x1b\[s|\x1b\[u/,
+                scrollRegion: /\x1b\[\d*;\d*r/,
+              };
               
-              // Flush immediately for cursor positioning, otherwise batch
-              if (hasCursorPositioning) {
+              // Check if this requires immediate flush
+              const requiresImmediateFlush = 
+                ansiPatterns.cursorPositioning.test(data) ||
+                ansiPatterns.clearLine.test(data) ||
+                ansiPatterns.saveRestoreCursor.test(data) ||
+                ansiPatterns.scrollRegion.test(data);
+              
+              // Flush immediately for critical sequences, otherwise batch
+              if (requiresImmediateFlush) {
                 flushWriteBuffer();
               } else {
-                writeTimerRef.current = setTimeout(flushWriteBuffer, 50);
+                // Use longer buffer time for color codes only
+                const bufferTime = ansiPatterns.colorCodes.test(data) ? 100 : 50;
+                writeTimerRef.current = setTimeout(flushWriteBuffer, bufferTime);
               }
             } else {
               // Direct write on desktop

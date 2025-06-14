@@ -836,18 +836,21 @@ export const TerminalPage: React.FC = () => {
         </Box>
       </Drawer>
 
-      {/* Mobile Keyboard Toggle Button */}
-      {currentSessionId && isMobileKeyboard && (
+      {/* Mobile Keyboard Toggle Button - Only show when keyboard is not open */}
+      {currentSessionId && isMobileKeyboard && !isKeyboardToolbarVisible && (
         <Fab
           color="primary"
-          size="medium"
+          size="small"
           onClick={toggleToolbar}
           sx={{
             position: 'fixed',
-            bottom: isKeyboardToolbarVisible ? 80 : 16,
+            bottom: 16,
             right: 16,
             zIndex: 1299,
-            transition: 'bottom 0.3s ease',
+            opacity: 0.7,
+            '&:hover': {
+              opacity: 1,
+            },
           }}
         >
           <KeyboardIcon />

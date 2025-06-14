@@ -391,11 +391,16 @@ export const TerminalPage: React.FC = () => {
     return workingDir;
   };
 
-  const getStatusColor = (status: SessionInfo['status']): 'success' | 'warning' | 'error' | 'default' => {
-    switch (status) {
-      case 'active': return 'success';
-      case 'detached': return 'warning';
-      case 'dead': return 'error';
+  const getStatusColor = (session: SessionInfo): 'success' | 'warning' | 'error' | 'default' => {
+    // If session is executing, use different color
+    if (session.isExecuting) {
+      return 'warning'; // Orange/yellow for executing
+    }
+    
+    switch (session.status) {
+      case 'active': return 'success'; // Green for idle active
+      case 'detached': return 'warning'; // Yellow for detached
+      case 'dead': return 'error'; // Red for dead
       default: return 'default';
     }
   };
@@ -612,10 +617,10 @@ export const TerminalPage: React.FC = () => {
                         sx={{ 
                           fontSize: 12, 
                           color: theme => {
-                            const status = getStatusColor(session.status);
-                            return status === 'default' 
+                            const statusColor = getStatusColor(session);
+                            return statusColor === 'default' 
                               ? theme.palette.grey[500] 
-                              : theme.palette[status].main;
+                              : theme.palette[statusColor].main;
                           }
                         }} 
                       />
@@ -636,7 +641,12 @@ export const TerminalPage: React.FC = () => {
                           )}
                         </Box>
                       }
-                      secondary={`${formatWorkingDir(session.workingDir)}\n${formatTime(session.lastActivity)}`}
+                      secondary={
+                        `${formatWorkingDir(session.workingDir)}\n` +
+                        (session.lastCommand ? `$ ${session.lastCommand.slice(0, 30)}${session.lastCommand.length > 30 ? '...' : ''}\n` : '') +
+                        `${formatTime(session.lastActivity)}` +
+                        (session.isExecuting ? ' • Running' : '')
+                      }
                       secondaryTypographyProps={{
                         component: 'div',
                         sx: {

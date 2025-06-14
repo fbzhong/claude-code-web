@@ -36,6 +36,8 @@ export interface SessionInfo {
   workingDir: string;
   connectedClients: number;
   outputPreview?: string;
+  lastCommand?: string;
+  isExecuting?: boolean;
 }
 
 interface SessionListProps {

@@ -12,6 +12,8 @@ export interface SessionInfo {
   workingDir: string;
   connectedClients: number;
   outputPreview?: string;
+  lastCommand?: string;
+  isExecuting?: boolean;
 }
 
 export class SessionManager extends EventEmitter {
@@ -267,6 +269,14 @@ export class SessionManager extends EventEmitter {
   }
 
   private sessionToInfo(session: TerminalSession): SessionInfo {
+    // Get last command from history
+    const lastCommand = session.history.length > 0 
+      ? session.history[session.history.length - 1]?.command 
+      : undefined;
+    
+    // Check if there's a process running (simplified check)
+    const isExecuting = this.isSessionExecuting(session);
+    
     return {
       id: session.id,
       name: session.name || 'Unnamed Session',
@@ -275,8 +285,28 @@ export class SessionManager extends EventEmitter {
       lastActivity: session.lastActivity,
       workingDir: session.workingDir,
       connectedClients: session.connectedClients,
-      outputPreview: session.outputBuffer.slice(-3).join('').slice(-100) // Last 100 chars
+      outputPreview: session.outputBuffer.slice(-3).join('').slice(-100), // Last 100 chars
+      lastCommand: lastCommand,
+      isExecuting: isExecuting
     };
+  }
+  
+  private isSessionExecuting(session: TerminalSession): boolean {
+    // Simple heuristic: if there's been recent output activity (within last 5 seconds)
+    // and the last output doesn't look like a prompt, consider it executing
+    if (!session.outputBuffer.length) return false;
+    
+    const lastOutput = session.outputBuffer.slice(-1)[0] || '';
+    const timeSinceActivity = Date.now() - session.lastActivity.getTime();
+    
+    // If very recent activity (within 5 seconds) and doesn't end with typical prompt patterns
+    if (timeSinceActivity < 5000) {
+      // Common prompt patterns: $, %, >, #, followed by space or end of line
+      const promptPattern = /[\$%>#]\s*$/;
+      return !promptPattern.test(lastOutput.trim());
+    }
+    
+    return false;
   }
 
   private async addToOutputBuffer(sessionId: string, data: string): Promise<void> {

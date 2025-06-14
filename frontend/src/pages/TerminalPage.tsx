@@ -366,6 +366,31 @@ export const TerminalPage: React.FC = () => {
     return days === 1 ? '1 day ago' : `${days} days ago`;
   };
 
+  const formatWorkingDir = (workingDir: string) => {
+    if (!workingDir) return '';
+    
+    // Check if it's a user home directory pattern (like /Users/username or /home/username)
+    const homePattern = /^(\/Users\/[^/]+|\/home\/[^/]+)/;
+    const match = workingDir.match(homePattern);
+    
+    if (match) {
+      const relativePath = workingDir.replace(match[1], '~');
+      // If path is too long, show only last 2-3 directories
+      const parts = relativePath.split('/').filter(Boolean);
+      if (parts.length > 2) { // ~ counts as one part
+        return `~/.../.${ parts.slice(-2).join('/')}`;
+      }
+      return relativePath;
+    }
+    
+    // For non-home paths, show last 2-3 directories
+    const parts = workingDir.split('/').filter(Boolean);
+    if (parts.length > 3) {
+      return `.../${parts.slice(-2).join('/')}`;
+    }
+    return workingDir;
+  };
+
   const getStatusColor = (status: SessionInfo['status']): 'success' | 'warning' | 'error' | 'default' => {
     switch (status) {
       case 'active': return 'success';
@@ -611,7 +636,7 @@ export const TerminalPage: React.FC = () => {
                           )}
                         </Box>
                       }
-                      secondary={`${session.workingDir}\n${formatTime(session.lastActivity)}`}
+                      secondary={`${formatWorkingDir(session.workingDir)}\n${formatTime(session.lastActivity)}`}
                       secondaryTypographyProps={{
                         component: 'div',
                         sx: {

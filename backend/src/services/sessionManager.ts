@@ -123,6 +123,9 @@ export class SessionManager extends EventEmitter {
 
     this.fastify.log.info(`Created new terminal session: ${sessionId} (${sessionName}) for user ${userId}`);
     
+    // Emit session list update event
+    this.emit('session_created', this.sessionToInfo(session));
+    
     return session;
   }
 
@@ -149,6 +152,9 @@ export class SessionManager extends EventEmitter {
 
     this.fastify.log.info(`User ${userId} attached to session ${sessionId} (${session.connectedClients} clients)`);
 
+    // Emit session list update event
+    this.emit('session_updated', this.sessionToInfo(session));
+
     return session;
   }
 
@@ -166,6 +172,9 @@ export class SessionManager extends EventEmitter {
     }
 
     this.fastify.log.info(`User ${userId} detached from session ${sessionId} (${session.connectedClients} clients remaining)`);
+
+    // Emit session list update event
+    this.emit('session_updated', this.sessionToInfo(session));
 
     return true;
   }
@@ -192,6 +201,9 @@ export class SessionManager extends EventEmitter {
     await this.updateSessionInDb(session);
 
     this.fastify.log.info(`Killed terminal session: ${sessionId} for user ${userId}`);
+
+    // Emit session list update event
+    this.emit('session_deleted', sessionId);
 
     return true;
   }
@@ -355,7 +367,14 @@ export class SessionManager extends EventEmitter {
   private updateActivity(sessionId: string): void {
     const session = this.sessions.get(sessionId);
     if (session) {
+      const oldActivity = session.lastActivity;
       session.lastActivity = new Date();
+      
+      // Only emit update if significant time has passed (avoid spam)
+      const timeDiff = session.lastActivity.getTime() - oldActivity.getTime();
+      if (timeDiff > 5000) { // 5 seconds threshold
+        this.emit('session_updated', this.sessionToInfo(session));
+      }
       
       // Update database asynchronously (don't await to avoid blocking)
       this.updateSessionInDb(session).catch(err => {
@@ -393,6 +412,9 @@ export class SessionManager extends EventEmitter {
     }
 
     this.emit('command', sessionId, commandRecord);
+    
+    // Emit session update for last command change
+    this.emit('session_updated', this.sessionToInfo(session));
   }
 
   private async saveSessionToDb(session: TerminalSession): Promise<void> {

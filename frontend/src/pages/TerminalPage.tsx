@@ -33,7 +33,7 @@ import { SessionInfo } from '../components/SessionList';
 import { sessionApi } from '../services/sessionApi';
 import { StableTerminal as Terminal } from '../components/StableTerminal';
 import type { StableTerminalHandle as TerminalHandle } from '../components/StableTerminal';
-import { wsService } from '../services/websocket';
+import { wsService, sessionListWsService } from '../services/websocket';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 
@@ -270,19 +270,69 @@ export const TerminalPage: React.FC = () => {
     }
   }, [sessions, refreshSessions, updateOperationState]);
 
-  // Load sessions on mount
+  // Load sessions on mount and setup WebSocket
   useEffect(() => {
     if (token) {
       refreshSessions();
       
-      // Periodic refresh for activity times
+      // Connect to session list WebSocket
+      sessionListWsService.connect(token).then(() => {
+        console.log('Connected to session list WebSocket');
+      }).catch((error) => {
+        console.error('Failed to connect to session list WebSocket:', error);
+      });
+      
+      // Setup session list message handlers
+      const handleSessionList = (message: any) => {
+        console.log('Received session list:', message.data);
+        setSessions(message.data);
+      };
+      
+      const handleSessionUpdated = (message: any) => {
+        console.log('Session updated:', message.data);
+        const { session, eventType } = message.data;
+        
+        setSessions(prev => {
+          if (eventType === 'created') {
+            // Check if session already exists to avoid duplicates
+            const exists = prev.find(s => s.id === session.id);
+            return exists ? prev : [...prev, session];
+          } else {
+            // Update existing session
+            return prev.map(s => s.id === session.id ? session : s);
+          }
+        });
+      };
+      
+      const handleSessionDeleted = (message: any) => {
+        console.log('Session deleted:', message.data);
+        const { sessionId } = message.data;
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        
+        // If current session was deleted, clear it
+        if (sessionId === currentSessionId) {
+          setCurrentSessionId(null);
+        }
+      };
+      
+      sessionListWsService.onMessage('session_list', handleSessionList);
+      sessionListWsService.onMessage('session_updated', handleSessionUpdated);
+      sessionListWsService.onMessage('session_deleted', handleSessionDeleted);
+      
+      // Periodic refresh as fallback
       const interval = setInterval(() => {
         refreshSessions(false);
-      }, 30000);
+      }, 60000); // Reduced to 1 minute since we have real-time updates
       
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        sessionListWsService.offMessage('session_list');
+        sessionListWsService.offMessage('session_updated');
+        sessionListWsService.offMessage('session_deleted');
+        sessionListWsService.disconnect();
+      };
     }
-  }, [token, refreshSessions]);
+  }, [token, refreshSessions, currentSessionId]);
 
   // Handle WebSocket connection
   useEffect(() => {

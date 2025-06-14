@@ -6,6 +6,74 @@ export default async function (fastify: FastifyInstance) {
   // Get the singleton SessionManager instance
   const sessionManager = SessionManager.getInstance(fastify);
   const claudeService = new ClaudeService(fastify);
+  
+  // Store global session list WebSocket connections
+  const sessionListConnections = new Set<any>();
+
+  // WebSocket route for session list updates
+  fastify.register(async function (fastify) {
+    fastify.get('/sessions', { websocket: true }, async (connection, request) => {
+      // Get token from query parameter
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      const token = url.searchParams.get('token');
+      
+      let user;
+      if (token) {
+        try {
+          user = await fastify.jwt.verify(token);
+        } catch (err) {
+          fastify.log.error('Invalid JWT token for session list:', err);
+        }
+      }
+
+      if (!user) {
+        connection.socket.close(1008, 'Authentication required');
+        return;
+      }
+
+      fastify.log.info(`Session list WebSocket connected for user ${user.id}`);
+      
+      // Add to global connections
+      sessionListConnections.add(connection.socket);
+      
+      // Send initial session list
+      const userSessions = sessionManager.getUserSessions(user.id);
+      connection.socket.send(JSON.stringify({
+        type: 'session_list',
+        data: userSessions,
+        timestamp: new Date()
+      }));
+      
+      // Handle incoming messages
+      connection.socket.on('message', async (message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          
+          switch (data.type) {
+            case 'get_sessions':
+              const sessions = sessionManager.getUserSessions(user.id);
+              connection.socket.send(JSON.stringify({
+                type: 'session_list',
+                data: sessions,
+                timestamp: new Date()
+              }));
+              break;
+              
+            default:
+              fastify.log.warn(`Unknown session list message type: ${data.type}`);
+          }
+        } catch (err) {
+          fastify.log.error('Session list WebSocket message error:', err);
+        }
+      });
+      
+      // Cleanup on disconnect
+      connection.socket.on('close', () => {
+        fastify.log.info(`Session list WebSocket disconnected for user ${user.id}`);
+        sessionListConnections.delete(connection.socket);
+      });
+    });
+  });
 
   // WebSocket route for terminal connections
   fastify.register(async function (fastify) {
@@ -260,6 +328,50 @@ export default async function (fastify: FastifyInstance) {
         connection.socket.close(1011, 'Internal server error');
       }
     });
+  });
+
+  // Handle session list update events
+  const broadcastSessionUpdate = (sessionInfo: any, eventType: string) => {
+    const message = JSON.stringify({
+      type: 'session_updated',
+      data: { session: sessionInfo, eventType },
+      timestamp: new Date()
+    });
+    
+    // Broadcast to all session list connections
+    sessionListConnections.forEach(socket => {
+      if (socket.readyState === 1) { // WebSocket.OPEN
+        socket.send(message);
+      }
+    });
+  };
+  
+  const broadcastSessionDeleted = (sessionId: string) => {
+    const message = JSON.stringify({
+      type: 'session_deleted',
+      data: { sessionId },
+      timestamp: new Date()
+    });
+    
+    // Broadcast to all session list connections
+    sessionListConnections.forEach(socket => {
+      if (socket.readyState === 1) { // WebSocket.OPEN
+        socket.send(message);
+      }
+    });
+  };
+  
+  // Listen to session manager events
+  sessionManager.on('session_created', (sessionInfo) => {
+    broadcastSessionUpdate(sessionInfo, 'created');
+  });
+  
+  sessionManager.on('session_updated', (sessionInfo) => {
+    broadcastSessionUpdate(sessionInfo, 'updated');
+  });
+  
+  sessionManager.on('session_deleted', (sessionId) => {
+    broadcastSessionDeleted(sessionId);
   });
 
   // Handle Claude Code events

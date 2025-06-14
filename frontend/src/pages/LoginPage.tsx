@@ -8,6 +8,9 @@ import {
   Alert,
   Tabs,
   Tab,
+  useTheme,
+  useMediaQuery,
+  Container,
 } from '@mui/material';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
@@ -40,6 +43,10 @@ export const LoginPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Responsive design
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
@@ -108,19 +115,25 @@ export const LoginPage: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'center',
         bgcolor: 'background.default',
+        p: { xs: 2, sm: 3 },
       }}
     >
-      <Paper
-        elevation={3}
-        sx={{
-          width: '100%',
-          maxWidth: 400,
-          p: 3,
-        }}
-      >
-        <Typography variant="h4" align="center" gutterBottom>
-          Claude Web
-        </Typography>
+      <Container maxWidth="sm">
+        <Paper
+          elevation={3}
+          sx={{
+            width: '100%',
+            p: { xs: 2, sm: 3, md: 4 },
+          }}
+        >
+          <Typography 
+            variant={isMobile ? "h5" : "h4"} 
+            align="center" 
+            gutterBottom
+            sx={{ mb: { xs: 2, sm: 3 } }}
+          >
+            Claude Web Terminal
+          </Typography>
 
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
           <Tabs value={tabValue} onChange={handleTabChange} centered>
@@ -236,7 +249,8 @@ export const LoginPage: React.FC = () => {
             </Button>
           </form>
         </TabPanel>
-      </Paper>
+        </Paper>
+      </Container>
     </Box>
   );
 };

@@ -5,12 +5,10 @@ import {
   Toolbar,
   Typography,
   IconButton,
-  Drawer,
   List,
   ListItem,
   ListItemText,
   ListItemIcon,
-  Divider,
   Chip,
   Button,
   Alert,
@@ -18,19 +16,20 @@ import {
   Paper,
   LinearProgress,
   CircularProgress,
+  useTheme,
+  useMediaQuery,
+  SwipeableDrawer,
+  Badge,
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
-  History as HistoryIcon,
-  PlayArrow as PlayIcon,
-  Stop as StopIcon,
-  RestartAlt as RestartIcon,
   Logout as LogoutIcon,
   Terminal as TerminalIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
   Circle as CircleIcon,
+  Close as CloseIcon,
+  ViewList as ViewListIcon,
 } from '@mui/icons-material';
 import { SessionInfo } from '../components/SessionList';
 import { sessionApi } from '../services/sessionApi';
@@ -54,16 +53,12 @@ export const TerminalPage: React.FC = () => {
   const { user, token, logout } = useAuthStore();
   
   // UI states
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Session states
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [commandHistory, setCommandHistory] = useState<any[]>([]);
-  
-  // Claude status
-  const [claudeStatus, setClaudeStatus] = useState<'stopped' | 'starting' | 'running' | 'error'>('stopped');
   
   // Operation states
   const [operationStates, setOperationStates] = useState<OperationStates>({
@@ -77,16 +72,14 @@ export const TerminalPage: React.FC = () => {
   const terminalRef = useRef<TerminalHandle>(null);
   const isCreatingRef = useRef(false);
   
+  // Responsive design
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
+  
   // Helper to update operation states
   const updateOperationState = useCallback((updates: Partial<OperationStates>) => {
-    console.log('updateOperationState called with:', updates);
-    setOperationStates(prev => {
-      console.log('updateOperationState: prev state:', prev);
-      const newState = { ...prev, ...updates };
-      console.log('updateOperationState: new state:', newState);
-      return newState;
-    });
-    console.log('updateOperationState completed');
+    setOperationStates(prev => ({ ...prev, ...updates }));
   }, []);
 
   // Refresh sessions from server
@@ -150,7 +143,6 @@ export const TerminalPage: React.FC = () => {
         // Update states
         setSessions(prev => [...prev, newSession]);
         setCurrentSessionId(newSession.id);
-        setCommandHistory([]);
         
         if (terminalRef.current?.clear) {
           terminalRef.current.clear();
@@ -190,7 +182,6 @@ export const TerminalPage: React.FC = () => {
       await sessionApi.attachToSession(sessionId);
       
       setCurrentSessionId(sessionId);
-      setCommandHistory([]);
       
       if (terminalRef.current?.clear) {
         terminalRef.current.clear();
@@ -223,7 +214,6 @@ export const TerminalPage: React.FC = () => {
     if (sessionId === currentSessionId) {
       wsService.disconnect();
       setCurrentSessionId(null);
-      setCommandHistory([]);
       if (terminalRef.current?.clear) {
         terminalRef.current.clear();
       }
@@ -328,35 +318,12 @@ export const TerminalPage: React.FC = () => {
       }
     };
     
-    const commandHistoryHandler = (message: any) => {
-      if (Array.isArray(message.data)) {
-        setCommandHistory(message.data);
-      } else {
-        setCommandHistory(prev => [...prev, message.data]);
-      }
-    };
-    
-    const claudeStatusHandler = (message: any) => {
-      setClaudeStatus(message.data.status || 'stopped');
-    };
-    
     wsService.onMessage('terminal_data', terminalDataHandler);
     wsService.onMessage('terminal_clear', terminalClearHandler);
-    wsService.onMessage('command_history', commandHistoryHandler);
-    wsService.onMessage('claude_status', claudeStatusHandler);
-    
-    // Request initial history
-    setTimeout(() => {
-      if (wsService.isConnected()) {
-        wsService.requestHistory();
-      }
-    }, 500);
     
     return () => {
       wsService.offMessage('terminal_data');
       wsService.offMessage('terminal_clear');
-      wsService.offMessage('command_history');
-      wsService.offMessage('claude_status');
       wsService.disconnect();
     };
   }, [currentSessionId, token]);
@@ -379,35 +346,9 @@ export const TerminalPage: React.FC = () => {
     wsService.sendTerminalResize(cols, rows);
   }, []);
 
-  // Claude control handlers
-  const handleStartClaude = () => {
-    wsService.startClaude({
-      workingDir: process.env.HOME || '/tmp',
-      autoRestart: true,
-    });
-  };
-
-  const handleStopClaude = () => {
-    wsService.stopClaude();
-  };
-
-  const handleRestartClaude = () => {
-    wsService.restartClaude();
-  };
-
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  // Utility functions
-  const getClaudeStatusColor = () => {
-    switch (claudeStatus) {
-      case 'running': return 'success';
-      case 'starting': return 'warning';
-      case 'error': return 'error';
-      default: return 'default';
-    }
   };
 
   const formatTime = (dateString: string) => {
@@ -441,41 +382,71 @@ export const TerminalPage: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', height: '100vh', flexDirection: 'column' }}>
       <AppBar position="static" sx={{ bgcolor: '#2d2d30' }}>
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            onClick={() => setDrawerOpen(true)}
-            sx={{ mr: 2 }}
+        <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
+          
+          {/* Show sessions button on mobile */}
+          {isMobile && currentSessionId && (
+            <IconButton
+              color="inherit"
+              onClick={() => setMobileSessionsOpen(true)}
+              sx={{ mr: 1 }}
+            >
+              <Badge badgeContent={sessions.length} color="primary">
+                <ViewListIcon />
+              </Badge>
+            </IconButton>
+          )}
+          
+          <Typography 
+            variant={isMobile ? "subtitle1" : "h6"} 
+            sx={{ 
+              flexGrow: 1, 
+              fontWeight: 600,
+              display: { xs: 'none', sm: 'block' }
+            }}
           >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
             Claude Web Terminal
           </Typography>
-          <Chip
-            label={`Claude: ${claudeStatus}`}
-            color={getClaudeStatusColor()}
-            size="small"
-            sx={{ mr: 2, fontWeight: 500 }}
-          />
-          <Typography variant="body2" sx={{ mr: 2, opacity: 0.9 }}>
-            {user?.username}
+          
+          {/* Simplified mobile header */}
+          <Typography 
+            variant="subtitle1" 
+            sx={{ 
+              flexGrow: 1, 
+              fontWeight: 600,
+              display: { xs: 'block', sm: 'none' }
+            }}
+          >
+            Terminal
           </Typography>
-          <IconButton color="inherit" onClick={handleLogout} size="small">
+          
+          {!isMobile && (
+            <Typography variant="body2" sx={{ mr: 2, opacity: 0.9 }}>
+              {user?.username}
+            </Typography>
+          )}
+          
+          <IconButton 
+            color="inherit" 
+            onClick={handleLogout} 
+            size={isMobile ? "medium" : "small"}
+          >
             <LogoutIcon />
           </IconButton>
         </Toolbar>
       </AppBar>
 
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {/* Sessions Sidebar */}
-        <Paper sx={{ 
-          width: 350, 
-          bgcolor: '#1e1e1e', 
-          borderRight: '1px solid rgba(255,255,255,0.1)',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
+        {/* Sessions Sidebar - Hidden on mobile */}
+        {!isMobile && (
+          <Paper sx={{ 
+            width: isTablet ? 280 : 350, 
+            bgcolor: '#1e1e1e', 
+            borderRight: '1px solid rgba(255,255,255,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            transition: 'width 0.3s ease'
+          }}>
           <Box sx={{ p: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
             <Typography variant="h6" sx={{ color: '#ffffff', mb: 2 }}>
               Active Sessions
@@ -614,7 +585,8 @@ export const TerminalPage: React.FC = () => {
               </List>
             )}
           </Box>
-        </Paper>
+          </Paper>
+        )}
 
         {/* Terminal Area */}
         <Box sx={{ 
@@ -649,127 +621,176 @@ export const TerminalPage: React.FC = () => {
               alignItems: 'center', 
               justifyContent: 'center',
               color: 'rgba(255,255,255,0.6)',
+              p: 2,
             }}>
-              <TerminalIcon sx={{ fontSize: 64, mb: 2, opacity: 0.5 }} />
-              <Typography variant="h6" sx={{ mb: 1 }}>
+              <TerminalIcon sx={{ fontSize: { xs: 48, sm: 64 }, mb: 2, opacity: 0.5 }} />
+              <Typography variant={isMobile ? "h6" : "h5"} sx={{ mb: 1 }}>
                 No Session Selected
               </Typography>
-              <Typography variant="body2" sx={{ mb: 3, textAlign: 'center', maxWidth: 400 }}>
-                Select an existing session from the sidebar or create a new one to start using the terminal.
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  mb: 3, 
+                  textAlign: 'center', 
+                  maxWidth: { xs: '100%', sm: 400 },
+                  px: { xs: 2, sm: 0 }
+                }}
+              >
+                {isMobile 
+                  ? 'Tap the sessions button above or create a new session.'
+                  : 'Select an existing session from the sidebar or create a new one to start using the terminal.'
+                }
               </Typography>
               <Button
                 variant="contained"
+                size={isMobile ? "large" : "medium"}
                 startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
-                onClick={() => createNewSession(`Session ${sessions.length + 1}`)}
+                onClick={() => {
+                  if (isMobile) {
+                    setMobileSessionsOpen(true);
+                  } else {
+                    createNewSession(`Session ${sessions.length + 1}`);
+                  }
+                }}
                 disabled={operationStates.creating}
               >
-                {operationStates.creating ? 'Creating...' : 'Create New Session'}
+                {operationStates.creating ? 'Creating...' : isMobile ? 'View Sessions' : 'Create New Session'}
               </Button>
             </Box>
           )}
         </Box>
       </Box>
 
-      {/* Claude Control Drawer */}
-      <Drawer
-        anchor="left"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+
+      {/* Mobile Sessions Drawer */}
+      <SwipeableDrawer
+        anchor="bottom"
+        open={mobileSessionsOpen}
+        onClose={() => setMobileSessionsOpen(false)}
+        onOpen={() => setMobileSessionsOpen(true)}
         sx={{
+          display: { xs: 'block', md: 'none' },
           '& .MuiDrawer-paper': {
-            bgcolor: '#252526',
+            bgcolor: '#1e1e1e',
             color: '#cccccc',
-            mt: '64px',
-            height: 'calc(100% - 64px)',
+            maxHeight: '70vh',
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
           }
         }}
       >
-        <Box sx={{ width: 300, p: 2 }}>
-          <Typography variant="h6" gutterBottom sx={{ color: '#ffffff' }}>
-            Claude Control
-          </Typography>
-          <Box sx={{ mb: 2 }}>
-            <Button
-              fullWidth
-              variant="contained"
-              color="success"
-              startIcon={<PlayIcon />}
-              onClick={handleStartClaude}
-              disabled={claudeStatus === 'running' || claudeStatus === 'starting'}
-              sx={{ mb: 1 }}
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            mb: 2 
+          }}>
+            <Typography variant="h6" sx={{ color: '#ffffff' }}>
+              Active Sessions ({sessions.length})
+            </Typography>
+            <IconButton 
+              onClick={() => setMobileSessionsOpen(false)}
+              sx={{ color: 'rgba(255,255,255,0.7)' }}
             >
-              Start Claude
-            </Button>
-            <Button
-              fullWidth
-              variant="contained"
-              color="error"
-              startIcon={<StopIcon />}
-              onClick={handleStopClaude}
-              disabled={claudeStatus === 'stopped'}
-              sx={{ mb: 1 }}
-            >
-              Stop Claude
-            </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<RestartIcon />}
-              onClick={handleRestartClaude}
-              disabled={claudeStatus === 'stopped'}
-            >
-              Restart Claude
-            </Button>
+              <CloseIcon />
+            </IconButton>
           </Box>
+          
+          <Button
+            fullWidth
+            variant="contained"
+            startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
+            onClick={() => {
+              createNewSession(`Session ${sessions.length + 1}`);
+              setMobileSessionsOpen(false);
+            }}
+            disabled={operationStates.creating}
+            sx={{ mb: 2 }}
+          >
+            {operationStates.creating ? 'Creating...' : 'New Session'}
+          </Button>
 
-          <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.1)' }} />
+          {operationStates.refreshing && <LinearProgress sx={{ mb: 1 }} />}
 
-          <Typography variant="h6" gutterBottom sx={{ color: '#ffffff' }}>
-            Command History
-          </Typography>
-          <List dense sx={{ maxHeight: 400, overflow: 'auto' }}>
-            {commandHistory.length === 0 ? (
-              <ListItem>
-                <ListItemText 
-                  primary="No commands yet"
-                  sx={{ opacity: 0.6, fontStyle: 'italic' }}
-                />
-              </ListItem>
+          <Box sx={{ maxHeight: '50vh', overflow: 'auto' }}>
+            {sessions.length === 0 ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  No active sessions. Create your first session to get started.
+                </Typography>
+              </Box>
             ) : (
-              commandHistory.slice(-10).reverse().map((cmd, index) => (
-                <ListItem 
-                  key={cmd.id || index}
-                  sx={{ 
-                    borderRadius: 1,
-                    '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
-                  }}
-                >
-                  <ListItemIcon>
-                    <HistoryIcon fontSize="small" sx={{ color: '#569cd6' }} />
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={cmd.command}
-                    secondary={new Date(cmd.timestamp).toLocaleTimeString()}
-                    primaryTypographyProps={{
-                      style: {
-                        fontFamily: 'Menlo, Monaco, monospace',
-                        fontSize: '0.875rem',
-                        color: '#d4d4d4',
-                      },
+              <List>
+                {sessions.map((session) => (
+                  <ListItem 
+                    key={session.id} 
+                    button
+                    selected={session.id === currentSessionId}
+                    onClick={() => {
+                      selectSession(session.id);
+                      setMobileSessionsOpen(false);
                     }}
-                    secondaryTypographyProps={{
-                      style: {
-                        color: '#808080',
-                        fontSize: '0.75rem',
-                      },
+                    disabled={operationStates.selecting === session.id}
+                    sx={{ 
+                      borderRadius: 2,
+                      mb: 1,
+                      bgcolor: session.id === currentSessionId ? 'rgba(144, 202, 249, 0.15)' : 'transparent',
+                      opacity: operationStates.selecting === session.id ? 0.6 : 1,
                     }}
-                  />
-                </ListItem>
-              ))
+                  >
+                    <ListItemIcon sx={{ minWidth: 40 }}>
+                      <CircleIcon 
+                        sx={{ 
+                          fontSize: 12, 
+                          color: theme => {
+                            const status = getStatusColor(session.status);
+                            return status === 'default' 
+                              ? theme.palette.grey[500] 
+                              : theme.palette[status].main;
+                          }
+                        }} 
+                      />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Typography variant="body1" sx={{ color: '#ffffff' }}>
+                          {session.name}
+                        </Typography>
+                      }
+                      secondary={
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">
+                            {formatTime(session.lastActivity)}
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <IconButton 
+                        size="small" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Delete session "${session.name}"?`)) {
+                            deleteSession(session.id);
+                          }
+                        }}
+                        disabled={operationStates.deleting.has(session.id)}
+                      >
+                        {operationStates.deleting.has(session.id) ? (
+                          <CircularProgress size={16} />
+                        ) : (
+                          <DeleteIcon />
+                        )}
+                      </IconButton>
+                    </Box>
+                  </ListItem>
+                ))}
+              </List>
             )}
-          </List>
+          </Box>
         </Box>
-      </Drawer>
+      </SwipeableDrawer>
 
       {/* Error Snackbar */}
       <Snackbar

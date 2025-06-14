@@ -336,6 +336,82 @@ export class SessionManager extends EventEmitter {
     // If recent activity but no prompt, probably executing
     return timeSinceActivity < 10000; // 10 seconds threshold
   }
+  
+  private analyzeTerminalOutput(sessionId: string, data: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session) return;
+    
+    // Look for working directory changes (cd commands and pwd output)
+    const cdPattern = /(?:^|\n).*?[\$%>#]\s*cd\s+([^\s\n]+)/;
+    const pwdPattern = /(?:^|\n)([^\/\n]*\/[^\n]+)(?=\s*[\$%>#]|\n|$)/;
+    
+    let shouldUpdate = false;
+    
+    // Check for cd command
+    const cdMatch = data.match(cdPattern);
+    if (cdMatch && cdMatch[1]) {
+      let newDir = cdMatch[1];
+      // Handle relative paths
+      if (newDir === '..') {
+        const parts = session.workingDir.split('/');
+        newDir = parts.slice(0, -1).join('/') || '/';
+      } else if (newDir.startsWith('./')) {
+        newDir = session.workingDir + '/' + newDir.substring(2);
+      } else if (!newDir.startsWith('/')) {
+        newDir = session.workingDir + '/' + newDir;
+      }
+      
+      if (newDir !== session.workingDir) {
+        this.fastify.log.info(`Session ${sessionId} working directory changed: ${session.workingDir} -> ${newDir}`);
+        session.workingDir = newDir;
+        shouldUpdate = true;
+      }
+    }
+    
+    // Check for pwd output or prompt with path
+    const pwdMatch = data.match(pwdPattern);
+    if (pwdMatch && pwdMatch[1] && pwdMatch[1].startsWith('/')) {
+      const newDir = pwdMatch[1];
+      if (newDir !== session.workingDir) {
+        this.fastify.log.info(`Session ${sessionId} working directory detected: ${session.workingDir} -> ${newDir}`);
+        session.workingDir = newDir;
+        shouldUpdate = true;
+      }
+    }
+    
+    // Check for command execution patterns
+    const commandPattern = /(?:^|\n).*?[\$%>#]\s*([^\n]+?)\s*(?:\n|$)/;
+    const commandMatch = data.match(commandPattern);
+    if (commandMatch && commandMatch[1] && commandMatch[1].trim() && !commandMatch[1].includes('$')) {
+      const command = commandMatch[1].trim();
+      // Don't record really short commands or prompts
+      if (command.length > 2 && !command.match(/^[\$%>#]+$/)) {
+        this.fastify.log.info(`Session ${sessionId} detected command: ${command}`);
+        // Update last command immediately
+        const commandRecord = {
+          id: crypto.randomUUID(),
+          sessionId,
+          command,
+          output: '',
+          exitCode: null,
+          timestamp: new Date(),
+          duration: 0
+        };
+        session.history.push(commandRecord);
+        shouldUpdate = true;
+      }
+    }
+    
+    if (shouldUpdate) {
+      // Emit update with delay to batch multiple changes
+      setTimeout(() => {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          this.emit('session_updated', this.sessionToInfo(session));
+        }
+      }, 200);
+    }
+  }
 
   private async addToOutputBuffer(sessionId: string, data: string): Promise<void> {
     const session = this.sessions.get(sessionId);
@@ -349,8 +425,12 @@ export class SessionManager extends EventEmitter {
       session.outputBuffer = session.outputBuffer.slice(-this.maxOutputBuffer);
     }
 
+    // Check for working directory changes and execution status
+    this.analyzeTerminalOutput(sessionId, data);
+    
     // Check if execution status changed and emit update
     const wasExecuting = this.isSessionExecuting(session);
+    
     // After adding new data, check execution status again
     setTimeout(() => {
       const session = this.sessions.get(sessionId);
@@ -358,6 +438,7 @@ export class SessionManager extends EventEmitter {
         const nowExecuting = this.isSessionExecuting(session);
         if (wasExecuting !== nowExecuting) {
           // Execution status changed, emit update
+          this.fastify.log.info(`Session ${sessionId} execution status changed: ${wasExecuting} -> ${nowExecuting}`);
           this.emit('session_updated', this.sessionToInfo(session));
         }
       }
@@ -398,13 +479,23 @@ export class SessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (session) {
       const oldActivity = session.lastActivity;
+      const oldExecuting = this.isSessionExecuting(session);
       session.lastActivity = new Date();
       
-      // Only emit update if significant time has passed (avoid spam)
-      const timeDiff = session.lastActivity.getTime() - oldActivity.getTime();
-      if (timeDiff > 5000) { // 5 seconds threshold
-        this.emit('session_updated', this.sessionToInfo(session));
-      }
+      // Check if execution status might have changed
+      setTimeout(() => {
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          const nowExecuting = this.isSessionExecuting(session);
+          const timeDiff = session.lastActivity.getTime() - oldActivity.getTime();
+          
+          // Emit update if execution status changed or significant time passed
+          if (oldExecuting !== nowExecuting || timeDiff > 3000) {
+            this.fastify.log.info(`Session ${sessionId} activity update - executing: ${oldExecuting} -> ${nowExecuting}`);
+            this.emit('session_updated', this.sessionToInfo(session));
+          }
+        }
+      }, 100);
       
       // Update database asynchronously (don't await to avoid blocking)
       this.updateSessionInDb(session).catch(err => {

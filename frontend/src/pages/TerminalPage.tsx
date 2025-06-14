@@ -300,7 +300,9 @@ export const TerminalPage: React.FC = () => {
             return exists ? prev : [...prev, session];
           } else {
             // Update existing session
-            return prev.map(s => s.id === session.id ? session : s);
+            const updated = prev.map(s => s.id === session.id ? session : s);
+            console.log('Updated sessions:', updated.map(s => ({ id: s.id, workingDir: s.workingDir, lastCommand: s.lastCommand, isExecuting: s.isExecuting })));
+            return updated;
           }
         });
       };

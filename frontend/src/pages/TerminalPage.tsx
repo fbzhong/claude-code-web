@@ -13,15 +13,14 @@ import {
   Button,
   Alert,
   Snackbar,
-  Paper,
   LinearProgress,
   CircularProgress,
   useTheme,
   useMediaQuery,
-  SwipeableDrawer,
-  Badge,
+  Drawer,
 } from '@mui/material';
 import {
+  Menu as MenuIcon,
   Logout as LogoutIcon,
   Terminal as TerminalIcon,
   Add as AddIcon,
@@ -29,7 +28,6 @@ import {
   Edit as EditIcon,
   Circle as CircleIcon,
   Close as CloseIcon,
-  ViewList as ViewListIcon,
 } from '@mui/icons-material';
 import { SessionInfo } from '../components/SessionList';
 import { sessionApi } from '../services/sessionApi';
@@ -53,7 +51,7 @@ export const TerminalPage: React.FC = () => {
   const { user, token, logout } = useAuthStore();
   
   // UI states
-  const [mobileSessionsOpen, setMobileSessionsOpen] = useState(false);
+  const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Session states
@@ -75,7 +73,6 @@ export const TerminalPage: React.FC = () => {
   // Responsive design
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
   
   // Helper to update operation states
   const updateOperationState = useCallback((updates: Partial<OperationStates>) => {
@@ -249,8 +246,7 @@ export const TerminalPage: React.FC = () => {
     
     // Store original name for rollback
     const originalSessions = sessions;
-    const originalSession = sessions.find(s => s.id === sessionId);
-    
+      
     // Optimistic update - rename immediately
     setSessions(prev => prev.map(s => 
       s.id === sessionId ? { ...s, name: newName } : s
@@ -383,19 +379,13 @@ export const TerminalPage: React.FC = () => {
     <Box sx={{ display: 'flex', height: '100vh', flexDirection: 'column' }}>
       <AppBar position="static" sx={{ bgcolor: '#2d2d30' }}>
         <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
-          
-          {/* Show sessions button on mobile */}
-          {isMobile && currentSessionId && (
-            <IconButton
-              color="inherit"
-              onClick={() => setMobileSessionsOpen(true)}
-              sx={{ mr: 1 }}
-            >
-              <Badge badgeContent={sessions.length} color="primary">
-                <ViewListIcon />
-              </Badge>
-            </IconButton>
-          )}
+          <IconButton
+            color="inherit"
+            onClick={() => setSessionsDrawerOpen(true)}
+            sx={{ mr: { xs: 1, sm: 2 } }}
+          >
+            <MenuIcon />
+          </IconButton>
           
           <Typography 
             variant={isMobile ? "subtitle1" : "h6"} 
@@ -437,42 +427,130 @@ export const TerminalPage: React.FC = () => {
       </AppBar>
 
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {/* Sessions Sidebar - Hidden on mobile */}
-        {!isMobile && (
-          <Paper sx={{ 
-            width: isTablet ? 280 : 350, 
-            bgcolor: '#1e1e1e', 
-            borderRight: '1px solid rgba(255,255,255,0.1)',
-            display: 'flex',
-            flexDirection: 'column',
-            transition: 'width 0.3s ease'
-          }}>
-          <Box sx={{ p: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-            <Typography variant="h6" sx={{ color: '#ffffff', mb: 2 }}>
-              Active Sessions
-            </Typography>
-            <Button
-              fullWidth
-              variant="contained"
-              startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
-              onClick={() => createNewSession(`Session ${sessions.length + 1}`)}
-              disabled={operationStates.creating}
-              sx={{ mb: 1 }}
-            >
-              {operationStates.creating ? 'Creating...' : 'New Session'}
-            </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => refreshSessions()}
-              disabled={operationStates.refreshing}
-              size="small"
-            >
-              {operationStates.refreshing ? 'Refreshing...' : 'Refresh'}
-            </Button>
-          </Box>
 
-          {operationStates.refreshing && <LinearProgress />}
+        {/* Terminal Area */}
+        <Box sx={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          bgcolor: '#0a0a0a', 
+          position: 'relative',
+          minHeight: 0,
+          overflow: 'hidden'
+        }}>
+          {currentSessionId ? (
+            <Box sx={{ 
+              flex: 1, 
+              overflow: 'hidden',
+              p: 1,
+              display: 'flex',
+              minHeight: 0,
+            }}>
+              <Terminal
+                key={currentSessionId}
+                ref={terminalRef}
+                onData={handleTerminalData}
+                onResize={handleTerminalResize}
+              />
+            </Box>
+          ) : (
+            <Box sx={{ 
+              flex: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              alignItems: 'center', 
+              justifyContent: 'center',
+              color: 'rgba(255,255,255,0.6)',
+              p: 2,
+            }}>
+              <TerminalIcon sx={{ fontSize: { xs: 48, sm: 64 }, mb: 2, opacity: 0.5 }} />
+              <Typography variant={isMobile ? "h6" : "h5"} sx={{ mb: 1 }}>
+                No Session Selected
+              </Typography>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  mb: 3, 
+                  textAlign: 'center', 
+                  maxWidth: { xs: '100%', sm: 400 },
+                  px: { xs: 2, sm: 0 }
+                }}
+              >
+                Open the menu to view sessions or create a new one to start using the terminal.
+              </Typography>
+              <Button
+                variant="contained"
+                size={isMobile ? "large" : "medium"}
+                startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
+                onClick={() => setSessionsDrawerOpen(true)}
+                disabled={operationStates.creating}
+              >
+                {operationStates.creating ? 'Creating...' : 'Open Sessions Menu'}
+              </Button>
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+
+      {/* Sessions Drawer */}
+      <Drawer
+        anchor="left"
+        open={sessionsDrawerOpen}
+        onClose={() => setSessionsDrawerOpen(false)}
+        sx={{
+          '& .MuiDrawer-paper': {
+            bgcolor: '#1e1e1e',
+            color: '#cccccc',
+            width: { xs: '85vw', sm: 400 },
+            maxWidth: 500,
+          }
+        }}
+      >
+        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            mb: 2 
+          }}>
+            <Typography variant="h6" sx={{ color: '#ffffff' }}>
+              Active Sessions ({sessions.length})
+            </Typography>
+            <IconButton 
+              onClick={() => setSessionsDrawerOpen(false)}
+              sx={{ color: 'rgba(255,255,255,0.7)' }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          
+          <Button
+            fullWidth
+            variant="contained"
+            startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
+            onClick={() => {
+              createNewSession(`Session ${sessions.length + 1}`);
+              setSessionsDrawerOpen(false);
+            }}
+            disabled={operationStates.creating}
+            sx={{ mb: 1 }}
+          >
+            {operationStates.creating ? 'Creating...' : 'New Session'}
+          </Button>
+          
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={() => refreshSessions()}
+            disabled={operationStates.refreshing}
+            size="small"
+            sx={{ mb: 2 }}
+          >
+            {operationStates.refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+
+          {operationStates.refreshing && <LinearProgress sx={{ mb: 1 }} />}
 
           <Box sx={{ flex: 1, overflow: 'auto' }}>
             {sessions.length === 0 ? (
@@ -488,11 +566,13 @@ export const TerminalPage: React.FC = () => {
                     key={session.id} 
                     button
                     selected={session.id === currentSessionId}
-                    onClick={() => selectSession(session.id)}
+                    onClick={() => {
+                      selectSession(session.id);
+                      setSessionsDrawerOpen(false);
+                    }}
                     disabled={operationStates.selecting === session.id}
                     sx={{ 
                       borderRadius: 1,
-                      mx: 1,
                       mb: 0.5,
                       opacity: operationStates.selecting === session.id ? 0.6 : 1,
                       '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' },
@@ -585,212 +665,8 @@ export const TerminalPage: React.FC = () => {
               </List>
             )}
           </Box>
-          </Paper>
-        )}
-
-        {/* Terminal Area */}
-        <Box sx={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          bgcolor: '#0a0a0a', 
-          position: 'relative',
-          minHeight: 0,
-          overflow: 'hidden'
-        }}>
-          {currentSessionId ? (
-            <Box sx={{ 
-              flex: 1, 
-              overflow: 'hidden',
-              p: 1,
-              display: 'flex',
-              minHeight: 0,
-            }}>
-              <Terminal
-                key={currentSessionId}
-                ref={terminalRef}
-                onData={handleTerminalData}
-                onResize={handleTerminalResize}
-              />
-            </Box>
-          ) : (
-            <Box sx={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center', 
-              justifyContent: 'center',
-              color: 'rgba(255,255,255,0.6)',
-              p: 2,
-            }}>
-              <TerminalIcon sx={{ fontSize: { xs: 48, sm: 64 }, mb: 2, opacity: 0.5 }} />
-              <Typography variant={isMobile ? "h6" : "h5"} sx={{ mb: 1 }}>
-                No Session Selected
-              </Typography>
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  mb: 3, 
-                  textAlign: 'center', 
-                  maxWidth: { xs: '100%', sm: 400 },
-                  px: { xs: 2, sm: 0 }
-                }}
-              >
-                {isMobile 
-                  ? 'Tap the sessions button above or create a new session.'
-                  : 'Select an existing session from the sidebar or create a new one to start using the terminal.'
-                }
-              </Typography>
-              <Button
-                variant="contained"
-                size={isMobile ? "large" : "medium"}
-                startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
-                onClick={() => {
-                  if (isMobile) {
-                    setMobileSessionsOpen(true);
-                  } else {
-                    createNewSession(`Session ${sessions.length + 1}`);
-                  }
-                }}
-                disabled={operationStates.creating}
-              >
-                {operationStates.creating ? 'Creating...' : isMobile ? 'View Sessions' : 'Create New Session'}
-              </Button>
-            </Box>
-          )}
         </Box>
-      </Box>
-
-
-      {/* Mobile Sessions Drawer */}
-      <SwipeableDrawer
-        anchor="bottom"
-        open={mobileSessionsOpen}
-        onClose={() => setMobileSessionsOpen(false)}
-        onOpen={() => setMobileSessionsOpen(true)}
-        sx={{
-          display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': {
-            bgcolor: '#1e1e1e',
-            color: '#cccccc',
-            maxHeight: '70vh',
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-          }
-        }}
-      >
-        <Box sx={{ p: 2 }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            mb: 2 
-          }}>
-            <Typography variant="h6" sx={{ color: '#ffffff' }}>
-              Active Sessions ({sessions.length})
-            </Typography>
-            <IconButton 
-              onClick={() => setMobileSessionsOpen(false)}
-              sx={{ color: 'rgba(255,255,255,0.7)' }}
-            >
-              <CloseIcon />
-            </IconButton>
-          </Box>
-          
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
-            onClick={() => {
-              createNewSession(`Session ${sessions.length + 1}`);
-              setMobileSessionsOpen(false);
-            }}
-            disabled={operationStates.creating}
-            sx={{ mb: 2 }}
-          >
-            {operationStates.creating ? 'Creating...' : 'New Session'}
-          </Button>
-
-          {operationStates.refreshing && <LinearProgress sx={{ mb: 1 }} />}
-
-          <Box sx={{ maxHeight: '50vh', overflow: 'auto' }}>
-            {sessions.length === 0 ? (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  No active sessions. Create your first session to get started.
-                </Typography>
-              </Box>
-            ) : (
-              <List>
-                {sessions.map((session) => (
-                  <ListItem 
-                    key={session.id} 
-                    button
-                    selected={session.id === currentSessionId}
-                    onClick={() => {
-                      selectSession(session.id);
-                      setMobileSessionsOpen(false);
-                    }}
-                    disabled={operationStates.selecting === session.id}
-                    sx={{ 
-                      borderRadius: 2,
-                      mb: 1,
-                      bgcolor: session.id === currentSessionId ? 'rgba(144, 202, 249, 0.15)' : 'transparent',
-                      opacity: operationStates.selecting === session.id ? 0.6 : 1,
-                    }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 40 }}>
-                      <CircleIcon 
-                        sx={{ 
-                          fontSize: 12, 
-                          color: theme => {
-                            const status = getStatusColor(session.status);
-                            return status === 'default' 
-                              ? theme.palette.grey[500] 
-                              : theme.palette[status].main;
-                          }
-                        }} 
-                      />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Typography variant="body1" sx={{ color: '#ffffff' }}>
-                          {session.name}
-                        </Typography>
-                      }
-                      secondary={
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            {formatTime(session.lastActivity)}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <IconButton 
-                        size="small" 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm(`Delete session "${session.name}"?`)) {
-                            deleteSession(session.id);
-                          }
-                        }}
-                        disabled={operationStates.deleting.has(session.id)}
-                      >
-                        {operationStates.deleting.has(session.id) ? (
-                          <CircularProgress size={16} />
-                        ) : (
-                          <DeleteIcon />
-                        )}
-                      </IconButton>
-                    </Box>
-                  </ListItem>
-                ))}
-              </List>
-            )}
-          </Box>
-        </Box>
-      </SwipeableDrawer>
+      </Drawer>
 
       {/* Error Snackbar */}
       <Snackbar

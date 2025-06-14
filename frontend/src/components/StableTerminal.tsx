@@ -14,6 +14,7 @@ export interface StableTerminalHandle {
   write: (data: string) => void;
   clear: () => void;
   focus: () => void;
+  scrollToBottom: () => void;
 }
 
 export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTerminalProps>(
@@ -317,6 +318,25 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
             console.error('Error focusing terminal:', e);
           }
         }
+      },
+      scrollToBottom: () => {
+        if (terminalRef.current) {
+          try {
+            console.log('Scrolling to bottom...');
+            // First try xterm's scrollToBottom
+            terminalRef.current.scrollToBottom();
+            
+            // Also scroll the viewport element directly
+            const viewport = containerRef.current?.querySelector('.xterm-viewport');
+            if (viewport) {
+              console.log('Viewport scroll before:', viewport.scrollTop, 'height:', viewport.scrollHeight);
+              viewport.scrollTop = viewport.scrollHeight;
+              console.log('Viewport scroll after:', viewport.scrollTop);
+            }
+          } catch (e) {
+            console.error('Error scrolling to bottom:', e);
+          }
+        }
       }
     }), []);
 
@@ -337,7 +357,8 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
           },
           '& .xterm-viewport': {
             width: '100% !important',
-            overflow: 'hidden !important',
+            // Allow scrolling in viewport
+            overflow: 'auto !important',
           },
           '& .xterm-screen': {
             width: '100% !important',

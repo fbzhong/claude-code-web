@@ -79,7 +79,25 @@ export const TerminalPage: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   // Mobile keyboard toolbar
-  const { isVisible: isKeyboardToolbarVisible, toggleToolbar, isMobile: isMobileKeyboard } = useMobileKeyboardToolbar();
+  const { 
+    isVisible: isKeyboardToolbarVisible, 
+    toggleToolbar, 
+    isMobile: isMobileKeyboard,
+    keyboardHeight 
+  } = useMobileKeyboardToolbar(() => {
+    // When keyboard shows, scroll terminal to bottom multiple times
+    // to ensure it works after keyboard animation
+    const scrollAttempts = [100, 300, 500];
+    scrollAttempts.forEach(delay => {
+      setTimeout(() => {
+        if (terminalRef.current) {
+          console.log(`Attempting scroll after ${delay}ms`);
+          terminalRef.current.scrollToBottom();
+          terminalRef.current.focus();
+        }
+      }, delay);
+    });
+  });
   
   // Helper to update operation states
   const updateOperationState = useCallback((updates: Partial<OperationStates>) => {
@@ -432,7 +450,16 @@ export const TerminalPage: React.FC = () => {
         ? { ...s, lastActivity: new Date().toISOString() }
         : s
     ));
-  }, [currentSessionId]);
+    
+    // On mobile, ensure input is visible when typing
+    if (isMobileKeyboard && isKeyboardToolbarVisible) {
+      setTimeout(() => {
+        if (terminalRef.current) {
+          terminalRef.current.scrollToBottom();
+        }
+      }, 50);
+    }
+  }, [currentSessionId, isMobileKeyboard, isKeyboardToolbarVisible]);
 
   const handleTerminalResize = useCallback((cols: number, rows: number) => {
     wsService.sendTerminalResize(cols, rows);
@@ -441,6 +468,14 @@ export const TerminalPage: React.FC = () => {
   const handleMobileKeyPress = useCallback((key: string) => {
     if (!wsService.isConnected() || !currentSessionId) return;
     wsService.sendTerminalInput(key);
+    
+    // Keep terminal focused and scrolled after sending key
+    setTimeout(() => {
+      if (terminalRef.current) {
+        terminalRef.current.scrollToBottom();
+        terminalRef.current.focus();
+      }
+    }, 50);
   }, [currentSessionId]);
 
   const handleLogout = () => {
@@ -597,6 +632,8 @@ export const TerminalPage: React.FC = () => {
               p: 1,
               display: 'flex',
               minHeight: 0,
+              // Adjust height when keyboard is visible
+              pb: isKeyboardToolbarVisible && isMobileKeyboard ? `${keyboardHeight + 100}px` : 1,
             }}>
               <Terminal
                 key={currentSessionId}
@@ -862,6 +899,7 @@ export const TerminalPage: React.FC = () => {
         <MobileKeyboardToolbar
           onKeyPress={handleMobileKeyPress}
           visible={isKeyboardToolbarVisible}
+          keyboardHeight={keyboardHeight}
         />
       )}
 

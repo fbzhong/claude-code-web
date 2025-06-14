@@ -19,11 +19,13 @@ import {
 interface MobileKeyboardToolbarProps {
   onKeyPress: (key: string) => void;
   visible?: boolean;
+  keyboardHeight?: number;
 }
 
 export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({ 
   onKeyPress, 
-  visible = true 
+  visible = true,
+  keyboardHeight = 0 
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -32,7 +34,12 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
     return null;
   }
 
-  const handleKeyPress = (key: string) => {
+  const handleKeyPress = (key: string, event?: React.MouseEvent) => {
+    // Prevent button from taking focus
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
     onKeyPress(key);
   };
 
@@ -45,18 +52,53 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
     <Tooltip title={tooltip || label}>
       <Button
         size={size}
-        variant="outlined"
-        onClick={() => handleKeyPress(keyCode)}
+        variant="contained"
+        onMouseDown={(e) => {
+          e.preventDefault(); // Prevent focus loss
+          handleKeyPress(keyCode, e);
+          // Remove focus after click
+          setTimeout(() => (e.target as HTMLElement).blur(), 0);
+        }}
+        onTouchStart={(e) => {
+          e.preventDefault(); // Prevent focus loss on touch
+          handleKeyPress(keyCode);
+          // Remove focus after touch
+          setTimeout(() => (e.target as HTMLElement).blur(), 0);
+        }}
+        onClick={(e) => e.preventDefault()} // Prevent any default click behavior
         sx={{
-          minWidth: 'auto',
-          px: 1,
-          py: 0.5,
-          fontSize: '0.75rem',
-          borderColor: 'divider',
-          color: 'text.secondary',
+          minWidth: 50,
+          minHeight: 40,
+          px: 0.5,
+          py: 0.75,
+          fontSize: '0.85rem',
+          fontWeight: '500',
+          backgroundColor: '#2a2a2a',
+          color: '#ffffff',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: 1.5,
+          textTransform: 'none',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
           '&:hover': {
-            backgroundColor: 'action.hover',
-            borderColor: 'primary.main',
+            backgroundColor: '#3a3a3a',
+            borderColor: 'rgba(255, 255, 255, 0.3)',
+            transform: 'translateY(-1px)',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+          },
+          '&:active': {
+            backgroundColor: '#1a1a1a',
+            transform: 'translateY(0)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+          },
+          '&:focus': {
+            outline: 'none',
+            backgroundColor: '#2a2a2a',
+          },
+          '&:focus-visible': {
+            outline: '2px solid rgba(255, 255, 255, 0.3)',
+            outlineOffset: '2px',
           },
         }}
       >
@@ -79,12 +121,47 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
     return (
       <IconButton
         size="small"
-        onClick={() => handleKeyPress(keyCode)}
+        onMouseDown={(e) => {
+          e.preventDefault(); // Prevent focus loss
+          handleKeyPress(keyCode, e);
+          // Remove focus after click
+          setTimeout(() => (e.target as HTMLElement).blur(), 0);
+        }}
+        onTouchStart={(e) => {
+          e.preventDefault(); // Prevent focus loss on touch
+          handleKeyPress(keyCode);
+          // Remove focus after touch
+          setTimeout(() => (e.target as HTMLElement).blur(), 0);
+        }}
+        onClick={(e) => e.preventDefault()} // Prevent any default click behavior
         sx={{
-          color: 'text.secondary',
+          padding: 0.75,
+          minWidth: 40,
+          minHeight: 40,
+          flexShrink: 0,
+          backgroundColor: '#2a2a2a',
+          color: '#ffffff',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: 1.5,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
           '&:hover': {
-            backgroundColor: 'action.hover',
-            color: 'primary.main',
+            backgroundColor: '#3a3a3a',
+            borderColor: 'rgba(255, 255, 255, 0.3)',
+            transform: 'translateY(-1px)',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+          },
+          '&:active': {
+            backgroundColor: '#1a1a1a',
+            transform: 'translateY(0)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+          },
+          '&:focus': {
+            outline: 'none',
+            backgroundColor: '#2a2a2a',
+          },
+          '&:focus-visible': {
+            outline: '2px solid rgba(255, 255, 255, 0.3)',
+            outlineOffset: '2px',
           },
         }}
       >
@@ -98,96 +175,74 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
       elevation={4}
       sx={{
         position: 'fixed',
-        bottom: 0,
+        bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : 0,
         left: 0,
         right: 0,
         zIndex: 1300,
-        backgroundColor: 'background.paper',
+        backgroundColor: '#1a1a1a',
         borderTop: 1,
-        borderColor: 'divider',
-        px: 1,
-        py: 0.5,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        px: 0.75,
+        py: 0.75,
         display: 'flex',
+        flexDirection: 'row',
         alignItems: 'center',
         gap: 0.5,
         overflowX: 'auto',
+        overflowY: 'hidden',
         WebkitOverflowScrolling: 'touch',
+        scrollbarWidth: 'none',
+        '&::-webkit-scrollbar': {
+          display: 'none',
+        },
         // Smooth transition when showing/hiding
         transform: visible ? 'translateY(0)' : 'translateY(100%)',
-        transition: 'transform 0.3s ease-in-out',
+        transition: 'transform 0.3s ease-in-out, bottom 0.3s ease-in-out',
         // Ensure it stays above the iOS keyboard
         paddingBottom: 'env(safe-area-inset-bottom)',
-        '&::-webkit-scrollbar': {
-          height: 4,
-        },
-        '&::-webkit-scrollbar-thumb': {
-          backgroundColor: 'action.disabled',
-          borderRadius: 2,
-        },
       }}
     >
-      {/* Common keys group */}
-      <ButtonGroup size="small" variant="outlined">
-        <KeyButton label="ESC" keyCode="\x1B" tooltip="Escape" />
-        <KeyButton label="Tab" keyCode="\t" tooltip="Tab completion" />
-        <KeyButton label="↹Tab" keyCode="\x1B[Z" tooltip="Shift+Tab (reverse)" size="medium" />
-        <KeyButton label="Ctrl+C" keyCode="\x03" tooltip="Interrupt" />
-        <KeyButton label="Ctrl+D" keyCode="\x04" tooltip="Exit" />
-      </ButtonGroup>
-
-      {/* Navigation keys */}
-      <ButtonGroup size="small" variant="outlined">
-        <KeyButton label="Home" keyCode="\x1B[H" tooltip="Beginning of line" />
-        <KeyButton label="End" keyCode="\x1B[F" tooltip="End of line" />
-      </ButtonGroup>
-
-      {/* Page navigation */}
-      <ButtonGroup size="small" variant="outlined">
-        <KeyButton label="PgUp" keyCode="\x1B[5~" tooltip="Page Up" />
-        <KeyButton label="PgDn" keyCode="\x1B[6~" tooltip="Page Down" />
-      </ButtonGroup>
-
-      {/* Arrow keys */}
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          ml: 1,
-        }}
-      >
-        <ArrowButton direction="up" keyCode="\x1B[A" />
-        <Box sx={{ display: 'flex' }}>
-          <ArrowButton direction="left" keyCode="\x1B[D" />
-          <ArrowButton direction="down" keyCode="\x1B[B" />
-          <ArrowButton direction="right" keyCode="\x1B[C" />
-        </Box>
-      </Box>
-
-      {/* Additional useful keys */}
-      <ButtonGroup size="small" variant="outlined" sx={{ ml: 'auto' }}>
-        <KeyButton label="Ctrl+L" keyCode="\x0C" tooltip="Clear screen" />
-        <KeyButton label="Ctrl+A" keyCode="\x01" tooltip="Beginning of line" />
-        <KeyButton label="Ctrl+E" keyCode="\x05" tooltip="End of line" />
-        <KeyButton label="Ctrl+Z" keyCode="\x1A" tooltip="Suspend" />
-      </ButtonGroup>
+      {/* Most frequently used first */}
+      <KeyButton label="Tab" keyCode={'\t'} tooltip="Tab" />
+      <KeyButton label="Enter" keyCode={'\r'} tooltip="Enter" />
+      <KeyButton label="ESC" keyCode={'\x1B'} tooltip="Escape" />
+      <KeyButton label="^C" keyCode={'\x03'} tooltip="Stop" />
+      <KeyButton label="^L" keyCode={'\x0C'} tooltip="Clear" />
       
-      {/* Vim/Nano specific keys */}
-      <ButtonGroup size="small" variant="outlined">
-        <KeyButton label="Ctrl+W" keyCode="\x17" tooltip="Delete word (nano: search)" />
-        <KeyButton label="Ctrl+K" keyCode="\x0B" tooltip="Kill line (nano: cut)" />
-        <KeyButton label="Ctrl+U" keyCode="\x15" tooltip="Uncut/Paste (nano)" />
-        <KeyButton label="Ctrl+O" keyCode="\x0F" tooltip="Write out (nano save)" />
-        <KeyButton label="Ctrl+X" keyCode="\x18" tooltip="Exit (nano)" />
-      </ButtonGroup>
+      {/* Navigation - inline arrows */}
+      <ArrowButton direction="left" keyCode={'\x1B[D'} />
+      <ArrowButton direction="up" keyCode={'\x1B[A'} />
+      <ArrowButton direction="down" keyCode={'\x1B[B'} />
+      <ArrowButton direction="right" keyCode={'\x1B[C'} />
+      
+      {/* Less frequent but important */}
+      <KeyButton label="^U" keyCode={'\x15'} tooltip="Clear line" />
+      <KeyButton label="^W" keyCode={'\x17'} tooltip="Delete word" />
+      <KeyButton label="^R" keyCode={'\x12'} tooltip="Search" />
+      <KeyButton label="^D" keyCode={'\x04'} tooltip="Exit" />
+      <KeyButton label="^Z" keyCode={'\x1A'} tooltip="Suspend" />
+      
+      {/* Scroll indicator */}
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        px: 1,
+        color: 'rgba(255, 255, 255, 0.4)',
+        fontSize: '0.7rem',
+        flexShrink: 0,
+        fontStyle: 'italic',
+      }}>
+        滑动 →
+      </Box>
     </Paper>
   );
 };
 
 // Hook to manage keyboard toolbar state
-export const useMobileKeyboardToolbar = () => {
+export const useMobileKeyboardToolbar = (onKeyboardShow?: () => void) => {
   const [isVisible, setIsVisible] = React.useState(false);
   const [isNativeKeyboardOpen, setIsNativeKeyboardOpen] = React.useState(false);
+  const [keyboardHeight, setKeyboardHeight] = React.useState(0);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -211,19 +266,31 @@ export const useMobileKeyboardToolbar = () => {
       
       // Use visualViewport if available (more accurate on iOS)
       if (viewport) {
-        const keyboardHeight = window.innerHeight - viewport.height;
-        const isKeyboardOpen = keyboardHeight > 50; // Threshold to detect keyboard
+        const calculatedKeyboardHeight = window.innerHeight - viewport.height;
+        const isKeyboardOpen = calculatedKeyboardHeight > 50; // Threshold to detect keyboard
         
         setIsNativeKeyboardOpen(isKeyboardOpen);
+        setKeyboardHeight(isKeyboardOpen ? calculatedKeyboardHeight : 0);
         // Auto show/hide toolbar with native keyboard
-        setIsVisible(isKeyboardOpen);
+        if (isKeyboardOpen !== isVisible) {
+          setIsVisible(isKeyboardOpen);
+          if (isKeyboardOpen && onKeyboardShow) {
+            onKeyboardShow();
+          }
+        }
       } else {
         // Fallback for older browsers
         const heightDiff = lastHeight - currentHeight;
         const isKeyboardOpen = heightDiff > 100; // Keyboard typically > 100px
         
         setIsNativeKeyboardOpen(isKeyboardOpen);
-        setIsVisible(isKeyboardOpen);
+        setKeyboardHeight(isKeyboardOpen ? heightDiff : 0);
+        if (isKeyboardOpen !== isVisible) {
+          setIsVisible(isKeyboardOpen);
+          if (isKeyboardOpen && onKeyboardShow) {
+            onKeyboardShow();
+          }
+        }
       }
       
       lastHeight = currentHeight;
@@ -250,7 +317,8 @@ export const useMobileKeyboardToolbar = () => {
     // Add event listeners
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleViewportChange);
-      window.visualViewport.addEventListener('scroll', handleViewportChange);
+      // Don't listen to scroll events as they can cause false negatives
+      // window.visualViewport.addEventListener('scroll', handleViewportChange);
     } else {
       window.addEventListener('resize', handleViewportChange);
     }
@@ -264,14 +332,13 @@ export const useMobileKeyboardToolbar = () => {
     return () => {
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', handleViewportChange);
-        window.visualViewport.removeEventListener('scroll', handleViewportChange);
       } else {
         window.removeEventListener('resize', handleViewportChange);
       }
       document.removeEventListener('focusin', handleFocus);
       document.removeEventListener('focusout', handleBlur);
     };
-  }, [isMobile]);
+  }, [isMobile, onKeyboardShow]);
 
   return {
     isVisible,
@@ -279,5 +346,6 @@ export const useMobileKeyboardToolbar = () => {
     toggleToolbar,
     isMobile,
     isNativeKeyboardOpen,
+    keyboardHeight,
   };
 };

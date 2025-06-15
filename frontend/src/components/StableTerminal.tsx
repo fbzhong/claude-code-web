@@ -15,6 +15,7 @@ export interface StableTerminalHandle {
   clear: () => void;
   focus: () => void;
   scrollToBottom: () => void;
+  scrollToCursor: () => void;
 }
 
 export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTerminalProps>(
@@ -35,6 +36,7 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
 
       // Detect if mobile device
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
       // Create terminal instance with stable version
       const term = new Terminal({
@@ -99,42 +101,114 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
 
       // Set up event handlers with input filtering
       let isComposing = false;
-      let lastInputData = '';
-      let lastInputTime = 0;
+      let sentDataInComposition = new Set<string>();
       
       // 处理输入法组合事件
       const container = containerRef.current;
-      container.addEventListener('compositionstart', () => {
-        isComposing = true;
-      });
       
-      container.addEventListener('compositionend', () => {
-        isComposing = false;
-      });
-      
-      term.onData((data) => {
-        const now = Date.now();
+      // iOS 特殊处理 - 使用更激进的策略
+      if (isIOS) {
+        let recentlySentData = new Map<string, number>();
+        let compositionFinalData = '';
         
-        // 防止重复输入 - 检查相同数据在短时间内的重复
-        if (data === lastInputData && now - lastInputTime < 100) {
-          console.log('Duplicate input detected, ignoring:', data);
-          return;
-        }
-        
-        lastInputData = data;
-        lastInputTime = now;
-        
-        // 如果正在输入法组合中，延迟发送
-        if (isComposing) {
-          setTimeout(() => {
-            if (!isComposing) {
-              onData(data);
+        // 清理过期的发送记录
+        const cleanupRecentlySent = () => {
+          const now = Date.now();
+          for (const [data, time] of recentlySentData.entries()) {
+            if (now - time > 300) { // 300ms 后清理
+              recentlySentData.delete(data);
             }
-          }, 100);
-        } else {
+          }
+        };
+        
+        // 检查是否最近发送过
+        const wasRecentlySent = (data: string): boolean => {
+          cleanupRecentlySent();
+          return recentlySentData.has(data);
+        };
+        
+        // 记录发送的数据
+        const recordSent = (data: string) => {
+          recentlySentData.set(data, Date.now());
+        };
+        
+        container.addEventListener('compositionstart', () => {
+          console.log('[iOS IME] Composition start');
+          isComposing = true;
+          compositionFinalData = '';
+        });
+        
+        container.addEventListener('compositionupdate', (e) => {
+          console.log('[iOS IME] Composition update:', e.data);
+        });
+        
+        container.addEventListener('compositionend', (e) => {
+          console.log('[iOS IME] Composition end:', e.data);
+          compositionFinalData = e.data || '';
+          
+          // 快速重置状态
+          setTimeout(() => {
+            isComposing = false;
+            
+            // 发送组合的最终数据（如果还没发送）
+            if (compositionFinalData && !wasRecentlySent(compositionFinalData)) {
+              // 只发送包含非 ASCII 字符的文本
+              const hasNonASCII = [...compositionFinalData].some(char => char.charCodeAt(0) >= 128);
+              if (hasNonASCII) {
+                console.log('[iOS IME] Sending final composition data:', compositionFinalData);
+                onData(compositionFinalData);
+                recordSent(compositionFinalData);
+              }
+            }
+            
+            compositionFinalData = '';
+          }, 10);
+        });
+        
+        // iOS 上的 onData 处理 - 更简单的策略
+        term.onData((data) => {
+          console.log('[iOS Terminal] onData:', {
+            data,
+            isComposing,
+            charCode: data.charCodeAt(0),
+            hex: '0x' + data.charCodeAt(0).toString(16),
+            length: data.length
+          });
+          
+          // 避免短时间内重复发送相同数据
+          if (wasRecentlySent(data)) {
+            console.log('[iOS Terminal] Skipping recently sent data:', data);
+            return;
+          }
+          
+          // 记录已发送
+          recordSent(data);
+          
+          // 直接发送所有数据
+          console.log('[iOS Terminal] Sending data:', data);
           onData(data);
-        }
-      });
+        });
+        
+        
+      } else {
+        // 非 iOS 设备的标准处理
+        container.addEventListener('compositionstart', () => {
+          isComposing = true;
+        });
+        
+        container.addEventListener('compositionend', (e) => {
+          isComposing = false;
+          if (e.data) {
+            onData(e.data);
+          }
+        });
+        
+        term.onData((data) => {
+          if (!isComposing) {
+            onData(data);
+          }
+        });
+      }
 
       if (onResize) {
         term.onResize(({ cols, rows }) => {
@@ -198,6 +272,7 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
         // Clear any pending timers
         if (resizeTimeout) clearTimeout(resizeTimeout);
         if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
+        
         
         resizeObserver.disconnect();
         if (fitAddonRef.current) {
@@ -335,6 +410,41 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
             }
           } catch (e) {
             console.error('Error scrolling to bottom:', e);
+          }
+        }
+      },
+      scrollToCursor: () => {
+        if (terminalRef.current) {
+          try {
+            console.log('Scrolling to cursor...');
+            const term = terminalRef.current;
+            const viewport = containerRef.current?.querySelector('.xterm-viewport');
+            
+            if (viewport && term.buffer && term.buffer.active) {
+              // 获取当前光标位置
+              const cursorY = term.buffer.active.cursorY;
+              const baseY = term.buffer.active.baseY;
+              const actualY = baseY + cursorY;
+              
+              // 计算需要滚动的位置
+              const viewportHeight = viewport.clientHeight;
+              const lineHeight = Math.floor(viewportHeight / term.rows);
+              const targetScrollTop = Math.max(0, (actualY - Math.floor(term.rows / 2)) * lineHeight);
+              
+              console.log('Cursor position:', { cursorY, baseY, actualY, targetScrollTop });
+              
+              // 平滑滚动到光标位置
+              viewport.scrollTo({
+                top: targetScrollTop,
+                behavior: 'smooth'
+              });
+            }
+          } catch (e) {
+            console.error('Error scrolling to cursor:', e);
+            // 降级到滚动到底部
+            if (terminalRef.current) {
+              terminalRef.current.scrollToBottom();
+            }
           }
         }
       }

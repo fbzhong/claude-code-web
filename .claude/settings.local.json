@@ -23,7 +23,9 @@
       "Bash(pnpm --filter backend dev)",
       "Bash(kill:*)",
       "Bash(true)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(pnpm run:*)",
+      "Bash(pnpm start:*)"
     ],
     "deny": []
   }

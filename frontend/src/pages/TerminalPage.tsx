@@ -85,14 +85,18 @@ export const TerminalPage: React.FC = () => {
     isMobile: isMobileKeyboard,
     keyboardHeight 
   } = useMobileKeyboardToolbar(() => {
-    // When keyboard shows, scroll terminal to bottom multiple times
-    // to ensure it works after keyboard animation
+    // When keyboard shows, scroll to cursor position to ensure it's visible
     const scrollAttempts = [100, 300, 500];
     scrollAttempts.forEach(delay => {
       setTimeout(() => {
         if (terminalRef.current) {
-          console.log(`Attempting scroll after ${delay}ms`);
-          terminalRef.current.scrollToBottom();
+          console.log(`Attempting cursor scroll after ${delay}ms`);
+          // Try to scroll to cursor first, fallback to bottom
+          try {
+            terminalRef.current.scrollToCursor();
+          } catch (e) {
+            terminalRef.current.scrollToBottom();
+          }
           terminalRef.current.focus();
         }
       }, delay);
@@ -455,7 +459,12 @@ export const TerminalPage: React.FC = () => {
     if (isMobileKeyboard && isKeyboardToolbarVisible) {
       setTimeout(() => {
         if (terminalRef.current) {
-          terminalRef.current.scrollToBottom();
+          // Use smart scrolling to cursor position
+          try {
+            terminalRef.current.scrollToCursor();
+          } catch (e) {
+            terminalRef.current.scrollToBottom();
+          }
         }
       }, 50);
     }
@@ -472,7 +481,12 @@ export const TerminalPage: React.FC = () => {
     // Keep terminal focused and scrolled after sending key
     setTimeout(() => {
       if (terminalRef.current) {
-        terminalRef.current.scrollToBottom();
+        // Use smart scrolling to cursor position
+        try {
+          terminalRef.current.scrollToCursor();
+        } catch (e) {
+          terminalRef.current.scrollToBottom();
+        }
         terminalRef.current.focus();
       }
     }, 50);

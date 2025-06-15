@@ -119,11 +119,12 @@ export class SessionManager extends EventEmitter {
         this.fastify.log.info(
           `[SessionManager] Creating PTY process in container ${containerId}...`
         );
+        // Use script command to create a proper PTY inside the container
         ptyProcess = ContainerPty.spawn(
           this.containerManager,
           containerId,
-          "bash",
-          [],
+          "script",
+          ["-q", "-c", "bash", "/dev/null"],  // script creates a PTY
           {
             name: "xterm-color",
             cols: 80,

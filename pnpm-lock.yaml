@@ -47,6 +47,9 @@ importers:
       bcrypt:
         specifier: ^5.1.1
         version: 5.1.1
+      dotenv:
+        specifier: ^16.5.0
+        version: 16.5.0
       fastify:
         specifier: ^4.24.3
         version: 4.29.1
@@ -5747,6 +5750,11 @@ packages:
   /dotenv@10.0.0:
     resolution: {integrity: sha512-rlBi9d8jpv9Sf1klPjNfFAuWDjKLwTIJJ/VxtoTwIR6hnZxcEOQCZg2oIL3MWBYw5GpUDKOEnND7LXTbIpQ03Q==}
     engines: {node: '>=10'}
+    dev: false
+
+  /dotenv@16.5.0:
+    resolution: {integrity: sha512-m/C+AwOAr9/W1UOIZUo232ejMNnJAJtYQjUbHoNTBNTJSvqzzDh7vnrei3o3r3m9blf6ZoDkvcw0VmozNRFJxg==}
+    engines: {node: '>=12'}
     dev: false
 
   /dunder-proto@1.0.1:

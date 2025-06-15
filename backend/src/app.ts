@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
 import { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import helmet from '@fastify/helmet';
@@ -11,15 +12,29 @@ import wsRoutes from './routes/ws';
 
 const app = Fastify({
   logger: {
-    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+    level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
     transport: process.env.NODE_ENV !== 'production' ? {
       target: 'pino-pretty',
       options: {
         colorize: true,
         translateTime: 'HH:MM:ss Z',
-        ignore: 'pid,hostname'
+        ignore: 'pid,hostname',
+        errorProps: 'error,err,stack',
+        messageFormat: '{msg} {error}',
+        singleLine: false
       }
-    } : undefined
+    } : undefined,
+    serializers: {
+      err(error: any) {
+        return {
+          type: error.type,
+          message: error.message,
+          stack: error.stack,
+          code: error.code,
+          ...error
+        };
+      }
+    }
   }
 }).withTypeProvider<TypeBoxTypeProvider>();
 

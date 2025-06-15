@@ -212,6 +212,7 @@ export default async function (fastify: FastifyInstance) {
             
             switch (data.type) {
               case 'terminal_input':
+                fastify.log.debug(`Received terminal input for session ${sessionId}: ${JSON.stringify(data.data)}`);
                 sessionManager.writeToSession(sessionId, data.data);
                 break;
                 
@@ -266,7 +267,11 @@ export default async function (fastify: FastifyInstance) {
                 fastify.log.warn(`Unknown message type: ${data.type}`);
             }
           } catch (err) {
-            fastify.log.error('WebSocket message error:', err);
+            fastify.log.error('WebSocket message error:', {
+              error: (err as any).message,
+              stack: (err as any).stack,
+              messageType: data.type
+            });
             connection.socket.send(JSON.stringify({
               type: 'error',
               data: { message: 'Invalid message format' },
@@ -378,9 +383,22 @@ export default async function (fastify: FastifyInstance) {
           }, 100);
         }
 
-      } catch (err) {
-        fastify.log.error('Terminal WebSocket error:', err);
-        connection.socket.close(1011, 'Internal server error');
+      } catch (err: any) {
+        // Log error with full details
+        fastify.log.error(`Terminal WebSocket error: ${err.message}`);
+        fastify.log.error('Error details:', {
+          message: err.message,
+          stack: err.stack,
+          code: err.code,
+          name: err.name,
+          sessionId: sessionId,
+          userId: user?.id
+        });
+        
+        // Also use console.error as fallback to ensure we see the error
+        console.error('Terminal WebSocket error full details:', err);
+        
+        connection.socket.close(1011, err.message || 'Internal server error');
       }
     });
   });

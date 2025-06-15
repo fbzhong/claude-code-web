@@ -145,14 +145,20 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
                 const rect = containerRef.current?.getBoundingClientRect();
                 if (rect && rect.width > 0 && rect.height > 0) {
                   fitAddonRef.current.fit();
-                  console.log('Terminal resized to:', terminalRef.current.cols, 'x', terminalRef.current.rows);
+                  if (terminalRef.current?.cols && terminalRef.current?.rows) {
+                    console.log('Terminal resized to:', terminalRef.current.cols, 'x', terminalRef.current.rows);
+                  }
                 }
               } else {
                 fitAddonRef.current.fit();
-                console.log('Terminal resized to:', terminalRef.current.cols, 'x', terminalRef.current.rows);
+                if (terminalRef.current?.cols && terminalRef.current?.rows) {
+                  console.log('Terminal resized to:', terminalRef.current.cols, 'x', terminalRef.current.rows);
+                }
               }
             } catch (e) {
               console.error('Error fitting terminal on resize:', e);
+              // Try to recover by skipping this resize
+              return;
             }
           }
         }, isMobile ? 300 : 100); // Longer debounce on mobile

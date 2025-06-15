@@ -33,7 +33,8 @@
       "Bash(test:*)",
       "Bash(docker:*)",
       "Bash(/dev/null)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

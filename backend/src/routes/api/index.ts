@@ -2,6 +2,19 @@ import { FastifyInstance } from 'fastify';
 import { Type } from '@sinclair/typebox';
 
 export default async function (fastify: FastifyInstance) {
+  // Debug endpoint
+  fastify.get('/debug/env', async (request, reply) => {
+    return {
+      CONTAINER_MODE: process.env.CONTAINER_MODE,
+      NODE_ENV: process.env.NODE_ENV,
+      useContainers: process.env.CONTAINER_MODE === 'true',
+      allEnv: Object.keys(process.env).filter(key => key.startsWith('CONTAINER')).reduce((acc, key) => {
+        acc[key] = process.env[key];
+        return acc;
+      }, {} as Record<string, string | undefined>)
+    };
+  });
+
   // Health check endpoint
   fastify.get('/health', async (request, reply) => {
     const health: any = {

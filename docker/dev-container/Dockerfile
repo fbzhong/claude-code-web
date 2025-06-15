@@ -6,38 +6,20 @@ FROM ubuntu:22.04
 # Avoid prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Update and install basic development tools
+# Update and install essential development tools only
 RUN apt-get update && apt-get install -y \
     # Essential tools
-    curl \
-    wget \
     git \
     vim \
     nano \
-    less \
-    htop \
+    curl \
+    wget \
     # Build tools
     build-essential \
-    cmake \
-    make \
     # Programming languages
     python3 \
-    python3-pip \
     nodejs \
     npm \
-    # Network tools
-    net-tools \
-    iputils-ping \
-    traceroute \
-    # Shell and terminal
-    bash \
-    zsh \
-    tmux \
-    # Utilities
-    jq \
-    tree \
-    unzip \
-    zip \
     # Locale support
     locales \
     && rm -rf /var/lib/apt/lists/*
@@ -58,22 +40,6 @@ WORKDIR /home/developer
 
 # Create basic directory structure
 RUN mkdir -p ~/.ssh ~/.config ~/workspace
-
-# Install some common development tools via npm
-RUN npm install -g \
-    yarn \
-    pnpm \
-    typescript \
-    ts-node \
-    nodemon
-
-# Install common Python packages
-RUN pip3 install --user \
-    requests \
-    numpy \
-    pandas \
-    matplotlib \
-    jupyter
 
 # Configure git
 RUN git config --global init.defaultBranch main && \

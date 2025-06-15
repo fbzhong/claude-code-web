@@ -7,7 +7,7 @@ import { ContainerManager } from './containerManager';
  * a node-pty compatible interface
  */
 export class ContainerPty extends EventEmitter implements Partial<IPty> {
-  private process: any;
+  private containerProcess: any; // Renamed to avoid conflict with getter
   private _pid: number;
   private _cols: number;
   private _rows: number;
@@ -63,7 +63,7 @@ export class ContainerPty extends EventEmitter implements Partial<IPty> {
     
     // Start the interactive process in the container
     try {
-      this.process = this.containerManager.execInteractive(
+      this.containerProcess = this.containerManager.execInteractive(
         this.containerId,
         this.command,
         {
@@ -84,30 +84,51 @@ export class ContainerPty extends EventEmitter implements Partial<IPty> {
     }
     
     // Handle stdout data
-    this.process.stdout.on('data', (data: Buffer) => {
+    this.containerProcess.stdout.on('data', (data: Buffer) => {
+      console.log(`[ContainerPty] stdout data from container ${this.containerId}:`, data.toString());
       this.emit('data', data.toString());
     });
     
     // Handle stderr data
-    this.process.stderr.on('data', (data: Buffer) => {
+    this.containerProcess.stderr.on('data', (data: Buffer) => {
+      console.log(`[ContainerPty] stderr data from container ${this.containerId}:`, data.toString());
       this.emit('data', data.toString());
     });
     
+    // Check if stdin is writable
+    console.log(`[ContainerPty] stdin writable: ${this.containerProcess.stdin.writable}`);
+    console.log(`[ContainerPty] Process PID: ${this.containerProcess.pid}`);
+    
     // Handle process exit
-    this.process.on('exit', (code: number, signal: string) => {
+    this.containerProcess.on('exit', (code: number, signal: string) => {
+      console.log(`[ContainerPty] Process exited for container ${this.containerId}: code=${code}, signal=${signal}`);
       this.emit('exit', { exitCode: code, signal });
       this.killed = true;
     });
     
     // Handle errors
-    this.process.on('error', (error: Error) => {
+    this.containerProcess.on('error', (error: Error) => {
+      console.error(`[ContainerPty] Process error for container ${this.containerId}:`, error);
       this.emit('error', error);
+      this.killed = true;
     });
   }
   
   write(data: string): void {
-    if (!this.killed && this.process.stdin) {
-      this.process.stdin.write(data);
+    console.log(`[ContainerPty] Writing data to container ${this.containerId}: ${JSON.stringify(data)}`);
+    if (!this.killed && this.containerProcess && this.containerProcess.stdin) {
+      try {
+        const written = this.containerProcess.stdin.write(data);
+        console.log(`[ContainerPty] Write result: ${written}`);
+        // Try to flush the stream
+        if (this.containerProcess.stdin.write) {
+          this.containerProcess.stdin.write('');
+        }
+      } catch (error) {
+        console.error(`[ContainerPty] Write error:`, error);
+      }
+    } else {
+      console.warn(`[ContainerPty] Cannot write - killed: ${this.killed}, process: ${!!this.containerProcess}, stdin: ${!!this.containerProcess?.stdin}`);
     }
   }
   
@@ -132,8 +153,8 @@ export class ContainerPty extends EventEmitter implements Partial<IPty> {
   }
   
   kill(signal?: string): void {
-    if (!this.killed && this.process) {
-      this.process.kill(signal || 'SIGTERM');
+    if (!this.killed && this.containerProcess) {
+      this.containerProcess.kill(signal || 'SIGTERM');
       this.killed = true;
     }
   }

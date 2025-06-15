@@ -24,14 +24,23 @@ export interface ContainerInfo {
 
 export class ContainerManager extends EventEmitter {
   private runtime: 'docker' | 'podman';
-  private defaultImage = 'ubuntu:22.04'; // Or a custom image with development tools
+  private defaultImage: string;
+  private cleanupInterval?: NodeJS.Timeout;
   
   constructor(private fastify: any) {
     super();
     
     // Detect container runtime
     this.runtime = process.env.CONTAINER_RUNTIME as 'docker' | 'podman' || 'docker';
+    
+    // Use custom image if specified, otherwise use default Ubuntu
+    this.defaultImage = process.env.CONTAINER_IMAGE || 'ubuntu:22.04';
+    
     this.fastify.log.info(`Using container runtime: ${this.runtime}`);
+    this.fastify.log.info(`Using container image: ${this.defaultImage}`);
+    
+    // Start periodic cleanup of inactive containers
+    this.startPeriodicCleanup();
   }
   
   /**
@@ -59,7 +68,9 @@ export class ContainerManager extends EventEmitter {
       
       // Create new container
       this.fastify.log.info(`[ContainerManager] No existing container found, creating new one...`);
-      const containerId = await this.createContainer({
+      this.fastify.log.info(`[ContainerManager] Creating container with image: ${this.defaultImage}`);
+      
+      const containerConfig = {
         image: this.defaultImage,
         name: containerName,
         userId,
@@ -72,18 +83,25 @@ export class ContainerManager extends EventEmitter {
           LANG: 'en_US.UTF-8',
         },
         volumes: [
-          // Mount a persistent volume for user data
           `claude-web-user-${userId}-data:/home/developer`,
         ],
-      });
+      };
+      
+      this.fastify.log.info(`[ContainerManager] Container config:`, containerConfig);
+      
+      const containerId = await this.createContainer(containerConfig);
       
       // Start the container
       this.fastify.log.info(`[ContainerManager] Starting container ${containerId}`);
       await this.startContainer(containerId);
       
-      // Initialize the container (create user, install basic tools, etc.)
-      this.fastify.log.info(`[ContainerManager] Initializing container ${containerId}`);
-      await this.initializeContainer(containerId, userId);
+      // Initialize the container only if using base Ubuntu image
+      if (this.defaultImage === 'ubuntu:22.04') {
+        this.fastify.log.info(`[ContainerManager] Initializing container ${containerId} (base image)`);
+        await this.initializeContainer(containerId, userId);
+      } else {
+        this.fastify.log.info(`[ContainerManager] Skipping initialization for custom image: ${this.defaultImage}`);
+      }
       
       this.fastify.log.info(`[ContainerManager] Successfully created and initialized container ${containerId}`);
       return containerId;
@@ -92,7 +110,9 @@ export class ContainerManager extends EventEmitter {
         error: error.message,
         stack: error.stack,
         code: error.code,
-        stderr: error.stderr
+        stderr: error.stderr,
+        stdout: error.stdout,
+        containerName: containerName
       });
       throw error;
     }
@@ -136,7 +156,8 @@ export class ContainerManager extends EventEmitter {
     environment?: Record<string, string>;
     user?: string;
   }) {
-    const args = ['exec', '-it'];
+    // Use -i only to keep stdin open
+    const args = ['exec', '-i'];
     
     if (options?.workingDir) {
       args.push('-w', options.workingDir);
@@ -175,14 +196,14 @@ export class ContainerManager extends EventEmitter {
     // Container name
     args.push('--name', config.name);
     
-    // Resource limits
-    if (config.memory) {
-      args.push('--memory', config.memory);
-    }
+    // Resource limits - comment out for debugging
+    // if (config.memory) {
+    //   args.push('--memory', config.memory);
+    // }
     
-    if (config.cpu) {
-      args.push('--cpus', config.cpu);
-    }
+    // if (config.cpu) {
+    //   args.push('--cpus', config.cpu);
+    // }
     
     // Environment variables
     if (config.environment) {
@@ -198,26 +219,36 @@ export class ContainerManager extends EventEmitter {
       }
     }
     
-    // Interactive and TTY
-    args.push('-it');
-    
-    // Keep container running
-    args.push('--entrypoint', '/bin/sh');
+    // Keep container running with sleep infinity (simpler and more reliable)
     args.push(config.image);
-    args.push('-c', 'while true; do sleep 1000; done');
+    args.push('sleep', 'infinity');
     
     const command = `${this.runtime} ${args.join(' ')}`;
     this.fastify.log.info(`[ContainerManager] Executing: ${command}`);
     
-    const { stdout, stderr } = await execAsync(command);
-    const containerId = stdout.trim();
-    
-    if (stderr) {
-      this.fastify.log.warn(`[ContainerManager] Container creation stderr:`, stderr);
+    try {
+      const { stdout, stderr } = await execAsync(command);
+      const containerId = stdout.trim();
+      
+      if (!containerId) {
+        throw new Error('Container creation returned empty ID');
+      }
+      
+      if (stderr) {
+        this.fastify.log.warn(`[ContainerManager] Container creation stderr:`, stderr);
+      }
+      
+      this.fastify.log.info(`[ContainerManager] Created container ${containerId} for user ${config.userId}`);
+      return containerId;
+    } catch (error: any) {
+      this.fastify.log.error(`[ContainerManager] Failed to create container:`, {
+        command,
+        error: error.message,
+        stderr: error.stderr,
+        stdout: error.stdout
+      });
+      throw new Error(`Failed to create container: ${error.message}`);
     }
-    
-    this.fastify.log.info(`[ContainerManager] Created container ${containerId} for user ${config.userId}`);
-    return containerId;
   }
   
   /**
@@ -260,14 +291,21 @@ export class ContainerManager extends EventEmitter {
         image: data.Config.Image,
       };
     } catch (error: any) {
-      if (error.code === 125 || error.stderr?.includes('no such container')) {
-        this.fastify.log.debug(`[ContainerManager] Container ${nameOrId} not found`);
+      // Check for container not found errors
+      const errorMessage = error.stderr || error.message || '';
+      if (error.code === 125 || 
+          errorMessage.includes('No such object') ||
+          errorMessage.includes('no such container') ||
+          errorMessage.includes('No such container')) {
+        this.fastify.log.info(`[ContainerManager] Container ${nameOrId} not found, will create new one`);
         return null;
       }
       this.fastify.log.error(`[ContainerManager] Error inspecting container ${nameOrId}:`, {
         error: error.message,
         code: error.code,
-        stderr: error.stderr
+        stderr: error.stderr,
+        stdout: error.stdout,
+        fullError: error.toString()
       });
       throw error;
     }
@@ -324,9 +362,44 @@ export class ContainerManager extends EventEmitter {
   }
   
   /**
-   * Clean up inactive containers
+   * Start periodic cleanup of inactive containers
    */
-  async cleanupInactiveContainers(inactiveDays: number = 7): Promise<void> {
+  private startPeriodicCleanup(): void {
+    const intervalHours = parseInt(process.env.CONTAINER_CLEANUP_INTERVAL_HOURS || '1');
+    const cleanupHours = parseInt(process.env.CONTAINER_CLEANUP_HOURS || '24');
+    
+    this.fastify.log.info(`Container cleanup configured: check every ${intervalHours} hours, remove after ${cleanupHours} hours of inactivity`);
+    
+    // Run cleanup periodically
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupInactiveContainers(cleanupHours).catch(err => {
+        this.fastify.log.error('Container cleanup failed:', err);
+      });
+    }, intervalHours * 60 * 60 * 1000);
+    
+    // Run initial cleanup after 5 minutes
+    setTimeout(() => {
+      this.cleanupInactiveContainers(cleanupHours).catch(err => {
+        this.fastify.log.error('Initial container cleanup failed:', err);
+      });
+    }, 5 * 60 * 1000);
+  }
+  
+  /**
+   * Stop periodic cleanup
+   */
+  stopPeriodicCleanup(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = undefined;
+    }
+  }
+  
+  /**
+   * Clean up inactive containers based on last activity
+   */
+  async cleanupInactiveContainers(inactiveHours: number = 24): Promise<void> {
+    this.fastify.log.info(`Starting container cleanup (inactive threshold: ${inactiveHours} hours)`);
     try {
       const { stdout } = await execAsync(
         `${this.runtime} ps -a --filter "name=claude-web-user-" --format "{{.ID}} {{.Names}} {{.Status}}"`
@@ -339,22 +412,91 @@ export class ContainerManager extends EventEmitter {
         const [id, name, ...statusParts] = line.split(' ');
         const status = statusParts.join(' ');
         
-        // Check if container has been stopped for too long
+        // Extract user ID from container name
+        const userIdMatch = name.match(/claude-web-user-(.+)/);
+        if (!userIdMatch) continue;
+        
+        const userId = userIdMatch[1];
+        
+        // Check container age and activity
+        let shouldRemove = false;
+        let reason = '';
+        
+        // Check if container is stopped
         if (status.includes('Exited')) {
           const match = status.match(/Exited.*\((\d+)\s+(days?|hours?|minutes?)\s+ago\)/);
           if (match) {
             const [, amount, unit] = match;
             const value = parseInt(amount);
             
-            let shouldRemove = false;
-            if (unit.startsWith('day') && value >= inactiveDays) {
+            // Remove if exited more than 1 hour ago
+            if (unit.startsWith('hour') && value >= 1) {
               shouldRemove = true;
+              reason = `exited ${value} hours ago`;
+            } else if (unit.startsWith('day')) {
+              shouldRemove = true;
+              reason = `exited ${value} days ago`;
             }
+          }
+        } else if (status.includes('Up')) {
+          // For running containers, check last session activity
+          try {
+            // Query database for last activity of sessions belonging to this user
+            const client = await this.fastify.pg.connect();
+            const result = await client.query(
+              'SELECT MAX(last_activity) as last_activity FROM persistent_sessions WHERE user_id = $1',
+              [userId]
+            );
+            client.release();
             
-            if (shouldRemove) {
-              await execAsync(`${this.runtime} rm ${id}`);
-              this.fastify.log.info(`Removed inactive container: ${name}`);
+            if (result.rows[0]?.last_activity) {
+              const lastActivity = new Date(result.rows[0].last_activity);
+              const hoursInactive = (Date.now() - lastActivity.getTime()) / (1000 * 60 * 60);
+              
+              if (hoursInactive > inactiveHours) {
+                shouldRemove = true;
+                reason = `inactive for ${Math.round(hoursInactive)} hours`;
+              }
+            } else {
+              // No sessions found, check container uptime
+              const uptimeMatch = status.match(/Up\s+(\d+)\s+(days?|hours?|minutes?)/);
+              if (uptimeMatch) {
+                const [, amount, unit] = uptimeMatch;
+                const value = parseInt(amount);
+                
+                if (unit.startsWith('day') || (unit.startsWith('hour') && value >= inactiveHours)) {
+                  shouldRemove = true;
+                  reason = `no sessions and up for ${value} ${unit}`;
+                }
+              }
             }
+          } catch (err) {
+            this.fastify.log.error(`Failed to check activity for user ${userId}:`, err);
+          }
+        }
+        
+        if (shouldRemove) {
+          try {
+            // Stop and remove container
+            if (!status.includes('Exited')) {
+              await execAsync(`${this.runtime} stop ${id}`);
+            }
+            await execAsync(`${this.runtime} rm ${id}`);
+            this.fastify.log.info(`Removed inactive container: ${name} (${reason})`);
+            
+            // Update dead sessions in database
+            try {
+              const client = await this.fastify.pg.connect();
+              await client.query(
+                'UPDATE persistent_sessions SET status = $1 WHERE user_id = $2 AND status != $1',
+                ['dead', userId]
+              );
+              client.release();
+            } catch (err) {
+              this.fastify.log.error(`Failed to update sessions for user ${userId}:`, err);
+            }
+          } catch (err) {
+            this.fastify.log.error(`Failed to remove container ${name}:`, err);
           }
         }
       }

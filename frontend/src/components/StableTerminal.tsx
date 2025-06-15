@@ -99,7 +99,6 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
 
       // Simple IME handling - let xterm.js 5.5.0 handle it natively
       // Based on ttyd's approach: minimal interference with xterm.js's built-in IME support
-      
       term.onData((data) => {
         // xterm.js 5.5.0 has improved IME handling
         // Just pass through all data without custom filtering

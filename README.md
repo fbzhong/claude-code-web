@@ -8,6 +8,7 @@ Web-based remote development environment for Claude Code and VS Code.
 - 🤖 Claude Code integration and management
 - 📝 Command history tracking
 - 🔐 User authentication and session management
+- 🐳 Container isolation mode (Docker/Podman)
 - 💻 VS Code integration (coming soon)
 - 🚀 Real-time WebSocket communication
 
@@ -135,6 +136,51 @@ Key variables:
 - Session isolation
 - Rate limiting
 - Input validation
+
+## Container Isolation Mode
+
+Claude Web supports running user sessions in isolated containers for enhanced security and resource management.
+
+### Enabling Container Mode
+
+1. **Install Docker or Podman**
+   ```bash
+   # For Docker
+   # Visit https://docs.docker.com/get-docker/
+   
+   # For Podman
+   # Visit https://podman.io/getting-started/installation
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp .env.container.example .env
+   # Edit .env and set CONTAINER_MODE=true
+   ```
+
+3. **Build development container image** (optional)
+   ```bash
+   docker build -t claude-web-dev:latest docker/dev-container/
+   ```
+
+4. **Start the application**
+   ```bash
+   pnpm dev
+   ```
+
+### Container Mode Features
+
+- **User Isolation**: Each user gets their own container
+- **Resource Limits**: Configure memory and CPU limits per user
+- **Persistent Storage**: User data persists across sessions
+- **Security**: Users cannot access host system or other users' data
+
+### Configuration Options
+
+- `CONTAINER_MODE=true` - Enable container isolation
+- `CONTAINER_RUNTIME=docker` - Use docker or podman
+- `CONTAINER_MEMORY_LIMIT=2g` - Memory limit per user
+- `CONTAINER_CPU_LIMIT=1` - CPU cores per user
 
 ## License
 

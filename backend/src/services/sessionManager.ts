@@ -2,6 +2,8 @@ import * as pty from 'node-pty';
 import { EventEmitter } from 'events';
 import * as crypto from 'crypto';
 import { TerminalSession, CommandHistory } from '../types';
+import { ContainerManager } from './containerManager';
+import { ContainerPty } from './containerPty';
 
 export interface SessionInfo {
   id: string;
@@ -25,9 +27,21 @@ export class SessionManager extends EventEmitter {
   private maxSessions = 50; // Maximum sessions per user
   private cwdCheckTimers = new Map<string, NodeJS.Timeout>(); // Timers for CWD checking
   private outputUpdateTimers = new Map<string, NodeJS.Timeout>(); // Timers for output update delays
+  private containerManager?: ContainerManager;
+  private useContainers: boolean;
 
   constructor(private fastify: any) {
     super();
+    
+    // Check if container mode is enabled
+    this.useContainers = process.env.CONTAINER_MODE === 'true';
+    
+    if (this.useContainers) {
+      this.containerManager = new ContainerManager(fastify);
+      this.fastify.log.info('Container mode enabled');
+    } else {
+      this.fastify.log.info('Local shell mode enabled');
+    }
     
     // Cleanup dead sessions periodically
     setInterval(() => {
@@ -72,23 +86,67 @@ export class SessionManager extends EventEmitter {
       throw new Error(`Maximum number of sessions (${this.maxSessions}) reached`);
     }
 
-    const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
-    const workingDir = options.workingDir || process.env.HOME || '/tmp';
+    let ptyProcess: any;
+    let workingDir: string;
     
-    this.fastify.log.info(`Creating session with workingDir: "${workingDir}", length: ${workingDir.length}`);
-    
-    const ptyProcess = pty.spawn(shell, [], {
-      name: 'xterm-color',
-      cols: 80,
-      rows: 24,
-      cwd: workingDir,
-      env: {
-        ...process.env,
-        ...options.environment,
-        TERM: 'xterm-256color',
-        COLORTERM: 'truecolor'
+    if (this.useContainers && this.containerManager) {
+      // Container mode - each user gets their own container
+      this.fastify.log.info(`Creating containerized session for user ${userId}`);
+      
+      try {
+        // Get or create user's container
+        const containerId = await this.containerManager.getOrCreateUserContainer(userId);
+        
+        // Use container's home directory as default
+        workingDir = options.workingDir || '/home/developer';
+        
+        // Create PTY process in container
+        ptyProcess = ContainerPty.spawn(
+          this.containerManager,
+          containerId,
+          'bash',
+          [],
+          {
+            name: 'xterm-color',
+            cols: 80,
+            rows: 24,
+            cwd: workingDir,
+            env: {
+              ...options.environment,
+              TERM: 'xterm-256color',
+              COLORTERM: 'truecolor',
+              USER: 'developer',
+              HOME: '/home/developer'
+            },
+            user: 'developer'
+          }
+        );
+        
+        this.fastify.log.info(`Created container PTY for session ${sessionId} in container ${containerId}`);
+      } catch (error: any) {
+        this.fastify.log.error(`Failed to create containerized session:`, error);
+        throw new Error(`Failed to create containerized session: ${error.message}`);
       }
-    });
+    } else {
+      // Local mode - use host shell
+      const shell = process.platform === 'win32' ? 'powershell.exe' : 'bash';
+      workingDir = options.workingDir || process.env.HOME || '/tmp';
+      
+      this.fastify.log.info(`Creating local session with workingDir: "${workingDir}"`);
+      
+      ptyProcess = pty.spawn(shell, [], {
+        name: 'xterm-color',
+        cols: 80,
+        rows: 24,
+        cwd: workingDir,
+        env: {
+          ...process.env,
+          ...options.environment,
+          TERM: 'xterm-256color',
+          COLORTERM: 'truecolor'
+        }
+      });
+    }
 
     const session: TerminalSession = {
       id: sessionId,

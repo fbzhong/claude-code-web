@@ -23,23 +23,27 @@ Web-based remote development environment for Claude Code and VS Code.
 ## Quick Start
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/fbzhong/claude-web.git
    cd claude-web
    ```
 
 2. **Install dependencies**
+
    ```bash
    pnpm install
    ```
 
 3. **Set up environment variables**
+
    ```bash
    cp .env.example .env
    # Edit .env with your configuration
    ```
 
 4. **Set up databases**
+
    ```bash
    # Start PostgreSQL and Redis
    # Create database
@@ -47,13 +51,14 @@ Web-based remote development environment for Claude Code and VS Code.
    ```
 
 5. **Start development servers**
+
    ```bash
    pnpm dev
    ```
 
    This will start:
-   - Backend server on http://localhost:3001
-   - Frontend server on http://localhost:3000
+   - Backend server on <http://localhost:3001>
+   - Frontend server on <http://localhost:3000>
 
 ## Project Structure
 
@@ -124,10 +129,10 @@ pnpm --filter frontend test
 See `.env.example` for all available configuration options.
 
 Key variables:
+
 - `DATABASE_URL` - PostgreSQL connection string
 - `REDIS_HOST/PORT` - Redis connection
 - `JWT_SECRET` - Secret for JWT tokens
-- `CLAUDE_PATH` - Path to Claude executable
 
 ## Security
 
@@ -144,26 +149,30 @@ Claude Web supports running user sessions in isolated containers for enhanced se
 ### Enabling Container Mode
 
 1. **Install Docker or Podman**
+
    ```bash
    # For Docker
    # Visit https://docs.docker.com/get-docker/
-   
+
    # For Podman
    # Visit https://podman.io/getting-started/installation
    ```
 
 2. **Configure environment**
+
    ```bash
    cp .env.container.example .env
    # Edit .env and set CONTAINER_MODE=true
    ```
 
 3. **Build development container image** (optional)
+
    ```bash
    docker build -t claude-web-dev:latest docker/dev-container/
    ```
 
 4. **Start the application**
+
    ```bash
    pnpm dev
    ```

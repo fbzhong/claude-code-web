@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from 'react';
-import { Terminal as XTerm } from 'xterm';
-import 'xterm/css/xterm.css';
+import { Terminal as XTerm } from '@xterm/xterm';
+import '@xterm/xterm/css/xterm.css';
 import { Box } from '@mui/material';
 
 interface TerminalProps {

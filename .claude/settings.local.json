@@ -25,7 +25,11 @@
       "Bash(true)",
       "Bash(npm run:*)",
       "Bash(pnpm run:*)",
-      "Bash(pnpm start:*)"
+      "Bash(pnpm start:*)",
+      "Bash(npm update:*)",
+      "Bash(pnpm update:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(pnpm remove:*)"
     ],
     "deny": []
   }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { Terminal } from 'xterm';
+import { Terminal } from '@xterm/xterm';
 
 interface MobileTerminalEnhancementsOptions {
   terminal: Terminal | null;

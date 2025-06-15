@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Terminal } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import 'xterm/css/xterm.css';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
 import { Box } from '@mui/material';
 import { useMobileTerminalEnhancements } from '../hooks/useMobileTerminalEnhancements';
 
@@ -36,7 +36,6 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
 
       // Detect if mobile device
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
       
       // Create terminal instance with stable version
       const term = new Terminal({
@@ -76,8 +75,7 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
         windowsMode: false,
         // Mobile optimizations
         fastScrollModifier: 'shift',
-        fastScrollSensitivity: 5,
-        rendererType: isMobile ? 'dom' : 'canvas', // Use DOM renderer on mobile for better stability
+        fastScrollSensitivity: 5
       });
 
       terminalRef.current = term;
@@ -99,116 +97,14 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
         }
       }, 0);
 
-      // Set up event handlers with input filtering
-      let isComposing = false;
-      let sentDataInComposition = new Set<string>();
+      // Simple IME handling - let xterm.js 5.5.0 handle it natively
+      // Based on ttyd's approach: minimal interference with xterm.js's built-in IME support
       
-      // 处理输入法组合事件
-      const container = containerRef.current;
-      
-      // iOS 特殊处理 - 使用更激进的策略
-      if (isIOS) {
-        let recentlySentData = new Map<string, number>();
-        let compositionFinalData = '';
-        
-        // 清理过期的发送记录
-        const cleanupRecentlySent = () => {
-          const now = Date.now();
-          for (const [data, time] of recentlySentData.entries()) {
-            if (now - time > 300) { // 300ms 后清理
-              recentlySentData.delete(data);
-            }
-          }
-        };
-        
-        // 检查是否最近发送过
-        const wasRecentlySent = (data: string): boolean => {
-          cleanupRecentlySent();
-          return recentlySentData.has(data);
-        };
-        
-        // 记录发送的数据
-        const recordSent = (data: string) => {
-          recentlySentData.set(data, Date.now());
-        };
-        
-        container.addEventListener('compositionstart', () => {
-          console.log('[iOS IME] Composition start');
-          isComposing = true;
-          compositionFinalData = '';
-        });
-        
-        container.addEventListener('compositionupdate', (e) => {
-          console.log('[iOS IME] Composition update:', e.data);
-        });
-        
-        container.addEventListener('compositionend', (e) => {
-          console.log('[iOS IME] Composition end:', e.data);
-          compositionFinalData = e.data || '';
-          
-          // 快速重置状态
-          setTimeout(() => {
-            isComposing = false;
-            
-            // 发送组合的最终数据（如果还没发送）
-            if (compositionFinalData && !wasRecentlySent(compositionFinalData)) {
-              // 只发送包含非 ASCII 字符的文本
-              const hasNonASCII = [...compositionFinalData].some(char => char.charCodeAt(0) >= 128);
-              if (hasNonASCII) {
-                console.log('[iOS IME] Sending final composition data:', compositionFinalData);
-                onData(compositionFinalData);
-                recordSent(compositionFinalData);
-              }
-            }
-            
-            compositionFinalData = '';
-          }, 10);
-        });
-        
-        // iOS 上的 onData 处理 - 更简单的策略
-        term.onData((data) => {
-          console.log('[iOS Terminal] onData:', {
-            data,
-            isComposing,
-            charCode: data.charCodeAt(0),
-            hex: '0x' + data.charCodeAt(0).toString(16),
-            length: data.length
-          });
-          
-          // 避免短时间内重复发送相同数据
-          if (wasRecentlySent(data)) {
-            console.log('[iOS Terminal] Skipping recently sent data:', data);
-            return;
-          }
-          
-          // 记录已发送
-          recordSent(data);
-          
-          // 直接发送所有数据
-          console.log('[iOS Terminal] Sending data:', data);
-          onData(data);
-        });
-        
-        
-      } else {
-        // 非 iOS 设备的标准处理
-        container.addEventListener('compositionstart', () => {
-          isComposing = true;
-        });
-        
-        container.addEventListener('compositionend', (e) => {
-          isComposing = false;
-          if (e.data) {
-            onData(e.data);
-          }
-        });
-        
-        term.onData((data) => {
-          if (!isComposing) {
-            onData(data);
-          }
-        });
-      }
+      term.onData((data) => {
+        // xterm.js 5.5.0 has improved IME handling
+        // Just pass through all data without custom filtering
+        onData(data);
+      });
 
       if (onResize) {
         term.onResize(({ cols, rows }) => {
@@ -265,7 +161,7 @@ export const StableTerminal = React.forwardRef<StableTerminalHandle, StableTermi
 
       resizeObserver.observe(containerRef.current);
 
-      console.log('StableTerminal initialized with xterm v4.19.0');
+      console.log('StableTerminal initialized with xterm v5.5.0');
 
       // Cleanup
       return () => {

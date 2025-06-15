@@ -14,64 +14,48 @@ export default fp(async function (fastify: FastifyInstance) {
     password: process.env.REDIS_PASSWORD
   });
 
-  // Database initialization
+  // Database initialization - MINIMAL TABLES FOR PRIVACY
   fastify.addHook('onReady', async function () {
     // Create tables if they don't exist
     const client = await fastify.pg.connect();
     
     try {
-      // Users table
+      // Users table - with email for authentication
       await client.query(`
         CREATE TABLE IF NOT EXISTS users (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           username VARCHAR(50) UNIQUE NOT NULL,
           email VARCHAR(255) UNIQUE NOT NULL,
           password_hash VARCHAR(255) NOT NULL,
-          role VARCHAR(20) DEFAULT 'user',
-          created_at TIMESTAMP DEFAULT NOW(),
-          last_login TIMESTAMP
-        )
-      `);
-
-      // Terminal sessions table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS terminal_sessions (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-          working_dir VARCHAR(500) DEFAULT '/tmp',
-          environment JSONB DEFAULT '{}',
-          created_at TIMESTAMP DEFAULT NOW(),
-          last_activity TIMESTAMP DEFAULT NOW()
-        )
-      `);
-
-      // Command history table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS command_history (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          session_id UUID REFERENCES terminal_sessions(id) ON DELETE CASCADE,
-          command TEXT NOT NULL,
-          output TEXT,
-          exit_code INTEGER,
-          timestamp TIMESTAMP DEFAULT NOW(),
-          duration INTEGER DEFAULT 0
-        )
-      `);
-
-      // Claude processes table
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS claude_processes (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          session_id UUID REFERENCES terminal_sessions(id) ON DELETE CASCADE,
-          pid INTEGER,
-          status VARCHAR(20) DEFAULT 'stopped',
-          started_at TIMESTAMP,
-          config JSONB DEFAULT '{}',
           created_at TIMESTAMP DEFAULT NOW()
         )
       `);
 
-      fastify.log.info('Database initialized successfully');
+      // Persistent sessions table - MINIMAL: no command history or output
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS persistent_sessions (
+          id UUID PRIMARY KEY,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL DEFAULT 'Session',
+          status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'detached', 'dead')),
+          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+          last_activity TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+        )
+      `);
+
+      // Create indexes for persistent_sessions
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_persistent_sessions_user_id ON persistent_sessions(user_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_persistent_sessions_status ON persistent_sessions(status)`);
+
+      // Note: We do NOT store:
+      // - Command history
+      // - Terminal output
+      // - Working directories
+      // - Environment variables
+      // - Any user activity logs
+      // We only keep minimal data needed for authentication and session management
+
+      fastify.log.info('Database initialized successfully with minimal tables for privacy');
     } catch (err) {
       fastify.log.error('Database initialization failed:', err);
     } finally {

@@ -32,7 +32,8 @@
       "Bash(pnpm remove:*)",
       "Bash(test:*)",
       "Bash(docker:*)",
-      "Bash(/dev/null)"
+      "Bash(/dev/null)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }

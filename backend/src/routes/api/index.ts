@@ -2,6 +2,97 @@ import { FastifyInstance } from 'fastify';
 import { Type } from '@sinclair/typebox';
 
 export default async function (fastify: FastifyInstance) {
+  // Health check endpoint
+  fastify.get('/health', async (request, reply) => {
+    const health: any = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      services: {}
+    };
+
+    // Check PostgreSQL
+    try {
+      const client = await fastify.pg.connect();
+      await client.query('SELECT 1');
+      
+      // Check if required tables exist
+      const tableCheck = await client.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name IN ('users', 'persistent_sessions')
+      `);
+      
+      const existingTables = tableCheck.rows.map((row: any) => row.table_name);
+      const requiredTables = ['users', 'persistent_sessions'];
+      const missingTables = requiredTables.filter(t => !existingTables.includes(t));
+      
+      client.release();
+      
+      health.services.postgres = {
+        status: missingTables.length === 0 ? 'healthy' : 'degraded',
+        tables: {
+          existing: existingTables,
+          missing: missingTables
+        }
+      };
+      
+      if (missingTables.length > 0) {
+        health.status = 'degraded';
+        health.warnings = [`Missing database tables: ${missingTables.join(', ')}`];
+      }
+    } catch (err: any) {
+      health.services.postgres = {
+        status: 'unhealthy',
+        error: err.message
+      };
+      health.status = 'unhealthy';
+    }
+
+    // Check Redis
+    try {
+      await fastify.redis.ping();
+      health.services.redis = { status: 'healthy' };
+    } catch (err: any) {
+      health.services.redis = {
+        status: 'unhealthy',
+        error: err.message
+      };
+      health.status = 'unhealthy';
+    }
+
+    // Check container mode if enabled
+    if (process.env.CONTAINER_MODE === 'true') {
+      try {
+        const { exec } = require('child_process');
+        await new Promise((resolve, reject) => {
+          exec('docker version --format "{{.Server.Version}}"', (error: any, stdout: string) => {
+            if (error) {
+              reject(error);
+            } else {
+              health.services.docker = {
+                status: 'healthy',
+                version: stdout.trim()
+              };
+              resolve(stdout);
+            }
+          });
+        });
+      } catch (err: any) {
+        health.services.docker = {
+          status: 'unhealthy',
+          error: 'Docker not accessible'
+        };
+        health.status = 'degraded';
+      }
+    }
+
+    const statusCode = health.status === 'ok' ? 200 : 
+                      health.status === 'degraded' ? 200 : 503;
+    
+    return reply.status(statusCode).send(health);
+  });
+
   // Auth routes
   fastify.register(async function (fastify) {
     // Login
@@ -59,13 +150,7 @@ export default async function (fastify: FastifyInstance) {
           });
         }
 
-        // Update last login
-        const updateClient = await fastify.pg.connect();
-        await updateClient.query(
-          'UPDATE users SET last_login = NOW() WHERE id = $1',
-          [user.id]
-        );
-        updateClient.release();
+        // PRIVACY: Do not track last login time
 
         const token = fastify.jwt.sign({
           id: user.id,

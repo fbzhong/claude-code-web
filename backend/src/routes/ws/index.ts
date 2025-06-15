@@ -159,6 +159,8 @@ export default async function (fastify: FastifyInstance) {
         };
 
         const onCommand = (sessionId: string, command: any) => {
+          // PRIVACY: Command events are emitted for UI updates only
+          // Commands are not stored persistently
           connection.socket.send(JSON.stringify({
             type: 'command_history',
             data: command,

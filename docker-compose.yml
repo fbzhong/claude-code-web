@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: claude-web-postgres
+    environment:
+      POSTGRES_USER: claude_web
+      POSTGRES_PASSWORD: claude_web_password
+      POSTGRES_DB: claude_web
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claude_web"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: claude-web-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: claude-web-backend
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://claude_web:claude_web_password@postgres:5432/claude_web
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-here}
+      FASTIFY_HOST: 0.0.0.0
+      FASTIFY_PORT: 12021
+      CONTAINER_MODE: ${CONTAINER_MODE:-false}
+      DOCKER_HOST: ${DOCKER_HOST:-unix:///var/run/docker.sock}
+    ports:
+      - "12021:12021"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:12021/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: claude-web-frontend
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:12021}
+      REACT_APP_WS_URL: ${REACT_APP_WS_URL:-ws://localhost:12021}
+    ports:
+      - "12020:80"
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:

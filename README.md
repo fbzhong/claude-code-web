@@ -6,11 +6,11 @@ Web-based remote development environment for Claude Code and VS Code.
 
 - 🖥️ Web-based terminal with full TTY support
 - 🤖 Claude Code integration and management
-- 📝 Command history tracking
 - 🔐 User authentication and session management
 - 🐳 Container isolation mode (Docker/Podman)
 - 💻 VS Code integration (coming soon)
 - 🚀 Real-time WebSocket communication
+- 🔒 Privacy-focused design (no command/output logging)
 
 ## Prerequisites
 
@@ -134,13 +134,18 @@ Key variables:
 - `REDIS_HOST/PORT` - Redis connection
 - `JWT_SECRET` - Secret for JWT tokens
 
-## Security
+## Security & Privacy
 
 - JWT-based authentication
 - Secure WebSocket connections
 - Session isolation
 - Rate limiting
 - Input validation
+- **Privacy by Design**:
+  - No command history stored in database
+  - No terminal output logged
+  - Minimal session metadata only
+  - All sensitive data kept in memory only
 
 ## Container Isolation Mode
 

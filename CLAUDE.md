@@ -7,7 +7,7 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 - **架构方案**: 自建 PTY 方案（node-pty + WebSocket）
 - **前端**: React + TypeScript + xterm.js + Material-UI
 - **后端**: Fastify + WebSocket + node-pty
-- **数据库**: PostgreSQL (历史记录) + Redis (会话管理)
+- **数据库**: PostgreSQL (用户认证) + Redis (会话管理)
 - **IDE集成**: code-server
 - **部署**: Docker + Docker Compose
 - **包管理**: pnpm (monorepo)
@@ -94,6 +94,12 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 26. **2025-06-15**: 修复 iOS 中文输入法空格、数字、符号无法输入的问题
 27. **2025-06-15**: 实现智能光标跟踪滚动，优化 Claude Code 等中间输入场景
 28. **2025-06-15**: 实现容器隔离模式，支持 Docker/Podman，每个用户独立容器
+29. **2025-06-15**: 实施隐私优先设计：
+    - 移除所有命令历史数据库存储
+    - 移除终端输出缓冲数据库存储
+    - 仅保留最小化的用户认证和会话元数据
+    - 所有敏感数据仅在内存中保存，不持久化
+    - 数据库只存储：用户名、邮箱、密码哈希、会话ID和状态
 
 ## 技术特性
 

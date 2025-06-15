@@ -1,9 +1,26 @@
-import { SessionInfo } from '../components/SessionList';
+import { SessionInfo } from "../components/SessionList";
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:12021/api';
+const API_BASE =
+  (() => {
+    if (!process.env.REACT_APP_API_URL) {
+      return "";
+    }
+
+    if (process.env.REACT_APP_API_SAME_HOST !== "true") {
+      return process.env.REACT_APP_API_URL;
+    }
+
+    const apiUrl = new URL(process.env.REACT_APP_API_URL);
+    const hrefUrl = new URL(window.location.href);
+
+    return process.env.REACT_APP_API_URL.replace(
+      apiUrl.hostname,
+      hrefUrl.hostname
+    );
+  })() + "/api";
 
 // Debug: Log the API_BASE URL
-console.log('SessionAPI: Using API_BASE =', API_BASE);
+console.log("SessionAPI: Using API_BASE =", API_BASE);
 
 export interface CreateSessionRequest {
   name?: string;
@@ -20,140 +37,171 @@ export interface SessionResponse {
 
 class SessionApiService {
   private getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem('token');
-    console.log('SessionAPI using token:', token ? 'present' : 'missing');
+    const token = localStorage.getItem("token");
+    console.log("SessionAPI using token:", token ? "present" : "missing");
     return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
+      "Content-Type": "application/json",
+      Authorization: token ? `Bearer ${token}` : "",
     };
   }
 
   private async handleResponse(response: Response): Promise<SessionResponse> {
-    console.log('🔍 handleResponse: Processing response:', {
+    console.log("🔍 handleResponse: Processing response:", {
       status: response.status,
       statusText: response.statusText,
       ok: response.ok,
       url: response.url,
-      headers: Object.fromEntries(response.headers.entries())
+      headers: Object.fromEntries(response.headers.entries()),
     });
-    
+
     if (response.status === 401) {
-      console.error('❌ Authentication expired (401)');
+      console.error("❌ Authentication expired (401)");
       // Clear token and redirect to login
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-      throw new Error('Authentication expired. Please login again.');
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+      throw new Error("Authentication expired. Please login again.");
     }
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ HTTP error response:', {
+      console.error("❌ HTTP error response:", {
         status: response.status,
         statusText: response.statusText,
-        body: errorText
+        body: errorText,
       });
-      throw new Error(`HTTP ${response.status}: ${response.statusText}\nResponse: ${errorText}`);
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}\nResponse: ${errorText}`
+      );
     }
 
     const text = await response.text();
-    console.log('📄 handleResponse: Raw response text:', text);
-    
+    console.log("📄 handleResponse: Raw response text:", text);
+
     try {
       const json = JSON.parse(text);
-      console.log('✅ handleResponse: Parsed JSON:', json);
+      console.log("✅ handleResponse: Parsed JSON:", json);
       return json;
     } catch (e) {
-      console.error('❌ handleResponse: Failed to parse JSON:', e);
-      console.error('handleResponse: Raw text was:', text);
+      console.error("❌ handleResponse: Failed to parse JSON:", e);
+      console.error("handleResponse: Raw text was:", text);
       throw new Error(`Invalid JSON response from server: ${text}`);
     }
   }
 
   async getAllSessions(): Promise<SessionInfo[]> {
-    console.log('Fetching all sessions from:', `${API_BASE}/sessions`);
+    console.log("Fetching all sessions from:", `${API_BASE}/sessions`);
     const response = await fetch(`${API_BASE}/sessions`, {
-      headers: this.getAuthHeaders()
+      headers: this.getAuthHeaders(),
     });
 
     const result = await this.handleResponse(response);
-    console.log('getAllSessions raw response:', result);
-    console.log('getAllSessions data type:', typeof result.data);
-    console.log('getAllSessions data is array:', Array.isArray(result.data));
-    console.log('getAllSessions data content:', JSON.stringify(result.data, null, 2));
-    
+    console.log("getAllSessions raw response:", result);
+    console.log("getAllSessions data type:", typeof result.data);
+    console.log("getAllSessions data is array:", Array.isArray(result.data));
+    console.log(
+      "getAllSessions data content:",
+      JSON.stringify(result.data, null, 2)
+    );
+
     if (!result.success) {
-      throw new Error(result.error || 'Failed to fetch sessions');
+      throw new Error(result.error || "Failed to fetch sessions");
     }
 
     // Validate the response data
     if (!Array.isArray(result.data)) {
-      console.error('Invalid sessions response - expected array, got:', typeof result.data, result.data);
+      console.error(
+        "Invalid sessions response - expected array, got:",
+        typeof result.data,
+        result.data
+      );
       return [];
     }
 
-    console.log('Returning sessions:', result.data.length, 'items');
+    console.log("Returning sessions:", result.data.length, "items");
     return result.data || [];
   }
 
   async createSession(request: CreateSessionRequest): Promise<SessionInfo> {
-    console.log('sessionApi.createSession called with request:', request);
-    
+    console.log("sessionApi.createSession called with request:", request);
+
     try {
-      console.log('sessionApi.createSession: Making fetch request to:', `${API_BASE}/sessions`);
-      console.log('sessionApi.createSession: Headers:', this.getAuthHeaders());
-      console.log('sessionApi.createSession: Body:', JSON.stringify(request));
-      
+      console.log(
+        "sessionApi.createSession: Making fetch request to:",
+        `${API_BASE}/sessions`
+      );
+      console.log("sessionApi.createSession: Headers:", this.getAuthHeaders());
+      console.log("sessionApi.createSession: Body:", JSON.stringify(request));
+
       const response = await fetch(`${API_BASE}/sessions`, {
-        method: 'POST',
+        method: "POST",
         headers: this.getAuthHeaders(),
-        body: JSON.stringify(request)
+        body: JSON.stringify(request),
       });
-      
-      console.log('sessionApi.createSession: Got response:', response);
-      console.log('sessionApi.createSession: Response status:', response.status);
-      console.log('sessionApi.createSession: Response ok:', response.ok);
+
+      console.log("sessionApi.createSession: Got response:", response);
+      console.log(
+        "sessionApi.createSession: Response status:",
+        response.status
+      );
+      console.log("sessionApi.createSession: Response ok:", response.ok);
 
       const result = await this.handleResponse(response);
-      console.log('sessionApi.createSession: Parsed response:', result);
-      console.log('sessionApi.createSession: result type:', typeof result);
-      console.log('sessionApi.createSession: result keys:', Object.keys(result));
-      console.log('sessionApi.createSession: result.success:', result.success);
-      console.log('sessionApi.createSession: result.data:', result.data);
-      console.log('sessionApi.createSession: result.data type:', typeof result.data);
-      console.log('sessionApi.createSession: Full result stringified:', JSON.stringify(result));
-      
+      console.log("sessionApi.createSession: Parsed response:", result);
+      console.log("sessionApi.createSession: result type:", typeof result);
+      console.log(
+        "sessionApi.createSession: result keys:",
+        Object.keys(result)
+      );
+      console.log("sessionApi.createSession: result.success:", result.success);
+      console.log("sessionApi.createSession: result.data:", result.data);
+      console.log(
+        "sessionApi.createSession: result.data type:",
+        typeof result.data
+      );
+      console.log(
+        "sessionApi.createSession: Full result stringified:",
+        JSON.stringify(result)
+      );
+
       if (!result.success) {
-        console.error('sessionApi.createSession: API returned error:', result.error);
-        throw new Error(result.error || 'Failed to create session');
+        console.error(
+          "sessionApi.createSession: API returned error:",
+          result.error
+        );
+        throw new Error(result.error || "Failed to create session");
       }
 
       // Ensure all required fields are present
       const sessionData = result.data || result; // Fallback to result if data is not nested
       if (!sessionData.lastActivity) {
-        sessionData.lastActivity = sessionData.createdAt || new Date().toISOString();
+        sessionData.lastActivity =
+          sessionData.createdAt || new Date().toISOString();
       }
       if (sessionData.connectedClients === undefined) {
         sessionData.connectedClients = 0;
       }
 
-      console.log('sessionApi.createSession: Returning session data:', sessionData);
+      console.log(
+        "sessionApi.createSession: Returning session data:",
+        sessionData
+      );
       return sessionData;
     } catch (error) {
-      console.error('sessionApi.createSession: Caught error:', error);
+      console.error("sessionApi.createSession: Caught error:", error);
       throw error;
     }
   }
 
   async getSession(sessionId: string): Promise<SessionInfo> {
     const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-      headers: this.getAuthHeaders()
+      headers: this.getAuthHeaders(),
     });
 
     const result = await this.handleResponse(response);
-    
+
     if (!result.success) {
-      throw new Error(result.error || 'Failed to fetch session');
+      throw new Error(result.error || "Failed to fetch session");
     }
 
     return result.data;
@@ -161,28 +209,28 @@ class SessionApiService {
 
   async deleteSession(sessionId: string): Promise<void> {
     const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-      method: 'DELETE',
-      headers: this.getAuthHeaders()
+      method: "DELETE",
+      headers: this.getAuthHeaders(),
     });
 
     const result = await this.handleResponse(response);
-    
+
     if (!result.success) {
-      throw new Error(result.error || 'Failed to delete session');
+      throw new Error(result.error || "Failed to delete session");
     }
   }
 
   async renameSession(sessionId: string, name: string): Promise<SessionInfo> {
     const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       headers: this.getAuthHeaders(),
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name }),
     });
 
     const result = await this.handleResponse(response);
-    
+
     if (!result.success) {
-      throw new Error(result.error || 'Failed to rename session');
+      throw new Error(result.error || "Failed to rename session");
     }
 
     return result.data;
@@ -190,15 +238,15 @@ class SessionApiService {
 
   async attachToSession(sessionId: string): Promise<SessionInfo> {
     const response = await fetch(`${API_BASE}/sessions/attach`, {
-      method: 'POST',
+      method: "POST",
       headers: this.getAuthHeaders(),
-      body: JSON.stringify({ sessionId })
+      body: JSON.stringify({ sessionId }),
     });
 
     const result = await this.handleResponse(response);
-    
+
     if (!result.success) {
-      throw new Error(result.error || 'Failed to attach to session');
+      throw new Error(result.error || "Failed to attach to session");
     }
 
     return result.data;
@@ -207,17 +255,17 @@ class SessionApiService {
   async getSessionOutput(sessionId: string, lines?: number): Promise<string[]> {
     const url = new URL(`${API_BASE}/sessions/${sessionId}/output`);
     if (lines) {
-      url.searchParams.set('lines', lines.toString());
+      url.searchParams.set("lines", lines.toString());
     }
 
     const response = await fetch(url.toString(), {
-      headers: this.getAuthHeaders()
+      headers: this.getAuthHeaders(),
     });
 
     const result = await this.handleResponse(response);
-    
+
     if (!result.success) {
-      throw new Error(result.error || 'Failed to fetch session output');
+      throw new Error(result.error || "Failed to fetch session output");
     }
 
     return result.data?.output || [];

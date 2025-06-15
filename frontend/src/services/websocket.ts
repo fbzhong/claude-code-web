@@ -1,5 +1,48 @@
+const getWsInfo: () => {
+  host: string;
+  protocol: string;
+} = () => {
+  const url = new URL(
+    (() => {
+      if (!process.env.REACT_APP_API_URL) {
+        return window.location.href;
+      }
+
+      if (process.env.REACT_APP_API_SAME_HOST !== "true") {
+        return process.env.REACT_APP_API_URL;
+      }
+
+      const apiUrl = new URL(process.env.REACT_APP_API_URL);
+      const hrefUrl = new URL(window.location.href);
+
+      return process.env.REACT_APP_API_URL.replace(
+        apiUrl.hostname,
+        hrefUrl.hostname
+      );
+    })()
+  );
+
+  const host = url.host;
+  const protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  return {
+    host,
+    protocol,
+  };
+};
+
 export interface WebSocketMessage {
-  type: 'terminal_data' | 'terminal_clear' | 'command_history' | 'claude_status' | 'claude_output' | 'session_info' | 'error' | 'terminal_exit' | 'session_list' | 'session_updated' | 'session_deleted';
+  type:
+    | "terminal_data"
+    | "terminal_clear"
+    | "command_history"
+    | "claude_status"
+    | "claude_output"
+    | "session_info"
+    | "error"
+    | "terminal_exit"
+    | "session_list"
+    | "session_updated"
+    | "session_deleted";
   data: any;
   timestamp: Date;
 }
@@ -7,7 +50,8 @@ export interface WebSocketMessage {
 export class WebSocketService {
   private ws: WebSocket | null = null;
   private sessionId: string | null = null;
-  private messageHandlers: Map<string, (message: WebSocketMessage) => void> = new Map();
+  private messageHandlers: Map<string, (message: WebSocketMessage) => void> =
+    new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectTimeout: any = null;
@@ -15,37 +59,48 @@ export class WebSocketService {
   connect(sessionId: string, token: string): Promise<void> {
     return new Promise((resolve, reject) => {
       // If already connected to the same session with a healthy connection, reuse it
-      if (this.ws && this.ws.readyState === WebSocket.OPEN && this.sessionId === sessionId) {
-        console.log('Already connected to session:', sessionId, 'reusing connection');
+      if (
+        this.ws &&
+        this.ws.readyState === WebSocket.OPEN &&
+        this.sessionId === sessionId
+      ) {
+        console.log(
+          "Already connected to session:",
+          sessionId,
+          "reusing connection"
+        );
         resolve();
         return;
       }
 
       // Disconnect any existing connection if switching sessions or connection is unhealthy
       if (this.ws) {
-        console.log('Disconnecting existing WebSocket connection for session switch or reconnection');
+        console.log(
+          "Disconnecting existing WebSocket connection for session switch or reconnection"
+        );
         this.disconnect();
       }
 
       this.sessionId = sessionId;
 
       // Build WebSocket URL with auth token as query parameter
-      const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:12021/api';
-      const baseUrl = apiBase.replace('/api', '').replace('http://', '').replace('https://', '');
-      const wsUrl = `ws://${baseUrl}/ws/terminal/${sessionId}?token=${encodeURIComponent(token)}`;
-      
+      const { host, protocol } = getWsInfo();
+      const wsUrl = `${protocol}//${host}/ws/terminal/${sessionId}?token=${encodeURIComponent(
+        token
+      )}`;
+
       try {
-        console.log('Creating new WebSocket connection to:', wsUrl);
+        console.log("Creating new WebSocket connection to:", wsUrl);
         this.ws = new WebSocket(wsUrl);
-        
+
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
+          console.log("WebSocket connected");
           this.reconnectAttempts = 0;
           resolve();
         };
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          console.error("WebSocket error:", error);
           reject(error);
         };
 
@@ -54,17 +109,16 @@ export class WebSocketService {
             const message = JSON.parse(event.data);
             this.handleMessage(message);
           } catch (e) {
-            console.error('Failed to parse WebSocket message:', e);
+            console.error("Failed to parse WebSocket message:", e);
           }
         };
 
         this.ws.onclose = (event) => {
-          console.log('WebSocket closed:', event.code, event.reason);
+          console.log("WebSocket closed:", event.code, event.reason);
           this.handleReconnect(token);
         };
-
       } catch (error) {
-        console.error('Failed to create WebSocket:', error);
+        console.error("Failed to create WebSocket:", error);
         reject(error);
       }
     });
@@ -75,15 +129,18 @@ export class WebSocketService {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     if (this.ws) {
       // Remove event listeners to prevent unwanted reconnection
       this.ws.onopen = null;
       this.ws.onmessage = null;
       this.ws.onerror = null;
       this.ws.onclose = null;
-      
-      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+
+      if (
+        this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING
+      ) {
         this.ws.close();
       }
       this.ws = null;
@@ -94,32 +151,36 @@ export class WebSocketService {
 
   sendTerminalInput(data: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn('WebSocket not connected, cannot send terminal input');
+      console.warn("WebSocket not connected, cannot send terminal input");
       return;
     }
 
-    this.ws.send(JSON.stringify({
-      type: 'terminal_input',
-      data,
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: "terminal_input",
+        data,
+      })
+    );
   }
 
   sendTerminalResize(cols: number, rows: number): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn('WebSocket not connected, cannot send resize');
+      console.warn("WebSocket not connected, cannot send resize");
       return;
     }
 
-    this.ws.send(JSON.stringify({
-      type: 'terminal_resize',
-      cols,
-      rows,
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: "terminal_resize",
+        cols,
+        rows,
+      })
+    );
   }
 
   requestHistory(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn('WebSocket not connected, deferring history request');
+      console.warn("WebSocket not connected, deferring history request");
       // Retry after a delay
       setTimeout(() => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
@@ -129,9 +190,11 @@ export class WebSocketService {
       return;
     }
 
-    this.ws.send(JSON.stringify({
-      type: 'get_history',
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: "get_history",
+      })
+    );
   }
 
   startClaude(config?: {
@@ -141,33 +204,39 @@ export class WebSocketService {
     autoRestart?: boolean;
   }): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket not connected');
+      throw new Error("WebSocket not connected");
     }
 
-    this.ws.send(JSON.stringify({
-      type: 'claude_start',
-      ...config,
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: "claude_start",
+        ...config,
+      })
+    );
   }
 
   stopClaude(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket not connected');
+      throw new Error("WebSocket not connected");
     }
 
-    this.ws.send(JSON.stringify({
-      type: 'claude_stop',
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: "claude_stop",
+      })
+    );
   }
 
   restartClaude(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new Error('WebSocket not connected');
+      throw new Error("WebSocket not connected");
     }
 
-    this.ws.send(JSON.stringify({
-      type: 'claude_restart',
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: "claude_restart",
+      })
+    );
   }
 
   onMessage(type: string, handler: (message: WebSocketMessage) => void): void {
@@ -185,7 +254,7 @@ export class WebSocketService {
     }
 
     // Also call generic handler
-    const allHandler = this.messageHandlers.get('*');
+    const allHandler = this.messageHandlers.get("*");
     if (allHandler) {
       allHandler(message);
     }
@@ -193,19 +262,24 @@ export class WebSocketService {
 
   private handleReconnect(token: string): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      console.error("Max reconnection attempts reached");
       return;
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
-    
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-    
+    const delay = Math.min(
+      1000 * Math.pow(2, this.reconnectAttempts - 1),
+      10000
+    );
+
+    console.log(
+      `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
+    );
+
     this.reconnectTimeout = setTimeout(() => {
       if (this.sessionId) {
         this.connect(this.sessionId, token).catch((error) => {
-          console.error('Reconnection failed:', error);
+          console.error("Reconnection failed:", error);
         });
       }
     }, delay);
@@ -223,7 +297,8 @@ export class WebSocketService {
 // Session List WebSocket Service
 export class SessionListWebSocketService {
   private ws: WebSocket | null = null;
-  private messageHandlers: Map<string, (message: WebSocketMessage) => void> = new Map();
+  private messageHandlers: Map<string, (message: WebSocketMessage) => void> =
+    new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectTimeout: any = null;
@@ -233,56 +308,64 @@ export class SessionListWebSocketService {
     return new Promise((resolve, reject) => {
       // If already connected, don't create a new connection
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        console.log('Session list WebSocket already connected');
+        console.log("Session list WebSocket already connected");
         resolve();
         return;
       }
 
       // Disconnect any existing connection
       if (this.ws) {
-        console.log('Disconnecting existing session list WebSocket connection');
+        console.log("Disconnecting existing session list WebSocket connection");
         this.disconnect();
       }
 
       this.token = token;
 
       // Build WebSocket URL for session list
-      const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:12021/api';
-      const baseUrl = apiBase.replace('/api', '').replace('http://', '').replace('https://', '');
-      const wsUrl = `ws://${baseUrl}/ws/sessions?token=${encodeURIComponent(token)}`;
-      
+      const { host, protocol } = getWsInfo();
+      const wsUrl = `${protocol}//${host}/ws/sessions?token=${encodeURIComponent(
+        token
+      )}`;
+
       try {
-        console.log('Creating session list WebSocket connection to:', wsUrl);
+        console.log("Creating session list WebSocket connection to:", wsUrl);
         this.ws = new WebSocket(wsUrl);
-        
+
         this.ws.onopen = () => {
-          console.log('Session list WebSocket connected');
+          console.log("Session list WebSocket connected");
           this.reconnectAttempts = 0;
           resolve();
         };
 
         this.ws.onerror = (error) => {
-          console.error('Session list WebSocket error:', error);
+          console.error("Session list WebSocket error:", error);
           reject(error);
         };
 
         this.ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
-            console.log('SessionListWebSocket received message:', message.type, message.data);
+            console.log(
+              "SessionListWebSocket received message:",
+              message.type,
+              message.data
+            );
             this.handleMessage(message);
           } catch (e) {
-            console.error('Failed to parse session list WebSocket message:', e);
+            console.error("Failed to parse session list WebSocket message:", e);
           }
         };
 
         this.ws.onclose = (event) => {
-          console.log('Session list WebSocket closed:', event.code, event.reason);
+          console.log(
+            "Session list WebSocket closed:",
+            event.code,
+            event.reason
+          );
           this.handleReconnect();
         };
-
       } catch (error) {
-        console.error('Failed to create session list WebSocket:', error);
+        console.error("Failed to create session list WebSocket:", error);
         reject(error);
       }
     });
@@ -293,15 +376,18 @@ export class SessionListWebSocketService {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     if (this.ws) {
       // Remove event listeners to prevent unwanted reconnection
       this.ws.onopen = null;
       this.ws.onmessage = null;
       this.ws.onerror = null;
       this.ws.onclose = null;
-      
-      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+
+      if (
+        this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING
+      ) {
         this.ws.close();
       }
       this.ws = null;
@@ -312,13 +398,17 @@ export class SessionListWebSocketService {
 
   requestSessions(): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn('Session list WebSocket not connected, cannot request sessions');
+      console.warn(
+        "Session list WebSocket not connected, cannot request sessions"
+      );
       return;
     }
 
-    this.ws.send(JSON.stringify({
-      type: 'get_sessions',
-    }));
+    this.ws.send(
+      JSON.stringify({
+        type: "get_sessions",
+      })
+    );
   }
 
   onMessage(type: string, handler: (message: WebSocketMessage) => void): void {
@@ -336,7 +426,7 @@ export class SessionListWebSocketService {
     }
 
     // Also call generic handler
-    const allHandler = this.messageHandlers.get('*');
+    const allHandler = this.messageHandlers.get("*");
     if (allHandler) {
       allHandler(message);
     }
@@ -344,21 +434,26 @@ export class SessionListWebSocketService {
 
   private handleReconnect(): void {
     if (!this.token) return;
-    
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max session list reconnection attempts reached');
+      console.error("Max session list reconnection attempts reached");
       return;
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 10000);
-    
-    console.log(`Reconnecting session list WebSocket in ${delay}ms (attempt ${this.reconnectAttempts})`);
-    
+    const delay = Math.min(
+      1000 * Math.pow(2, this.reconnectAttempts - 1),
+      10000
+    );
+
+    console.log(
+      `Reconnecting session list WebSocket in ${delay}ms (attempt ${this.reconnectAttempts})`
+    );
+
     this.reconnectTimeout = setTimeout(() => {
       if (this.token) {
         this.connect(this.token).catch((error) => {
-          console.error('Session list reconnection failed:', error);
+          console.error("Session list reconnection failed:", error);
         });
       }
     }, delay);

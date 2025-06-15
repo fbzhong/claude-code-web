@@ -29,7 +29,10 @@
       "Bash(npm update:*)",
       "Bash(pnpm update:*)",
       "WebFetch(domain:github.com)",
-      "Bash(pnpm remove:*)"
+      "Bash(pnpm remove:*)",
+      "Bash(test:*)",
+      "Bash(docker:*)",
+      "Bash(/dev/null)"
     ],
     "deny": []
   }

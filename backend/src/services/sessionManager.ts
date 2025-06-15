@@ -91,16 +91,19 @@ export class SessionManager extends EventEmitter {
     
     if (this.useContainers && this.containerManager) {
       // Container mode - each user gets their own container
-      this.fastify.log.info(`Creating containerized session for user ${userId}`);
+      this.fastify.log.info(`[SessionManager] Creating containerized session for user ${userId}`);
       
       try {
         // Get or create user's container
+        this.fastify.log.info(`[SessionManager] Getting container for user ${userId}...`);
         const containerId = await this.containerManager.getOrCreateUserContainer(userId);
+        this.fastify.log.info(`[SessionManager] Got container ${containerId} for user ${userId}`);
         
         // Use container's home directory as default
         workingDir = options.workingDir || '/home/developer';
         
         // Create PTY process in container
+        this.fastify.log.info(`[SessionManager] Creating PTY process in container ${containerId}...`);
         ptyProcess = ContainerPty.spawn(
           this.containerManager,
           containerId,
@@ -122,7 +125,7 @@ export class SessionManager extends EventEmitter {
           }
         );
         
-        this.fastify.log.info(`Created container PTY for session ${sessionId} in container ${containerId}`);
+        this.fastify.log.info(`[SessionManager] Created container PTY for session ${sessionId} in container ${containerId}`);
       } catch (error: any) {
         this.fastify.log.error(`Failed to create containerized session:`, error);
         throw new Error(`Failed to create containerized session: ${error.message}`);

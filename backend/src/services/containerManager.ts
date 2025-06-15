@@ -40,18 +40,25 @@ export class ContainerManager extends EventEmitter {
   async getOrCreateUserContainer(userId: string): Promise<string> {
     const containerName = `claude-web-user-${userId}`;
     
+    this.fastify.log.info(`[ContainerManager] Getting or creating container for user ${userId}, name: ${containerName}`);
+    
     try {
       // Check if container exists
+      this.fastify.log.info(`[ContainerManager] Checking if container ${containerName} exists...`);
       const existingContainer = await this.getContainer(containerName);
       if (existingContainer) {
+        this.fastify.log.info(`[ContainerManager] Found existing container ${existingContainer.id} with status: ${existingContainer.status}`);
         // Ensure it's running
         if (existingContainer.status !== 'running') {
+          this.fastify.log.info(`[ContainerManager] Starting existing container ${existingContainer.id}`);
           await this.startContainer(existingContainer.id);
         }
+        this.fastify.log.info(`[ContainerManager] Using existing container ${existingContainer.id}`);
         return existingContainer.id;
       }
       
       // Create new container
+      this.fastify.log.info(`[ContainerManager] No existing container found, creating new one...`);
       const containerId = await this.createContainer({
         image: this.defaultImage,
         name: containerName,
@@ -71,14 +78,22 @@ export class ContainerManager extends EventEmitter {
       });
       
       // Start the container
+      this.fastify.log.info(`[ContainerManager] Starting container ${containerId}`);
       await this.startContainer(containerId);
       
       // Initialize the container (create user, install basic tools, etc.)
+      this.fastify.log.info(`[ContainerManager] Initializing container ${containerId}`);
       await this.initializeContainer(containerId, userId);
       
+      this.fastify.log.info(`[ContainerManager] Successfully created and initialized container ${containerId}`);
       return containerId;
     } catch (error: any) {
-      this.fastify.log.error(`Failed to get/create container for user ${userId}:`, error);
+      this.fastify.log.error(`[ContainerManager] Failed to get/create container for user ${userId}:`, {
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        stderr: error.stderr
+      });
       throw error;
     }
   }
@@ -148,6 +163,13 @@ export class ContainerManager extends EventEmitter {
    * Create a new container
    */
   private async createContainer(config: ContainerConfig): Promise<string> {
+    this.fastify.log.info(`[ContainerManager] Creating container with config:`, {
+      image: config.image,
+      name: config.name,
+      memory: config.memory,
+      cpu: config.cpu
+    });
+    
     const args = ['create'];
     
     // Container name
@@ -184,10 +206,17 @@ export class ContainerManager extends EventEmitter {
     args.push(config.image);
     args.push('-c', 'while true; do sleep 1000; done');
     
-    const { stdout } = await execAsync(`${this.runtime} ${args.join(' ')}`);
+    const command = `${this.runtime} ${args.join(' ')}`;
+    this.fastify.log.info(`[ContainerManager] Executing: ${command}`);
+    
+    const { stdout, stderr } = await execAsync(command);
     const containerId = stdout.trim();
     
-    this.fastify.log.info(`Created container ${containerId} for user ${config.userId}`);
+    if (stderr) {
+      this.fastify.log.warn(`[ContainerManager] Container creation stderr:`, stderr);
+    }
+    
+    this.fastify.log.info(`[ContainerManager] Created container ${containerId} for user ${config.userId}`);
     return containerId;
   }
   
@@ -195,8 +224,16 @@ export class ContainerManager extends EventEmitter {
    * Start a container
    */
   private async startContainer(containerId: string): Promise<void> {
-    await execAsync(`${this.runtime} start ${containerId}`);
-    this.fastify.log.info(`Started container ${containerId}`);
+    const command = `${this.runtime} start ${containerId}`;
+    this.fastify.log.info(`[ContainerManager] Executing: ${command}`);
+    
+    const { stdout, stderr } = await execAsync(command);
+    
+    if (stderr) {
+      this.fastify.log.warn(`[ContainerManager] Container start stderr:`, stderr);
+    }
+    
+    this.fastify.log.info(`[ContainerManager] Started container ${containerId}, stdout: ${stdout.trim()}`);
   }
   
   /**
@@ -204,9 +241,14 @@ export class ContainerManager extends EventEmitter {
    */
   private async getContainer(nameOrId: string): Promise<ContainerInfo | null> {
     try {
-      const { stdout } = await execAsync(
-        `${this.runtime} inspect ${nameOrId} --format '{{json .}}'`
-      );
+      const command = `${this.runtime} inspect ${nameOrId} --format '{{json .}}'`;
+      this.fastify.log.debug(`[ContainerManager] Executing: ${command}`);
+      
+      const { stdout, stderr } = await execAsync(command);
+      
+      if (stderr) {
+        this.fastify.log.debug(`[ContainerManager] Container inspect stderr:`, stderr);
+      }
       
       const data = JSON.parse(stdout);
       
@@ -219,8 +261,14 @@ export class ContainerManager extends EventEmitter {
       };
     } catch (error: any) {
       if (error.code === 125 || error.stderr?.includes('no such container')) {
+        this.fastify.log.debug(`[ContainerManager] Container ${nameOrId} not found`);
         return null;
       }
+      this.fastify.log.error(`[ContainerManager] Error inspecting container ${nameOrId}:`, {
+        error: error.message,
+        code: error.code,
+        stderr: error.stderr
+      });
       throw error;
     }
   }

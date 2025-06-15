@@ -27,6 +27,14 @@ export class ContainerPty extends EventEmitter implements Partial<IPty> {
   ) {
     super();
     
+    console.log(`[ContainerPty] Creating PTY for container ${containerId} with command:`, command);
+    console.log(`[ContainerPty] Options:`, { 
+      cols: options.cols, 
+      rows: options.rows, 
+      cwd: options.cwd, 
+      user: options.user 
+    });
+    
     this._pid = process.pid; // Use parent process PID as placeholder
     this._cols = options.cols;
     this._rows = options.rows;
@@ -51,20 +59,29 @@ export class ContainerPty extends EventEmitter implements Partial<IPty> {
   }
   
   private start(): void {
+    console.log(`[ContainerPty] Starting interactive process in container ${this.containerId}`);
+    
     // Start the interactive process in the container
-    this.process = this.containerManager.execInteractive(
-      this.containerId,
-      this.command,
-      {
-        workingDir: this.options.cwd,
-        environment: {
-          ...this.options.env,
-          COLUMNS: this._cols.toString(),
-          LINES: this._rows.toString(),
-        },
-        user: this.options.user,
-      }
-    );
+    try {
+      this.process = this.containerManager.execInteractive(
+        this.containerId,
+        this.command,
+        {
+          workingDir: this.options.cwd,
+          environment: {
+            ...this.options.env,
+            COLUMNS: this._cols.toString(),
+            LINES: this._rows.toString(),
+          },
+          user: this.options.user,
+        }
+      );
+      
+      console.log(`[ContainerPty] Started process for container ${this.containerId}`);
+    } catch (error) {
+      console.error(`[ContainerPty] Failed to start process:`, error);
+      throw error;
+    }
     
     // Handle stdout data
     this.process.stdout.on('data', (data: Buffer) => {

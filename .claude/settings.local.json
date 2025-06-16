@@ -34,7 +34,8 @@
       "Bash(docker:*)",
       "Bash(/dev/null)",
       "Bash(chmod:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(psql:*)"
     ],
     "deny": []
   }

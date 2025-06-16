@@ -28,5 +28,18 @@ export default fp(async function (fastify: FastifyInstance) {
         // Ignore JWT errors in preHandler, let route handlers decide
       }
     }
+    
+    // Add session helper to request
+    request.session = {
+      get: async (key: string) => {
+        return await fastify.redis.get(key);
+      },
+      set: async (key: string, value: any) => {
+        await fastify.redis.set(key, value, 'EX', 3600); // 1 hour expiry
+      },
+      del: async (key: string) => {
+        await fastify.redis.del(key);
+      }
+    };
   });
 });

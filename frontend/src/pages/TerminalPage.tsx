@@ -30,6 +30,7 @@ import {
   Close as CloseIcon,
   PlayArrow as PlayArrowIcon,
   Keyboard as KeyboardIcon,
+  GitHub as GitHubIcon,
 } from '@mui/icons-material';
 import { Fab } from '@mui/material';
 import { SessionInfo } from '../components/SessionList';
@@ -40,6 +41,8 @@ import { wsService, sessionListWsService } from '../services/websocket';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { MobileKeyboardToolbar, useMobileKeyboardToolbar } from '../components/MobileKeyboardToolbar';
+import { Dialog, DialogContent, DialogTitle } from '@mui/material';
+import GitHubManager from '../components/GitHubManager';
 
 // Unified operation states
 interface OperationStates {
@@ -57,6 +60,7 @@ export const TerminalPage: React.FC = () => {
   // UI states
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   
   // Session states
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
@@ -633,6 +637,15 @@ export const TerminalPage: React.FC = () => {
           
           <IconButton 
             color="inherit" 
+            onClick={() => setGithubDialogOpen(true)}
+            size={isMobile ? "medium" : "small"}
+            sx={{ mr: 1 }}
+          >
+            <GitHubIcon />
+          </IconButton>
+          
+          <IconButton 
+            color="inherit" 
             onClick={handleLogout} 
             size={isMobile ? "medium" : "small"}
           >
@@ -948,6 +961,27 @@ export const TerminalPage: React.FC = () => {
           {error}
         </Alert>
       </Snackbar>
+
+      {/* GitHub Manager Dialog */}
+      <Dialog
+        open={githubDialogOpen}
+        onClose={() => setGithubDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        sx={{ '& .MuiDialog-paper': { minHeight: '60vh' } }}
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">GitHub Integration</Typography>
+            <IconButton onClick={() => setGithubDialogOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <GitHubManager />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

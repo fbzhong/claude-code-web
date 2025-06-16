@@ -263,4 +263,7 @@ export default async function (fastify: FastifyInstance) {
 
   // Register sessions routes
   await fastify.register(import('./sessions.js'));
+  
+  // Register GitHub routes
+  await fastify.register(import('./github.js'), { prefix: '/github' });
 }

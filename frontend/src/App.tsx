@@ -5,6 +5,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { GlobalStyles } from '@mui/material';
 import { TerminalPage } from './pages/TerminalPage';
 import { LoginPage } from './pages/LoginPage';
+import { GitHubCallbackPage } from './pages/GitHubCallbackPage';
 import { useAuthStore } from './stores/authStore';
 
 const darkTheme = createTheme({
@@ -70,6 +71,10 @@ function App() {
           <Route 
             path="/login" 
             element={isAuthenticated ? <Navigate to="/" /> : <LoginPage />} 
+          />
+          <Route 
+            path="/auth/github/callback" 
+            element={<GitHubCallbackPage />} 
           />
           <Route 
             path="/" 

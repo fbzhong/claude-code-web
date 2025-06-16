@@ -18,5 +18,10 @@ declare module 'fastify' {
       role: string;
     };
     jwtVerify: () => Promise<any>;
+    session: {
+      get: (key: string) => Promise<any>;
+      set: (key: string, value: any) => Promise<void>;
+      del: (key: string) => Promise<void>;
+    };
   }
 }

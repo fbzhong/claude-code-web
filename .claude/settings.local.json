@@ -45,7 +45,9 @@
       "Bash(./scripts/test-workingdir-sync.sh:*)",
       "Bash(./scripts/sshpiper-docker.sh:*)",
       "Bash(./scripts/build-sshpiper.sh:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import { exec, spawn } from "child_process";
 import { promisify } from "util";
 import { SSHConfigManager } from "./sshConfigManager";
+import * as pty from "node-pty";
 
 const execAsync = promisify(exec);
 

@@ -3,7 +3,6 @@ import { EventEmitter } from "events";
 import * as crypto from "crypto";
 import { TerminalSession, CommandHistory } from "../types";
 import { ContainerManager } from "./containerManager";
-import { ContainerPty } from "./containerPty";
 
 export interface SessionInfo {
   id: string;
@@ -122,25 +121,21 @@ export class SessionManager extends EventEmitter {
         this.fastify.log.info(
           `[SessionManager] Creating PTY process in container ${containerId}...`
         );
-        // Use script command to create a proper PTY inside the container
-        ptyProcess = ContainerPty.spawn(
-          this.containerManager,
-          containerId,
-          "script",
-          ["-q", "-c", "bash", "/dev/null"], // script creates a PTY
+        // Use pty.spawn to run docker exec -it
+        const runtime = process.env.CONTAINER_RUNTIME || "docker";
+        ptyProcess = pty.spawn(
+          runtime,
+          ["exec", "-it", "-u", "developer", "-w", workingDir, containerId, "bash"],
           {
             name: "xterm-color",
             cols: 80,
             rows: 24,
-            cwd: workingDir,
+            cwd: process.cwd(), // Host cwd doesn't matter for docker exec
             env: {
-              ...options.environment,
+              ...process.env,
               TERM: "xterm-256color",
               COLORTERM: "truecolor",
-              USER: "developer",
-              HOME: "/home/developer",
             },
-            user: "developer",
           }
         );
 

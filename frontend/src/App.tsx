@@ -7,6 +7,7 @@ import { TerminalPage } from './pages/TerminalPage';
 import { LoginPage } from './pages/LoginPage';
 import { GitHubCallbackPage } from './pages/GitHubCallbackPage';
 import { useAuthStore } from './stores/authStore';
+import { SSHKeysManager } from './components/SSHKeysManager';
 
 const darkTheme = createTheme({
   palette: {
@@ -79,6 +80,10 @@ function App() {
           <Route 
             path="/" 
             element={isAuthenticated ? <TerminalPage /> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/ssh-keys" 
+            element={isAuthenticated ? <SSHKeysManager /> : <Navigate to="/login" />} 
           />
         </Routes>
       </Router>

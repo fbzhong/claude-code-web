@@ -1,4 +1,5 @@
 import { User } from './index';
+import { SSHConfigManager } from '../services/sshConfigManager';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -9,6 +10,7 @@ declare module 'fastify' {
       sign: (payload: any) => string;
       verify: (token: string) => any;
     };
+    sshConfigManager: SSHConfigManager;
   }
 
   interface FastifyRequest {

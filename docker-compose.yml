@@ -44,17 +44,29 @@ services:
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-here}
       FASTIFY_HOST: 0.0.0.0
       FASTIFY_PORT: 12021
-      CONTAINER_MODE: ${CONTAINER_MODE:-false}
-      DOCKER_HOST: ${DOCKER_HOST:-unix:///var/run/docker.sock}
+      # Container mode settings
+      CONTAINER_MODE: ${CONTAINER_MODE:-true}
+      CONTAINER_RUNTIME: ${CONTAINER_RUNTIME:-docker}
+      CONTAINER_IMAGE: ${CONTAINER_IMAGE:-claude-web-dev:latest}
+      CONTAINER_MEMORY_LIMIT: ${CONTAINER_MEMORY_LIMIT:-2g}
+      CONTAINER_CPU_LIMIT: ${CONTAINER_CPU_LIMIT:-1}
+      CONTAINER_CLEANUP_INTERVAL_HOURS: ${CONTAINER_CLEANUP_INTERVAL_HOURS:-1}
+      CONTAINER_CLEANUP_HOURS: ${CONTAINER_CLEANUP_HOURS:-24}
+      # SSH settings
+      SSHPIPER_WORKINGDIR: ${SSHPIPER_WORKINGDIR:-./sshpiper/workingdir}
     ports:
       - "12021:12021"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./sshpiper/workingdir:/app/sshpiper/workingdir:rw
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - default
+      - claude-web-bridge
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:12021/health"]
       interval: 30s
@@ -79,6 +91,34 @@ services:
       timeout: 10s
       retries: 3
 
+  sshpiper:
+    image: farmer1992/sshpiperd:latest
+    container_name: claude-web-sshpiper
+    ports:
+      - "2222:2222"
+    volumes:
+      - ./sshpiper/workingdir:/var/sshpiper/workingdir:rw
+      - ./sshpiper/hostkeys:/etc/ssh/sshpiper_host_keys:rw
+      - ./sshpiper/sshpiper_id_rsa:/etc/ssh/sshpiper_upstream_key:ro
+    environment:
+      SSHPIPER_UPSTREAM_DRIVER: workingdir
+      SSHPIPER_WORKINGDIR_ROOT: /var/sshpiper/workingdir
+      SSHPIPER_LOG_LEVEL: info
+      SSHPIPER_UPSTREAM_KEY: /etc/ssh/sshpiper_upstream_key
+    depends_on:
+      - backend
+    networks:
+      - default
+      - claude-web-bridge
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  default:
+    driver: bridge
+  claude-web-bridge:
+    external: true
+    name: claude-web-bridge

@@ -322,6 +322,39 @@ export default async function sessionsRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Get SSH connection information
+  fastify.get('/ssh-info', {
+    preHandler: [fastify.authenticate]
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const user = (request as any).user;
+      const containerManager = (fastify as any).containerManager;
+      
+      if (!containerManager) {
+        return reply.status(503).send({
+          success: false,
+          error: 'Container service not available',
+          timestamp: new Date()
+        });
+      }
+      
+      const sshInfo = containerManager.getSSHConnectionInfo(user.id);
+      
+      return {
+        success: true,
+        data: sshInfo,
+        timestamp: new Date()
+      };
+    } catch (error: any) {
+      fastify.log.error('Failed to get SSH info:', error);
+      return reply.status(500).send({
+        success: false,
+        error: error.message,
+        timestamp: new Date()
+      });
+    }
+  });
+
   // Graceful shutdown
   fastify.addHook('onClose', async () => {
     await sessionManager.shutdown();

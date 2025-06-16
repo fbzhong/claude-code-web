@@ -1,201 +1,78 @@
-# Claude Web
+# Claude Web Code Server
 
-Web-based remote development environment for Claude Code and VS Code.
+一个基于 Web 的远程开发环境，允许用户通过浏览器访问和控制远程服务器上的 Claude Code 和 VS Code。
 
-## Features
+## 主要特性
 
-- 🖥️ Web-based terminal with full TTY support
-- 🤖 Claude Code integration and management
-- 🔐 User authentication and session management
-- 🐳 Container isolation mode (Docker/Podman)
-- 💻 VS Code integration (coming soon)
-- 🚀 Real-time WebSocket communication
-- 🔒 Privacy-focused design (no command/output logging)
+- 🌐 **Web 终端**: 基于 xterm.js 的完整终端体验
+- 🔒 **容器隔离**: 每个用户独立的 Docker 容器环境
+- 💻 **IDE 集成**: 支持 VS Code、Cursor、Windsurf 一键连接
+- 🔑 **SSH 访问**: 通过 SSHpiper 实现安全的 SSH 连接
+- 📱 **移动端支持**: 完善的移动端适配和虚拟键盘
+- 🎯 **会话管理**: 支持多会话创建、切换和持久化
 
-## Prerequisites
+## 快速开始
 
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
-- PostgreSQL >= 13
-- Redis >= 6
-- Claude Code installed on the system
+### 前置要求
 
-## Quick Start
+- Docker 和 Docker Compose
+- Node.js 18+ 和 pnpm
+- PostgreSQL 数据库
 
-1. **Clone the repository**
+### 安装步骤
 
-   ```bash
-   git clone https://github.com/fbzhong/claude-web.git
-   cd claude-web
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   pnpm install
-   ```
-
-3. **Set up environment variables**
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
-
-4. **Set up databases**
-
-   ```bash
-   # Start PostgreSQL and Redis
-   # Create database
-   createdb claude_web
-   ```
-
-5. **Start development servers**
-
-   ```bash
-   pnpm dev
-   ```
-
-   This will start:
-   - Backend server on <http://localhost:3001>
-   - Frontend server on <http://localhost:3000>
-
-## Project Structure
-
-```
-claude-web/
-├── backend/          # Fastify backend server
-│   ├── src/
-│   │   ├── plugins/  # Fastify plugins
-│   │   ├── routes/   # API and WebSocket routes
-│   │   ├── services/ # Business logic
-│   │   └── types/    # TypeScript types
-│   └── tests/        # Backend tests
-├── frontend/         # React frontend
-│   ├── src/
-│   │   ├── components/ # UI components
-│   │   ├── pages/      # Page components
-│   │   ├── services/   # API services
-│   │   └── stores/     # State management
-│   └── public/         # Static assets
-└── tests/            # E2E tests
-```
-
-## Available Scripts
-
-- `pnpm dev` - Start development servers
-- `pnpm build` - Build for production
-- `pnpm test` - Run all tests
-- `pnpm lint` - Run linting
-- `pnpm type-check` - Run TypeScript type checking
-
-## Development
-
-### Backend Development
-
-The backend uses Fastify with WebSocket support for real-time communication.
-
+1. 克隆仓库
 ```bash
-cd backend
+git clone <repository-url>
+cd claude-web-code-server
+```
+
+2. 安装依赖
+```bash
+pnpm install
+```
+
+3. 配置环境变量
+```bash
+cp .env.example .env
+# 编辑 .env 文件，设置必要的配置
+```
+
+4. 初始化 SSHpiper
+```bash
+./scripts/setup-sshpiper.sh
+```
+
+5. 启动服务
+```bash
+# 开发模式
 pnpm dev
+
+# 生产模式
+docker-compose up -d
 ```
 
-### Frontend Development
+## 架构说明
 
-The frontend uses React with Material-UI and xterm.js.
+- **前端**: React + TypeScript + Material-UI
+- **后端**: Fastify + WebSocket + node-pty
+- **数据库**: PostgreSQL + Redis
+- **容器**: Docker/Podman + SSHpiper
+- **IDE集成**: Remote-SSH 协议
 
-```bash
-cd frontend
-pnpm start
-```
+## 使用指南
 
-### Testing
+1. 访问 `http://localhost:12020`
+2. 注册或登录账号
+3. 创建新的终端会话
+4. 通过 SSH 或 IDE 连接到你的开发环境
 
-```bash
-# Run all tests
-pnpm test
+## 开发说明
 
-# Run backend tests
-pnpm --filter backend test
-
-# Run frontend tests
-pnpm --filter frontend test
-```
-
-## Configuration
-
-### Environment Variables
-
-See `.env.example` for all available configuration options.
-
-Key variables:
-
-- `DATABASE_URL` - PostgreSQL connection string
-- `REDIS_HOST/PORT` - Redis connection
-- `JWT_SECRET` - Secret for JWT tokens
-
-## Security & Privacy
-
-- JWT-based authentication
-- Secure WebSocket connections
-- Session isolation
-- Rate limiting
-- Input validation
-- **Privacy by Design**:
-  - No command history stored in database
-  - No terminal output logged
-  - Minimal session metadata only
-  - All sensitive data kept in memory only
-
-## Container Isolation Mode
-
-Claude Web supports running user sessions in isolated containers for enhanced security and resource management.
-
-### Enabling Container Mode
-
-1. **Install Docker or Podman**
-
-   ```bash
-   # For Docker
-   # Visit https://docs.docker.com/get-docker/
-
-   # For Podman
-   # Visit https://podman.io/getting-started/installation
-   ```
-
-2. **Configure environment**
-
-   ```bash
-   cp .env.container.example .env
-   # Edit .env and set CONTAINER_MODE=true
-   ```
-
-3. **Build development container image** (optional)
-
-   ```bash
-   docker build -t claude-web-dev:latest docker/dev-container/
-   ```
-
-4. **Start the application**
-
-   ```bash
-   pnpm dev
-   ```
-
-### Container Mode Features
-
-- **User Isolation**: Each user gets their own container
-- **Resource Limits**: Configure memory and CPU limits per user
-- **Persistent Storage**: User data persists across sessions
-- **Security**: Users cannot access host system or other users' data
-
-### Configuration Options
-
-- `CONTAINER_MODE=true` - Enable container isolation
-- `CONTAINER_RUNTIME=docker` - Use docker or podman
-- `CONTAINER_MEMORY_LIMIT=2g` - Memory limit per user
-- `CONTAINER_CPU_LIMIT=1` - CPU cores per user
+详细的开发文档请参考：
+- [CLAUDE.md](./CLAUDE.md) - 项目决策和技术细节
+- [FEATURE.md](./FEATURE.md) - 功能需求文档
 
 ## License
 
-Apache License 2.0
+MIT

@@ -31,6 +31,8 @@ import {
   PlayArrow as PlayArrowIcon,
   Keyboard as KeyboardIcon,
   GitHub as GitHubIcon,
+  Code as CodeIcon,
+  VpnKey as VpnKeyIcon,
 } from '@mui/icons-material';
 import { Fab } from '@mui/material';
 import { SessionInfo } from '../components/SessionList';
@@ -43,6 +45,7 @@ import { useNavigate } from 'react-router-dom';
 import { MobileKeyboardToolbar, useMobileKeyboardToolbar } from '../components/MobileKeyboardToolbar';
 import { Dialog, DialogContent, DialogTitle } from '@mui/material';
 import GitHubManager from '../components/GitHubManager';
+import { SSHAccessDialog } from '../components/SSHAccessDialog';
 
 // Unified operation states
 interface OperationStates {
@@ -59,6 +62,7 @@ export const TerminalPage: React.FC = () => {
   
   // UI states
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
+  const [sshInfoOpen, setSSHInfoOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   
@@ -640,8 +644,19 @@ export const TerminalPage: React.FC = () => {
             onClick={() => setGithubDialogOpen(true)}
             size={isMobile ? "medium" : "small"}
             sx={{ mr: 1 }}
+            title="GitHub Integration"
           >
             <GitHubIcon />
+          </IconButton>
+          
+          <IconButton 
+            color="inherit" 
+            onClick={() => setSSHInfoOpen(true)}
+            size={isMobile ? "medium" : "small"}
+            sx={{ mr: 1 }}
+            title="SSH Access Management"
+          >
+            <VpnKeyIcon />
           </IconButton>
           
           <IconButton 
@@ -944,6 +959,12 @@ export const TerminalPage: React.FC = () => {
           keyboardHeight={keyboardHeight}
         />
       )}
+
+      {/* SSH Access Dialog */}
+      <SSHAccessDialog
+        open={sshInfoOpen}
+        onClose={() => setSSHInfoOpen(false)}
+      />
 
       {/* Error Snackbar */}
       <Snackbar

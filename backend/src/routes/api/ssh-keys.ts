@@ -26,6 +26,19 @@ export default async function (fastify: FastifyInstance) {
       
       const userData = result.rows[0];
       
+      // Ensure workingDir structure exists and authorized_keys is in sync
+      try {
+        const sshConfigManager = fastify.sshConfigManager;
+        if (sshConfigManager) {
+          // This will create the workingDir if it doesn't exist and restore authorized_keys from DB
+          await sshConfigManager.ensureUserWorkingDir(user.id);
+          fastify.log.info(`[SSH-Keys] Ensured workingDir for user ${user.id}`);
+        }
+      } catch (sshError) {
+        fastify.log.warn(`[SSH-Keys] Failed to ensure workingDir: ${sshError}`);
+        // Don't fail the request, just log the warning
+      }
+      
       return {
         success: true,
         data: {

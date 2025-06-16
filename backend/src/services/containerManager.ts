@@ -593,13 +593,13 @@ export class ContainerManager extends EventEmitter {
               `Removed inactive container: ${name} (${reason})`
             );
 
-            // Remove SSH route for the container
+            // Disable SSH route for the container (preserves authorized_keys)
             try {
-              await this.sshConfigManager.removeUserRoute(userId);
-              this.fastify.log.info(`SSH route removed for user ${userId}`);
+              await this.sshConfigManager.disableUserRoute(userId);
+              this.fastify.log.info(`SSH route disabled for user ${userId}`);
             } catch (error) {
               this.fastify.log.warn(
-                `Failed to remove SSH route for user ${userId}: ${error}`
+                `Failed to disable SSH route for user ${userId}: ${error}`
               );
             }
 

@@ -64,6 +64,9 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 - ✅ 智能光标跟踪滚动系统（Claude Code 等中间输入场景）
 - ✅ 容器隔离模式实现（Docker/Podman）
 - ✅ 容器生命周期管理完善（自动清理、会话恢复）
+- ✅ VS Code Remote-SSH 集成方案实现（SSHpiper workingDir 模式）
+- ✅ SSH 公钥认证系统实现（移除密码认证，仅支持公钥）
+- ✅ SSHpiper workingDir 配置自动化
 
 ## 关键决策记录
 1. **2025-06-14**: 最初选择 ttyd 混合方案，后决定使用 node-pty 自建方案
@@ -105,6 +108,23 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
     - 清理24小时无活动的容器
     - 支持服务器重启后会话恢复
     - 用户数据通过Docker Volume持久化
+31. **2025-06-15**: 确定 VS Code Remote-SSH 集成方案：
+    - 选择 SSHpiper 作为 SSH 代理服务器
+    - 基于用户名进行路由转发到对应容器
+    - 单一端口（2222）服务所有用户
+    - 动态配置更新，支持热重载
+32. **2025-06-16**: 实现 SSHpiper workingDir 模式：
+    - 切换到 workingDir 驱动，替代 YAML 配置
+    - 实现公钥认证，移除密码认证提升安全性
+    - SSHpiper 使用预配置密钥连接到容器
+    - 用户公钥存储在 workingDir 的 authorized_keys 文件
+    - 实现数据库和 workingDir 的自动同步机制
+33. **2025-06-16**: 增强 SSH 公钥上传体验：
+    - 支持拖拽上传 .pub 文件
+    - 自动解析 SSH 公钥文件内容和注释
+    - 智能提取密钥名称（从注释中获取 user@hostname）
+    - 支持多种密钥格式（RSA、Ed25519、ECDSA）
+    - 文件验证和错误提示机制
 
 ## 技术特性
 
@@ -200,12 +220,21 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 
 ## 常用命令
 ```bash
+# 初始化 SSHpiper 配置 (首次运行必需)
+./scripts/setup-sshpiper.sh
+
 # 开发环境启动
 # 后端 (端口 12021)
 cd backend && pnpm run dev
 
 # 前端 (端口 12020)  
 cd frontend && pnpm start
+
+# Docker 环境启动 (包含 SSHpiper)
+docker-compose up -d
+
+# 重建容器镜像 (当更新 Dockerfile 时)
+docker-compose build
 
 # 运行测试
 pnpm test
@@ -218,5 +247,14 @@ pnpm install
 
 # 健康检查
 curl http://localhost:12021/health
+
+# 测试 SSHpiper 配置
+./scripts/test-sshpiper-workingdir.sh
+
+# 测试 SSH 公钥解析功能
+./scripts/test-ssh-key-parsing.sh
+
+# 测试 SSH 公钥错误处理
+./scripts/test-ssh-key-error-handling.sh
 ```
 

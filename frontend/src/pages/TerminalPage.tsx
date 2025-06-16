@@ -30,6 +30,8 @@ import {
   Close as CloseIcon,
   PlayArrow as PlayArrowIcon,
   Keyboard as KeyboardIcon,
+  Code as CodeIcon,
+  VpnKey as VpnKeyIcon,
 } from '@mui/icons-material';
 import { Fab } from '@mui/material';
 import { SessionInfo } from '../components/SessionList';
@@ -40,6 +42,7 @@ import { wsService, sessionListWsService } from '../services/websocket';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import { MobileKeyboardToolbar, useMobileKeyboardToolbar } from '../components/MobileKeyboardToolbar';
+import { SSHAccessDialog } from '../components/SSHAccessDialog';
 
 // Unified operation states
 interface OperationStates {
@@ -56,6 +59,7 @@ export const TerminalPage: React.FC = () => {
   
   // UI states
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
+  const [sshInfoOpen, setSSHInfoOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   // Session states
@@ -619,6 +623,15 @@ export const TerminalPage: React.FC = () => {
           
           <IconButton 
             color="inherit" 
+            onClick={() => setSSHInfoOpen(true)}
+            size={isMobile ? "medium" : "small"}
+            title="SSH Access Management"
+          >
+            <VpnKeyIcon />
+          </IconButton>
+          
+          <IconButton 
+            color="inherit" 
             onClick={handleLogout} 
             size={isMobile ? "medium" : "small"}
           >
@@ -916,6 +929,12 @@ export const TerminalPage: React.FC = () => {
           keyboardHeight={keyboardHeight}
         />
       )}
+
+      {/* SSH Access Dialog */}
+      <SSHAccessDialog
+        open={sshInfoOpen}
+        onClose={() => setSSHInfoOpen(false)}
+      />
 
       {/* Error Snackbar */}
       <Snackbar

@@ -59,6 +59,9 @@ importers:
       joi:
         specifier: ^17.11.0
         version: 17.13.3
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.1.0
       node-pty:
         specifier: ^1.0.0
         version: 1.0.0
@@ -78,6 +81,9 @@ importers:
       '@types/jest':
         specifier: ^29.5.8
         version: 29.5.14
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
       '@types/node':
         specifier: ^20.9.0
         version: 20.19.0
@@ -3454,6 +3460,10 @@ packages:
     dependencies:
       expect: 29.7.0
       pretty-format: 29.7.0
+    dev: true
+
+  /@types/js-yaml@4.0.9:
+    resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==}
     dev: true
 
   /@types/json-schema@7.0.15:

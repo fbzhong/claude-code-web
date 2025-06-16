@@ -31,6 +31,7 @@
     "fastify": "^4.24.3",
     "fastify-plugin": "^4.5.1",
     "joi": "^17.11.0",
+    "js-yaml": "^4.1.0",
     "node-pty": "^1.0.0",
     "pino": "^8.16.2",
     "pino-pretty": "^10.2.3",
@@ -39,6 +40,7 @@
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/jest": "^29.5.8",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.9.0",
     "@types/ws": "^8.5.8",
     "@typescript-eslint/eslint-plugin": "^6.10.0",

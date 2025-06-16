@@ -1,32 +1,15 @@
+import { api } from '../config/api';
+
 const getWsInfo: () => {
   host: string;
   protocol: string;
 } = () => {
-  const url = new URL(
-    (() => {
-      if (!process.env.REACT_APP_API_URL) {
-        return window.location.href;
-      }
-
-      if (process.env.REACT_APP_API_SAME_HOST !== "true") {
-        return process.env.REACT_APP_API_URL;
-      }
-
-      const apiUrl = new URL(process.env.REACT_APP_API_URL);
-      const hrefUrl = new URL(window.location.href);
-
-      return process.env.REACT_APP_API_URL.replace(
-        apiUrl.hostname,
-        hrefUrl.hostname
-      );
-    })()
-  );
-
-  const host = url.host;
-  const protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = api.wsUrl();
+  const url = new URL(wsUrl);
+  
   return {
-    host,
-    protocol,
+    host: url.host,
+    protocol: url.protocol,
   };
 };
 

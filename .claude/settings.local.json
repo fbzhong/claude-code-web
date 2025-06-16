@@ -34,7 +34,17 @@
       "Bash(docker:*)",
       "Bash(/dev/null)",
       "Bash(chmod:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(/Users/fbzhong/Downloads/temp/claude-web-code-server/scripts/fix-ssh-route.sh:*)",
+      "Bash(./scripts/test-ssh-password-flow.sh:*)",
+      "Bash(./scripts/check-ssh-registrations.sh:*)",
+      "Bash(echo:*)",
+      "Bash(./scripts/debug-ssh-password.sh:*)",
+      "Bash(ssh-keygen:*)",
+      "Bash(./scripts/test-workingdir-sync.sh:*)",
+      "Bash(./scripts/sshpiper-docker.sh:*)",
+      "Bash(./scripts/build-sshpiper.sh:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

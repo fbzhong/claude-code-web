@@ -1,26 +1,8 @@
 import { SessionInfo } from "../components/SessionList";
-
-const API_BASE =
-  (() => {
-    if (!process.env.REACT_APP_API_URL) {
-      return "";
-    }
-
-    if (process.env.REACT_APP_API_SAME_HOST !== "true") {
-      return process.env.REACT_APP_API_URL;
-    }
-
-    const apiUrl = new URL(process.env.REACT_APP_API_URL);
-    const hrefUrl = new URL(window.location.href);
-
-    return process.env.REACT_APP_API_URL.replace(
-      apiUrl.hostname,
-      hrefUrl.hostname
-    );
-  })() + "/api";
+import { api } from "../config/api";
 
 // Debug: Log the API_BASE URL
-console.log("SessionAPI: Using API_BASE =", API_BASE);
+console.log("SessionAPI: Using API_BASE =", api.baseUrl());
 
 export interface CreateSessionRequest {
   name?: string;
@@ -90,8 +72,9 @@ class SessionApiService {
   }
 
   async getAllSessions(): Promise<SessionInfo[]> {
-    console.log("Fetching all sessions from:", `${API_BASE}/sessions`);
-    const response = await fetch(`${API_BASE}/sessions`, {
+    const url = api.url(api.endpoints.SESSIONS.LIST);
+    console.log("Fetching all sessions from:", url);
+    const response = await fetch(url, {
       headers: this.getAuthHeaders(),
     });
 
@@ -126,14 +109,15 @@ class SessionApiService {
     console.log("sessionApi.createSession called with request:", request);
 
     try {
+      const url = api.url(api.endpoints.SESSIONS.CREATE);
       console.log(
         "sessionApi.createSession: Making fetch request to:",
-        `${API_BASE}/sessions`
+        url
       );
       console.log("sessionApi.createSession: Headers:", this.getAuthHeaders());
       console.log("sessionApi.createSession: Body:", JSON.stringify(request));
 
-      const response = await fetch(`${API_BASE}/sessions`, {
+      const response = await fetch(url, {
         method: "POST",
         headers: this.getAuthHeaders(),
         body: JSON.stringify(request),
@@ -194,7 +178,7 @@ class SessionApiService {
   }
 
   async getSession(sessionId: string): Promise<SessionInfo> {
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+    const response = await fetch(api.url(`/sessions/${sessionId}`), {
       headers: this.getAuthHeaders(),
     });
 
@@ -208,7 +192,7 @@ class SessionApiService {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+    const response = await fetch(api.url(api.endpoints.SESSIONS.DELETE(sessionId)), {
       method: "DELETE",
       headers: this.getAuthHeaders(),
     });
@@ -221,7 +205,7 @@ class SessionApiService {
   }
 
   async renameSession(sessionId: string, name: string): Promise<SessionInfo> {
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+    const response = await fetch(api.url(api.endpoints.SESSIONS.RENAME(sessionId)), {
       method: "PATCH",
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ name }),
@@ -237,7 +221,7 @@ class SessionApiService {
   }
 
   async attachToSession(sessionId: string): Promise<SessionInfo> {
-    const response = await fetch(`${API_BASE}/sessions/attach`, {
+    const response = await fetch(api.url(api.endpoints.SESSIONS.ATTACH), {
       method: "POST",
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ sessionId }),
@@ -253,7 +237,7 @@ class SessionApiService {
   }
 
   async getSessionOutput(sessionId: string, lines?: number): Promise<string[]> {
-    const url = new URL(`${API_BASE}/sessions/${sessionId}/output`);
+    const url = new URL(api.url(api.endpoints.SESSIONS.OUTPUT(sessionId)));
     if (lines) {
       url.searchParams.set("lines", lines.toString());
     }

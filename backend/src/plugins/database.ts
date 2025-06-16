@@ -1,5 +1,6 @@
 import fp from 'fastify-plugin';
 import { FastifyInstance } from 'fastify';
+import { SSHConfigManager } from '../services/sshConfigManager';
 
 export default fp(async function (fastify: FastifyInstance) {
   // PostgreSQL connection
@@ -60,6 +61,20 @@ export default fp(async function (fastify: FastifyInstance) {
       fastify.log.error('Database initialization failed:', err);
     } finally {
       client.release();
+    }
+    
+    // Initialize SSH Configuration Manager
+    try {
+      const sshConfigManager = new SSHConfigManager(fastify);
+      await sshConfigManager.initialize();
+      
+      // Attach to fastify instance for use in routes
+      fastify.decorate('sshConfigManager', sshConfigManager);
+      
+      fastify.log.info('SSHConfigManager initialized successfully');
+    } catch (err) {
+      fastify.log.error('SSHConfigManager initialization failed:', err);
+      // Don't fail the entire app if SSH config fails - some features may still work
     }
   });
 });

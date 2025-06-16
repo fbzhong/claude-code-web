@@ -263,4 +263,10 @@ export default async function (fastify: FastifyInstance) {
 
   // Register sessions routes
   await fastify.register(import('./sessions.js'));
+
+  // Register SSH routes
+  await fastify.register(import('./ssh.js'));
+
+  // Register SSH keys management routes
+  await fastify.register(import('./ssh-keys.js'));
 }

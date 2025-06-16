@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { api } from "../config/api";
 
 // Debug logger for mobile debugging
 let debugLogger: any = null;
@@ -7,27 +8,8 @@ export const setDebugLogger = (logger: any) => {
   debugLogger = logger;
 };
 
-const API_BASE =
-  (() => {
-    if (!process.env.REACT_APP_API_URL) {
-      return "";
-    }
-
-    if (process.env.REACT_APP_API_SAME_HOST !== "true") {
-      return process.env.REACT_APP_API_URL;
-    }
-
-    const apiUrl = new URL(process.env.REACT_APP_API_URL);
-    const hrefUrl = new URL(window.location.href);
-
-    return process.env.REACT_APP_API_URL.replace(
-      apiUrl.hostname,
-      hrefUrl.hostname
-    );
-  })() + "/api";
-
 // Debug: Log the API_BASE URL
-console.log("AuthStore: Using API_BASE =", API_BASE);
+console.log("AuthStore: Using API_BASE =", api.baseUrl());
 
 interface User {
   id: string;
@@ -58,15 +40,16 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (username: string, password: string) => {
         debugLogger?.logInfo("AUTH", `Starting login for ${username}`, {
-          apiBase: API_BASE,
+          apiBase: api.baseUrl(),
         });
 
         try {
+          const loginUrl = api.url(api.endpoints.AUTH.LOGIN);
           debugLogger?.logInfo("AUTH", "Making login request", {
-            url: `${API_BASE}/auth/login`,
+            url: loginUrl,
           });
 
-          const response = await fetch(`${API_BASE}/auth/login`, {
+          const response = await fetch(loginUrl, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -179,7 +162,7 @@ export const useAuthStore = create<AuthState>()(
 
       register: async (username: string, email: string, password: string) => {
         try {
-          const response = await fetch(`${API_BASE}/auth/register`, {
+          const response = await fetch(api.url(api.endpoints.AUTH.REGISTER), {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

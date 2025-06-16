@@ -38,9 +38,12 @@ export class SessionManager extends EventEmitter {
 
     if (this.useContainers) {
       this.containerManager = new ContainerManager(fastify);
+      // Register containerManager on fastify instance for other routes to access
+      fastify.decorate('containerManager', this.containerManager);
       this.fastify.log.info("Container mode enabled");
     } else {
       this.fastify.log.info("Local shell mode enabled");
+      // SSHConfigManager will be initialized by database plugin
     }
 
     // Cleanup dead sessions periodically

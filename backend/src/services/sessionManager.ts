@@ -39,7 +39,7 @@ export class SessionManager extends EventEmitter {
     if (this.useContainers) {
       this.containerManager = new ContainerManager(fastify);
       // Register containerManager on fastify instance for other routes to access
-      fastify.decorate('containerManager', this.containerManager);
+      fastify.decorate("containerManager", this.containerManager);
       this.fastify.log.info("Container mode enabled");
     } else {
       this.fastify.log.info("Local shell mode enabled");
@@ -127,7 +127,7 @@ export class SessionManager extends EventEmitter {
           this.containerManager,
           containerId,
           "script",
-          ["-q", "-c", "bash", "/dev/null"],  // script creates a PTY
+          ["-q", "-c", "bash", "/dev/null"], // script creates a PTY
           {
             name: "xterm-color",
             cols: 80,
@@ -360,11 +360,11 @@ export class SessionManager extends EventEmitter {
     // Buffer commands for history tracking
     if (data === "\r" || data === "\n") {
       const command = this.commandBuffer.get(sessionId) || "";
-      this.fastify.log.info(
-        `Enter pressed (${
-          data === "\r" ? "CR" : "LF"
-        }), command buffer: "${command}", length: ${command.length}`
-      );
+      // this.fastify.log.info(
+      //   `Enter pressed (${
+      //     data === "\r" ? "CR" : "LF"
+      //   }), command buffer: "${command}", length: ${command.length}`
+      // );
       if (command.trim()) {
         // Only record the command to history, don't predict CWD changes
         // Real CWD will be detected from shell output
@@ -617,9 +617,9 @@ export class SessionManager extends EventEmitter {
     }, delay);
 
     this.cwdCheckTimers.set(sessionId, timer);
-    this.fastify.log.debug(
-      `Scheduled CWD check for session ${sessionId} in ${delay}ms`
-    );
+    // this.fastify.log.debug(
+    //   `Scheduled CWD check for session ${sessionId} in ${delay}ms`
+    // );
   }
 
   private scheduleOutputBasedCWDCheck(sessionId: string): void {

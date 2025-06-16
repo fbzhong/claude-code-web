@@ -67,6 +67,9 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 - ✅ VS Code Remote-SSH 集成方案实现（SSHpiper workingDir 模式）
 - ✅ SSH 公钥认证系统实现（移除密码认证，仅支持公钥）
 - ✅ SSHpiper workingDir 配置自动化
+- ✅ SSH 公钥拖拽上传和智能解析
+- ✅ 多 IDE 支持（VS Code、Cursor、Windsurf）
+- ✅ 一键打开 IDE 功能实现
 
 ## 关键决策记录
 1. **2025-06-14**: 最初选择 ttyd 混合方案，后决定使用 node-pty 自建方案
@@ -125,6 +128,20 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
     - 智能提取密钥名称（从注释中获取 user@hostname）
     - 支持多种密钥格式（RSA、Ed25519、ECDSA）
     - 文件验证和错误提示机制
+34. **2025-06-16**: 简化容器初始化流程：
+    - 移除 syncSSHCredentials 方法，不再同步密钥到容器
+    - 容器初始化仅创建 workspace 目录
+    - 通过 Dockerfile 中的启动脚本恢复 SSH 密钥
+    - SSHpiper 公钥保存到 /root/.ssh 作为备份
+35. **2025-06-16**: 优化 IDE 连接体验：
+    - 支持三个主流 IDE：VS Code、Cursor、Windsurf
+    - 一键打开 IDE 功能，使用各自的 URL scheme
+    - 简化 UI，移除冗余的手动连接步骤
+    - 更紧凑的界面设计，避免滚动
+36. **2025-06-16**: 数据库架构优化：
+    - 移除 ssh_password 和 ssh_password_hash 字段
+    - 仅保留 ssh_public_keys 用于公钥认证
+    - 清理 API 响应，移除不需要的 instructions 字段
 
 ## 技术特性
 

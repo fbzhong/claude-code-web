@@ -34,7 +34,8 @@ import {
   Public as PublicIcon,
   Link as LinkIcon,
   LinkOff as LinkOffIcon,
-  Check as CheckIcon
+  Check as CheckIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import githubService, { GitHubRepo, GitHubStatus } from '../services/github';
 
@@ -47,6 +48,7 @@ const GitHubManager: React.FC = () => {
   const [cloneUrl, setCloneUrl] = useState('');
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadGitHubData();
@@ -304,14 +306,30 @@ const GitHubManager: React.FC = () => {
                   {repos.length} {repos.length === 1 ? 'repository' : 'repositories'} synced
                 </Typography>
               </Box>
-              <Button
-                variant="outlined"
-                onClick={handleSync}
-                disabled={syncing}
-                startIcon={syncing ? <CircularProgress size={16} /> : <RefreshIcon />}
-              >
-                {syncing ? 'Syncing...' : 'Sync'}
-              </Button>
+              <Box display="flex" alignItems="center" gap={2}>
+                <TextField
+                  size="small"
+                  placeholder="Search repositories..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: 'text.secondary' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ minWidth: 250 }}
+                />
+                <Button
+                  variant="outlined"
+                  onClick={handleSync}
+                  disabled={syncing}
+                  startIcon={syncing ? <CircularProgress size={16} /> : <RefreshIcon />}
+                >
+                  {syncing ? 'Syncing...' : 'Sync'}
+                </Button>
+              </Box>
             </Box>
 
             <Divider sx={{ mb: 2 }} />
@@ -338,8 +356,24 @@ const GitHubManager: React.FC = () => {
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Click on any repository to get a secure clone URL
                 </Typography>
-                <List sx={{ maxHeight: 400, overflow: 'auto' }}>
-                  {repos.map((repo) => (
+                {(() => {
+                  const filteredRepos = repos.filter((repo) => 
+                    repo.repo_full_name.toLowerCase().includes(searchQuery.toLowerCase())
+                  );
+
+                  if (filteredRepos.length === 0) {
+                    return (
+                      <Box textAlign="center" py={4}>
+                        <Typography variant="body1" color="text.secondary">
+                          No repositories found matching "{searchQuery}"
+                        </Typography>
+                      </Box>
+                    );
+                  }
+
+                  return (
+                    <List sx={{ maxHeight: 400, overflow: 'auto' }}>
+                      {filteredRepos.map((repo) => (
                     <ListItem
                       key={repo.repo_id}
                       button
@@ -369,21 +403,11 @@ const GitHubManager: React.FC = () => {
                         }
                         secondary={`Last synced: ${new Date(repo.last_synced_at).toLocaleString()}`}
                       />
-                      <ListItemSecondaryAction>
-                        <IconButton
-                          edge="end"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteRepo(repo);
-                          }}
-                          size="small"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </ListItemSecondaryAction>
                     </ListItem>
-                  ))}
-                </List>
+                      ))}
+                    </List>
+                  );
+                })()}
               </Box>
             )}
           </CardContent>

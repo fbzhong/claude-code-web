@@ -399,13 +399,16 @@ export const TerminalPage: React.FC = () => {
     }
   }, [token, refreshSessions, currentSessionId]);
 
-  // Handle WebSocket connection
+  // WebSocket connection state
+  const [isTerminalReady, setIsTerminalReady] = useState(false);
+
+  // Handle WebSocket connection only after terminal is ready
   useEffect(() => {
-    if (!token || !currentSessionId) return;
+    if (!token || !currentSessionId || !isTerminalReady) return;
     
-    console.log('Setting up WebSocket connection for session:', currentSessionId);
+    console.log('Setting up WebSocket connection for session:', currentSessionId, '(terminal ready)');
     
-    // Connect to WebSocket
+    // Connect to WebSocket after terminal is initialized
     wsService.connect(currentSessionId, token).catch((error) => {
       console.error('Failed to connect to WebSocket:', error);
       setError('Failed to connect to session');
@@ -440,7 +443,18 @@ export const TerminalPage: React.FC = () => {
       wsService.offMessage('terminal_clear');
       wsService.disconnect();
     };
-  }, [currentSessionId, token]);
+  }, [currentSessionId, token, isTerminalReady]);
+
+  // Reset terminal ready state when session changes
+  useEffect(() => {
+    setIsTerminalReady(false);
+  }, [currentSessionId]);
+
+  // Terminal ready callback
+  const handleTerminalReady = useCallback(() => {
+    console.log('Terminal is ready, enabling WebSocket connection');
+    setIsTerminalReady(true);
+  }, []);
 
   // Terminal handlers
   const handleTerminalData = useCallback((data: string) => {
@@ -654,6 +668,7 @@ export const TerminalPage: React.FC = () => {
                 ref={terminalRef}
                 onData={handleTerminalData}
                 onResize={handleTerminalResize}
+                onTerminalReady={handleTerminalReady}
               />
             </Box>
           ) : (

@@ -11,7 +11,19 @@ import {
   useTheme,
   useMediaQuery,
   Container,
+  CircularProgress,
+  Divider,
+  Link,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
+import {
+  Visibility,
+  VisibilityOff,
+  Email as EmailIcon,
+  Lock as LockIcon,
+  VpnKey as VpnKeyIcon,
+} from "@mui/icons-material";
 import { useAuthStore, setDebugLogger } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
 import { DebugInfo, useDebugLogger } from "../components/DebugInfo";
@@ -110,6 +122,13 @@ export const LoginPage: React.FC = () => {
     inviteCode: "",
   });
 
+  // Password visibility state
+  const [showPassword, setShowPassword] = useState({
+    login: false,
+    register: false,
+    confirm: false,
+  });
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
     setError(null);
@@ -166,6 +185,7 @@ export const LoginPage: React.FC = () => {
 
   return (
     <Box
+      className="tech-grid"
       sx={{
         // Use dynamic viewport height for mobile browsers
         minHeight: ["100vh", "100dvh"],
@@ -174,6 +194,29 @@ export const LoginPage: React.FC = () => {
         justifyContent: "center",
         bgcolor: "background.default",
         p: { xs: 2, sm: 3 },
+        position: "relative",
+        overflow: "hidden",
+        // Subtle gradient overlay
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          top: "-50%",
+          left: "-50%",
+          width: "200%",
+          height: "200%",
+          background: "radial-gradient(circle at 30% 50%, rgba(0, 122, 255, 0.1) 0%, transparent 50%)",
+          pointerEvents: "none",
+        },
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          bottom: "-50%",
+          right: "-50%",
+          width: "200%",
+          height: "200%",
+          background: "radial-gradient(circle at 70% 50%, rgba(88, 86, 214, 0.1) 0%, transparent 50%)",
+          pointerEvents: "none",
+        },
         // Adjust layout when keyboard is open on mobile
         ...(isMobile &&
           keyboardState.isKeyboardOpen && {
@@ -191,10 +234,26 @@ export const LoginPage: React.FC = () => {
     >
       <Container maxWidth="sm">
         <Paper
-          elevation={3}
+          className="frosted-glass animate-fadeIn"
+          elevation={0}
           sx={{
             width: "100%",
             p: { xs: 2, sm: 3, md: 4 },
+            borderRadius: 3,
+            position: "relative",
+            overflow: "hidden",
+            // Subtle gradient border effect
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              inset: 0,
+              borderRadius: "inherit",
+              padding: "1px",
+              background: "linear-gradient(135deg, rgba(0, 122, 255, 0.3), rgba(88, 86, 214, 0.3))",
+              WebkitMask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+              WebkitMaskComposite: "xor",
+              maskComposite: "exclude",
+            },
             // Adjust position when keyboard is open on mobile
             ...(isMobile &&
               keyboardState.isKeyboardOpen && {
@@ -206,24 +265,78 @@ export const LoginPage: React.FC = () => {
               }),
           }}
         >
-          <Typography
-            variant={isMobile ? "h5" : "h4"}
-            align="center"
-            gutterBottom
-            sx={{ mb: { xs: 2, sm: 3 } }}
-          >
-            Claude Web Terminal
-          </Typography>
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Typography
+              variant={isMobile ? "h5" : "h4"}
+              gutterBottom
+              className="gradient-text"
+              sx={{ 
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+                mb: 1,
+              }}
+            >
+              Claude Web Terminal
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.6)',
+                fontSize: '0.95rem',
+              }}
+            >
+              Your powerful remote development environment
+            </Typography>
+          </Box>
 
-          <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-            <Tabs value={tabValue} onChange={handleTabChange} centered>
-              <Tab label="Login" />
-              <Tab label="Register" />
+          <Box sx={{ 
+            borderBottom: 1, 
+            borderColor: "divider",
+            mb: 2,
+          }}>
+            <Tabs 
+              value={tabValue} 
+              onChange={handleTabChange} 
+              centered
+              sx={{
+                '& .MuiTab-root': {
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  minWidth: 120,
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    color: '#007AFF',
+                  },
+                },
+                '& .Mui-selected': {
+                  color: '#007AFF',
+                },
+                '& .MuiTabs-indicator': {
+                  backgroundColor: '#007AFF',
+                  height: 3,
+                  borderRadius: '3px 3px 0 0',
+                },
+              }}
+            >
+              <Tab label="Sign In" />
+              <Tab label="Sign Up" />
             </Tabs>
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mt: 2,
+                borderRadius: 2,
+                backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                border: '1px solid rgba(255, 59, 48, 0.3)',
+                '& .MuiAlert-icon': {
+                  color: '#FF3B30',
+                },
+              }}
+            >
               {error}
             </Alert>
           )}
@@ -241,17 +354,46 @@ export const LoginPage: React.FC = () => {
                   setLoginForm({ ...loginForm, email: e.target.value })
                 }
                 required
-                autoFocus={!isMobile} // Disable autofocus on mobile to prevent immediate keyboard
+                autoFocus={!isMobile}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                    </InputAdornment>
+                  ),
+                }}
                 inputProps={{
                   style: {
-                    fontSize: isMobile ? "16px" : "14px", // Prevent zoom on iOS
+                    fontSize: isMobile ? "16px" : "14px",
+                  },
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#007AFF',
+                        borderWidth: 2,
+                      },
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&.Mui-focused': {
+                      color: '#007AFF',
+                    },
                   },
                 }}
               />
               <TextField
                 fullWidth
                 label="Password"
-                type="password"
+                type={showPassword.login ? "text" : "password"}
                 variant="outlined"
                 margin="normal"
                 value={loginForm.password}
@@ -259,9 +401,49 @@ export const LoginPage: React.FC = () => {
                   setLoginForm({ ...loginForm, password: e.target.value })
                 }
                 required
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword({ ...showPassword, login: !showPassword.login })}
+                        edge="end"
+                        sx={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                      >
+                        {showPassword.login ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
                 inputProps={{
                   style: {
-                    fontSize: isMobile ? "16px" : "14px", // Prevent zoom on iOS
+                    fontSize: isMobile ? "16px" : "14px",
+                  },
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#007AFF',
+                        borderWidth: 2,
+                      },
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&.Mui-focused': {
+                      color: '#007AFF',
+                    },
                   },
                 }}
               />
@@ -269,11 +451,60 @@ export const LoginPage: React.FC = () => {
                 type="submit"
                 fullWidth
                 variant="contained"
-                sx={{ mt: 3 }}
+                className="animated-gradient-bg"
+                sx={{ 
+                  mt: 3,
+                  mb: 2,
+                  py: 1.5,
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  boxShadow: '0 4px 20px rgba(0, 122, 255, 0.3)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  '&:hover': {
+                    boxShadow: '0 6px 30px rgba(0, 122, 255, 0.4)',
+                    transform: 'translateY(-1px)',
+                  },
+                  '&:disabled': {
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    boxShadow: 'none',
+                  },
+                }}
                 disabled={loading}
               >
-                {loading ? "Logging in..." : "Login"}
+                {loading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={20} color="inherit" />
+                    <span>Signing in...</span>
+                  </Box>
+                ) : (
+                  "Sign In"
+                )}
               </Button>
+
+              <Box sx={{ mt: 3, textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                  Don't have an account?{' '}
+                  <Link
+                    component="button"
+                    type="button"
+                    variant="body2"
+                    onClick={() => setTabValue(1)}
+                    sx={{
+                      color: '#007AFF',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      '&:hover': {
+                        textDecoration: 'underline',
+                      },
+                    }}
+                  >
+                    Sign up
+                  </Link>
+                </Typography>
+              </Box>
             </form>
           </TabPanel>
 
@@ -290,16 +521,45 @@ export const LoginPage: React.FC = () => {
                   setRegisterForm({ ...registerForm, email: e.target.value })
                 }
                 required
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                    </InputAdornment>
+                  ),
+                }}
                 inputProps={{
                   style: {
-                    fontSize: isMobile ? "16px" : "14px", // Prevent zoom on iOS
+                    fontSize: isMobile ? "16px" : "14px",
+                  },
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#007AFF',
+                        borderWidth: 2,
+                      },
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&.Mui-focused': {
+                      color: '#007AFF',
+                    },
                   },
                 }}
               />
               <TextField
                 fullWidth
                 label="Password"
-                type="password"
+                type={showPassword.register ? "text" : "password"}
                 variant="outlined"
                 margin="normal"
                 value={registerForm.password}
@@ -308,16 +568,60 @@ export const LoginPage: React.FC = () => {
                 }
                 required
                 helperText="Password must be at least 8 characters and contain 3 of: uppercase, lowercase, numbers, special characters"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword({ ...showPassword, register: !showPassword.register })}
+                        edge="end"
+                        sx={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                      >
+                        {showPassword.register ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
                 inputProps={{
                   style: {
-                    fontSize: isMobile ? "16px" : "14px", // Prevent zoom on iOS
+                    fontSize: isMobile ? "16px" : "14px",
+                  },
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#007AFF',
+                        borderWidth: 2,
+                      },
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&.Mui-focused': {
+                      color: '#007AFF',
+                    },
+                  },
+                  '& .MuiFormHelperText-root': {
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    fontSize: '0.75rem',
                   },
                 }}
               />
               <TextField
                 fullWidth
                 label="Confirm Password"
-                type="password"
+                type={showPassword.confirm ? "text" : "password"}
                 variant="outlined"
                 margin="normal"
                 value={registerForm.confirmPassword}
@@ -328,9 +632,55 @@ export const LoginPage: React.FC = () => {
                   })
                 }
                 required
+                error={registerForm.confirmPassword !== '' && registerForm.password !== registerForm.confirmPassword}
+                helperText={registerForm.confirmPassword !== '' && registerForm.password !== registerForm.confirmPassword ? "Passwords don't match" : ""}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword({ ...showPassword, confirm: !showPassword.confirm })}
+                        edge="end"
+                        sx={{ color: 'rgba(255, 255, 255, 0.5)' }}
+                      >
+                        {showPassword.confirm ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
                 inputProps={{
                   style: {
-                    fontSize: isMobile ? "16px" : "14px", // Prevent zoom on iOS
+                    fontSize: isMobile ? "16px" : "14px",
+                  },
+                }}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    },
+                    '&.Mui-focused': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        borderColor: '#007AFF',
+                        borderWidth: 2,
+                      },
+                    },
+                  },
+                  '& .MuiInputLabel-root': {
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    '&.Mui-focused': {
+                      color: '#007AFF',
+                    },
+                  },
+                  '& .MuiFormHelperText-root': {
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    fontSize: '0.75rem',
                   },
                 }}
               />
@@ -348,23 +698,105 @@ export const LoginPage: React.FC = () => {
                     })
                   }
                   required
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <VpnKeyIcon sx={{ color: 'rgba(255, 255, 255, 0.5)' }} />
+                      </InputAdornment>
+                    ),
+                  }}
                   inputProps={{
                     style: {
-                      fontSize: isMobile ? "16px" : "14px", // Prevent zoom on iOS
+                      fontSize: isMobile ? "16px" : "14px",
                     },
                   }}
                   helperText="An invite code is required to register"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                      transition: 'all 0.3s ease',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      },
+                      '&.Mui-focused': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                        '& .MuiOutlinedInput-notchedOutline': {
+                          borderColor: '#007AFF',
+                          borderWidth: 2,
+                        },
+                      },
+                    },
+                    '& .MuiInputLabel-root': {
+                      color: 'rgba(255, 255, 255, 0.7)',
+                      '&.Mui-focused': {
+                        color: '#007AFF',
+                      },
+                    },
+                    '& .MuiFormHelperText-root': {
+                      color: 'rgba(255, 255, 255, 0.5)',
+                      fontSize: '0.75rem',
+                    },
+                  }}
                 />
               )}
               <Button
                 type="submit"
                 fullWidth
                 variant="contained"
-                sx={{ mt: 3 }}
+                className="animated-gradient-bg"
+                sx={{ 
+                  mt: 3,
+                  mb: 2,
+                  py: 1.5,
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  boxShadow: '0 4px 20px rgba(0, 122, 255, 0.3)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  '&:hover': {
+                    boxShadow: '0 6px 30px rgba(0, 122, 255, 0.4)',
+                    transform: 'translateY(-1px)',
+                  },
+                  '&:disabled': {
+                    background: 'rgba(255, 255, 255, 0.1)',
+                    boxShadow: 'none',
+                  },
+                }}
                 disabled={loading}
               >
-                {loading ? "Registering..." : "Register"}
+                {loading ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <CircularProgress size={20} color="inherit" />
+                    <span>Creating account...</span>
+                  </Box>
+                ) : (
+                  "Create Account"
+                )}
               </Button>
+
+              <Box sx={{ mt: 3, textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+                  Already have an account?{' '}
+                  <Link
+                    component="button"
+                    type="button"
+                    variant="body2"
+                    onClick={() => setTabValue(0)}
+                    sx={{
+                      color: '#007AFF',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      '&:hover': {
+                        textDecoration: 'underline',
+                      },
+                    }}
+                  >
+                    Sign in
+                  </Link>
+                </Typography>
+              </Box>
             </form>
           </TabPanel>
         </Paper>

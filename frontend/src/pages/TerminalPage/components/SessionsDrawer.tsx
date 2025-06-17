@@ -171,10 +171,14 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
       onClose={onClose}
       sx={{
         '& .MuiDrawer-paper': {
-          bgcolor: '#1e1e1e',
-          color: '#cccccc',
+          backgroundColor: 'rgba(10, 10, 10, 0.95)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+          color: '#ffffff',
           width: { xs: '85vw', sm: 400 },
           maxWidth: 500,
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
         }
       }}
     >
@@ -185,7 +189,11 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
           justifyContent: 'space-between',
           mb: 2 
         }}>
-          <Typography variant="h6" sx={{ color: '#ffffff' }}>
+          <Typography 
+            variant="h6" 
+            className="gradient-text"
+            sx={{ fontWeight: 700 }}
+          >
             Active Sessions ({sessions.length})
           </Typography>
           <IconButton 

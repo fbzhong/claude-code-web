@@ -1,0 +1,29 @@
+{
+  "short_name": "Claude Web",
+  "name": "Claude Web Terminal",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#007AFF",
+  "background_color": "#000000",
+  "description": "A modern web-based terminal for remote development with Claude Code",
+  "categories": ["developer", "productivity"],
+  "orientation": "any"
+}

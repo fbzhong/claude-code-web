@@ -47,7 +47,8 @@
       "Bash(./scripts/build-sshpiper.sh:*)",
       "Bash(touch:*)",
       "Bash(mv:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(pnpm build:*)"
     ],
     "deny": []
   }

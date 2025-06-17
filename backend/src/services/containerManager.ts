@@ -32,7 +32,7 @@ export class ContainerManager extends EventEmitter {
   private docker: Docker;
   private defaultImage: string;
   private cleanupInterval?: NodeJS.Timeout;
-  private networkName = "claude-web-bridge";
+  private networkName = process.env.CONTAINER_NETWORK || undefined;
 
   private get sshConfigManager(): SSHConfigManager {
     if (!this.fastify.sshConfigManager) {
@@ -112,9 +112,6 @@ export class ContainerManager extends EventEmitter {
         `[ContainerManager] No existing container found, creating new one...`
       );
 
-      // Ensure network exists
-      await this.ensureNetworkExists();
-
       const containerConfig = {
         image: this.defaultImage,
         name: containerName,
@@ -127,9 +124,6 @@ export class ContainerManager extends EventEmitter {
           TERM: "xterm-256color",
           LANG: "en_US.UTF-8",
           USER_ID: userId,
-          API_URL: `http://host.docker.internal:${
-            process.env.FASTIFY_PORT || 12021
-          }/api/ssh/register`,
         },
         volumes: [`claude-web-user-${userId}-data:/home/developer`],
       };
@@ -289,44 +283,6 @@ export class ContainerManager extends EventEmitter {
   }
 
   /**
-   * Ensure Docker network exists
-   */
-  private async ensureNetworkExists(): Promise<void> {
-    try {
-      const networks = await this.docker.listNetworks({
-        filters: { name: [this.networkName] },
-      });
-
-      if (networks.length === 0) {
-        this.fastify.log.info(
-          `[ContainerManager] Creating Docker network: ${this.networkName}`
-        );
-
-        await this.docker.createNetwork({
-          Name: this.networkName,
-          Driver: "bridge",
-          IPAM: {
-            Config: [
-              {
-                Subnet: "172.20.0.0/16",
-                Gateway: "172.20.0.1",
-              },
-            ],
-          },
-        });
-
-        this.fastify.log.info(
-          `[ContainerManager] Network ${this.networkName} created successfully`
-        );
-      }
-    } catch (error) {
-      this.fastify.log.warn(
-        `[ContainerManager] Failed to ensure network exists: ${error}`
-      );
-    }
-  }
-
-  /**
    * Create a new container
    */
   private async createContainer(config: ContainerConfig): Promise<string> {
@@ -335,6 +291,7 @@ export class ContainerManager extends EventEmitter {
       {
         image: config.image,
         name: config.name,
+        network: this.networkName,
         memory: config.memory,
         cpu: config.cpu,
       }

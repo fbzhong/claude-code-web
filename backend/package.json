@@ -1,28 +1,4 @@
 {
-  "name": "backend",
-  "version": "0.1.0",
-  "description": "Backend service for Claude Web with Fastify",
-  "main": "dist/app.js",
-  "scripts": {
-    "dev": "tsx watch src/app.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
-    "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist coverage",
-    "rebuild": "pnpm rebuild node-pty",
-    "rebuild:force": "pnpm rebuild node-pty --force",
-    "postinstall": "pnpm rebuild node-pty",
-    "invite:create": "tsx src/server.ts invite:create",
-    "invite:list": "tsx src/server.ts invite:list",
-    "invite:delete": "tsx src/server.ts invite:delete",
-    "invite:disable": "tsx src/server.ts invite:disable",
-    "invite:stats": "tsx src/server.ts invite:stats"
-  },
   "dependencies": {
     "@fastify/cors": "^8.4.0",
     "@fastify/helmet": "^11.1.1",
@@ -48,6 +24,7 @@
     "pino-pretty": "^10.2.3",
     "ws": "^8.14.2"
   },
+  "description": "Backend service for Claude Web with Fastify",
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/jest": "^29.5.8",
@@ -64,5 +41,30 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "main": "dist/app.js",
+  "name": "backend",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist coverage",
+    "dev": "tsx watch src/app.ts",
+    "invite:create": "node dist/server.js invite:create",
+    "invite:delete": "node dist/server.js invite:delete",
+    "invite:disable": "node dist/server.js invite:disable",
+    "invite:list": "node dist/server.js invite:list",
+    "invite:stats": "node dist/server.js invite:stats",
+    "invite:create:dev": "tsx src/server.ts invite:create",
+    "invite:delete:dev": "tsx src/server.ts invite:delete",
+    "invite:disable:dev": "tsx src/server.ts invite:disable",
+    "invite:list:dev": "tsx src/server.ts invite:list",
+    "invite:stats:dev": "tsx src/server.ts invite:stats",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "start": "node dist/server.js",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "version": "0.1.0"
 }

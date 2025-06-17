@@ -171,7 +171,6 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
     - 支持远程 Docker daemon 连接 (CONTAINER_HOST)
     - 解决服务器重启时 exec 进程自动清理问题
     - 创建 PtyAdapter 适配器，保持与 node-pty 接口兼容
-    - 通过 USE_DOCKERODE=true 环境变量启用新模式
     - 向后兼容：默认使用原有的 node-pty 实现
 40. **2025-06-17**: 实现邀请码注册限制系统：
     - 命令行工具管理，无 API 暴露，确保安全性
@@ -405,6 +404,7 @@ npm run invite:stats                     # 查看统计信息
 ## 邀请码注册限制系统
 
 ### 系统架构
+
 - **命令行管理工具**:
   - 集成到主程序，使用 commander.js 处理命令行参数
   - 创建邀请码：支持批量、时效、使用次数、前缀等选项
@@ -412,6 +412,7 @@ npm run invite:stats                     # 查看统计信息
   - 无 HTTP API 暴露，确保安全性
 
 ### 数据库设计
+
 - **invite_codes 表**:
   - 存储邀请码信息和使用记录
   - 支持过期时间、使用次数限制
@@ -419,12 +420,14 @@ npm run invite:stats                     # 查看统计信息
   - 索引优化查询性能
 
 ### 注册流程集成
+
 - **环境变量控制**: REQUIRE_INVITE_CODE=true 启用
 - **前后端同步**: 前后端同时验证，确保一致性
 - **事务处理**: 数据库事务保证原子性操作
 - **错误处理**: 详细的错误信息反馈
 
 ### 生产环境支持
+
 - **Docker**: `docker exec -it claude-web-backend npm run invite:create`
 - **PM2**: `pm2 exec claude-web-backend -- npm run invite:create`
 - **编译后**: `node dist/server.js invite:create`

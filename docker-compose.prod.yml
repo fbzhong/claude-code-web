@@ -1,0 +1,122 @@
+# docker compose production config.
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:15-alpine
+    container_name: claude-web-postgres
+    environment:
+      POSTGRES_USER: claude_web
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_DB: claude_web
+    volumes:
+      # 使用本地文件夹存储数据库
+      - ${DATABASE:-./data/postgres}:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - claude-web-bridge
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U claude_web"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端 API 服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: claude-web-backend
+    environment:
+      NODE_ENV: production
+      PORT: 12021
+      LOG_LEVEL: ${API_LOG_LEVEL:-debug}
+      DATABASE_URL: postgresql://claude_web:${DATABASE_PASSWORD}@claude-web-postgres:5432/claude_web
+      JWT_SECRET: ${JWT_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      # GitHub OAuth
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL}
+      # Container settings
+      CONTAINER_MODE: true
+      CONTAINER_HOST: unix:///var/run/docker.sock
+      CONTAINER_IMAGE: claude-web-dev:latest
+      CONTAINER_NETWORK: claude-web-bridge
+      CONTAINER_MEMORY_LIMIT: ${CONTAINER_MEMORY_LIMIT:-2g}
+      CONTAINER_CPU_LIMIT: ${CONTAINER_CPU_LIMIT:-2}
+      CONTAINER_CLEANUP_HOURS: ${CONTAINER_CLEANUP_HOURS:-24}
+      CONTAINER_CLEANUP_INTERVAL_HOURS: ${CONTAINER_CLEANUP_INTERVAL_HOURS:-1}
+      # SSHpiper
+      SSHPIPER: /sshpiper
+      SSHPIPER_SSH_HOST: ${SSHPIPER_SSH_HOST:-localhost}
+      SSHPIPER_SSH_PORT: ${SSHPIPER_SSH_PORT:-2222}
+      # Invite code
+      REQUIRE_INVITE_CODE: ${REQUIRE_INVITE_CODE:-false}
+    ports:
+      - "${API_PORT:-12021}:12021"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${SSHPIPER:-./sshpiper}:/sshpiper:rw
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - claude-web-bridge
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:12021/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${API_URL}
+        REACT_APP_API_SAME_HOST: ${API_SAME_HOST}
+        REACT_APP_REQUIRE_INVITE_CODE: ${REQUIRE_INVITE_CODE:-false}
+    container_name: claude-web-frontend
+    ports:
+      - "${WEB_PORT:-12020}:80"
+    depends_on:
+      - backend
+    networks:
+      - claude-web-bridge
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # SSH 代理服务
+  sshpiper:
+    build:
+      context: ./docker/sshpiper
+      dockerfile: Dockerfile
+    container_name: claude-web-sshpiper
+    ports:
+      - "${SSHPIPER_SSH_PORT:-2222}:2222"
+    volumes:
+      - ${SSHPIPER}:/sshpiper:rw
+    environment:
+      SSHPIPER_PORT: "${SSHPIPER_SSH_PORT:-2222}"
+      SSHPIPER_SERVER_KEY: "/sshpiper/hostkeys/ssh_host_ed25519_key"
+      SSHPIPER_WORKINGDIR_ROOT: "/sshpiper/workingdir"
+      SSHPIPER_LOG_LEVEL: ${SSHPIPER_LOG_LEVEL:-debug}
+      SSHPIPER_UPSTREAM_DRIVER: workingdir
+    networks:
+      - claude-web-bridge
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+networks:
+  claude-web-bridge:
+    name: claude-web-bridge
+    driver: bridge
+    external: true

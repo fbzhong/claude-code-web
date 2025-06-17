@@ -1,106 +1,50 @@
-version: '3.8'
+# Development environment - only essential services
+# Run backend and frontend manually for development
 
 services:
+  # PostgreSQL database
   postgres:
     image: postgres:15-alpine
-    container_name: claude-web-postgres
+    container_name: claude-web-postgres-dev
     environment:
       POSTGRES_USER: claude_web
-      POSTGRES_PASSWORD: claude_web_password
+      POSTGRES_PASSWORD: dev_password
       POSTGRES_DB: claude_web
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres-dev:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - claude-web-dev
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U claude_web"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: claude-web-backend
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgresql://claude_web:claude_web_password@postgres:5432/claude_web
-      JWT_SECRET: ${JWT_SECRET:-your-secret-key-here}
-      FASTIFY_HOST: 0.0.0.0
-      FASTIFY_PORT: 12021
-      # Container mode settings
-      CONTAINER_MODE: ${CONTAINER_MODE:-true}
-      CONTAINER_RUNTIME: ${CONTAINER_RUNTIME:-docker}
-      CONTAINER_IMAGE: ${CONTAINER_IMAGE:-claude-web-dev:latest}
-      CONTAINER_MEMORY_LIMIT: ${CONTAINER_MEMORY_LIMIT:-2g}
-      CONTAINER_CPU_LIMIT: ${CONTAINER_CPU_LIMIT:-1}
-      CONTAINER_CLEANUP_INTERVAL_HOURS: ${CONTAINER_CLEANUP_INTERVAL_HOURS:-1}
-      CONTAINER_CLEANUP_HOURS: ${CONTAINER_CLEANUP_HOURS:-24}
-      # SSH settings
-      SSHPIPER_WORKINGDIR: ${SSHPIPER_WORKINGDIR:-./sshpiper/workingdir}
-    ports:
-      - "12021:12021"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./sshpiper/workingdir:/app/sshpiper/workingdir:rw
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - default
-      - claude-web-bridge
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:12021/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: claude-web-frontend
-    environment:
-      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:12021}
-      REACT_APP_WS_URL: ${REACT_APP_WS_URL:-ws://localhost:12021}
-    ports:
-      - "12020:80"
-    depends_on:
-      - backend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
+  # SSH proxy service
   sshpiper:
-    image: farmer1992/sshpiperd:latest
-    container_name: claude-web-sshpiper
+    build:
+      context: ./docker/sshpiper
+      dockerfile: Dockerfile
+    container_name: claude-web-sshpiper-dev
     ports:
       - "2222:2222"
     volumes:
-      - ./sshpiper/workingdir:/var/sshpiper/workingdir:rw
-      - ./sshpiper/hostkeys:/etc/ssh/sshpiper_host_keys:rw
-      - ./sshpiper/sshpiper_id_rsa:/etc/ssh/sshpiper_upstream_key:ro
+      - ./sshpiper:/sshpiper:rw
     environment:
+      SSHPIPER_PORT: "2222"
+      SSHPIPER_SERVER_KEY: "/sshpiper/hostkeys/ssh_host_ed25519_key"
+      SSHPIPER_WORKINGDIR_ROOT: "/sshpiper/workingdir"
+      SSHPIPER_LOG_LEVEL: debug
       SSHPIPER_UPSTREAM_DRIVER: workingdir
-      SSHPIPER_WORKINGDIR_ROOT: /var/sshpiper/workingdir
-      SSHPIPER_LOG_LEVEL: info
-      SSHPIPER_UPSTREAM_KEY: /etc/ssh/sshpiper_upstream_key
-    depends_on:
-      - backend
     networks:
-      - default
-      - claude-web-bridge
+      - claude-web-dev
     restart: unless-stopped
 
-volumes:
-  postgres_data:
-
 networks:
-  default:
-    driver: bridge
   claude-web-bridge:
-    external: true
     name: claude-web-bridge
+    driver: bridge
+    external: true

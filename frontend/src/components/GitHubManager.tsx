@@ -238,8 +238,16 @@ const GitHubManager: React.FC = () => {
                   onClick={handleConnect}
                   startIcon={<GitHubIcon />}
                   sx={{ 
-                    backgroundColor: '#24292e',
-                    '&:hover': { backgroundColor: '#1a1e22' }
+                    backgroundColor: '#0366d6',
+                    color: '#fff',
+                    fontWeight: 600,
+                    px: 4,
+                    py: 1.5,
+                    '&:hover': { 
+                      backgroundColor: '#0256c7',
+                      transform: 'translateY(-1px)',
+                      boxShadow: '0 4px 12px rgba(3, 102, 214, 0.4)'
+                    }
                   }}
                 >
                   Connect GitHub Account

@@ -48,6 +48,26 @@ export default fp(async function (fastify: FastifyInstance) {
       await client.query(`CREATE INDEX IF NOT EXISTS idx_persistent_sessions_user_id ON persistent_sessions(user_id)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_persistent_sessions_status ON persistent_sessions(status)`);
 
+      // Invite codes table
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS invite_codes (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          code VARCHAR(20) UNIQUE NOT NULL,
+          created_by VARCHAR(50) DEFAULT 'system',
+          created_at TIMESTAMP DEFAULT NOW(),
+          used_by UUID REFERENCES users(id),
+          used_at TIMESTAMP,
+          expires_at TIMESTAMP,
+          max_uses INTEGER DEFAULT 1,
+          current_uses INTEGER DEFAULT 0,
+          is_active BOOLEAN DEFAULT true
+        )
+      `);
+
+      // Create index for invite codes
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_invite_codes_code ON invite_codes(code)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_invite_codes_active ON invite_codes(is_active) WHERE is_active = true`);
+
       // Note: We do NOT store:
       // - Command history
       // - Terminal output

@@ -73,6 +73,7 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 - ✅ 多 IDE 支持（VS Code、Cursor、Windsurf）
 - ✅ 一键打开 IDE 功能实现
 - ✅ Dockerode 集成实现（替代 node-pty + docker exec）
+- ✅ 邀请码注册限制系统实现
 
 ## 关键决策记录
 1. **2025-06-14**: 最初选择 ttyd 混合方案，后决定使用 node-pty 自建方案
@@ -166,6 +167,13 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
     - 创建 PtyAdapter 适配器，保持与 node-pty 接口兼容
     - 通过 USE_DOCKERODE=true 环境变量启用新模式
     - 向后兼容：默认使用原有的 node-pty 实现
+40. **2025-06-17**: 实现邀请码注册限制系统：
+    - 命令行工具管理，无 API 暴露，确保安全性
+    - 支持多种邀请码选项：数量限制、时效性、使用次数、前缀
+    - 集成到主程序，共享数据库连接和配置
+    - 支持 Docker/PM2 等生产环境执行方式
+    - 前后端通过环境变量 REQUIRE_INVITE_CODE 控制启用
+    - 数据库事务确保邀请码使用的原子性
 
 ## 技术特性
 
@@ -356,5 +364,41 @@ node scripts/test-dockerode.js
 
 # 测试环境变量切换
 node scripts/test-runtime-switch.js
+
+# 邀请码管理命令
+npm run invite:create -- --count 5       # 创建5个邀请码
+npm run invite:list                      # 查看有效邀请码
+npm run invite:list -- --all             # 查看所有邀请码
+npm run invite:delete <CODE>             # 删除邀请码
+npm run invite:disable <CODE>            # 禁用邀请码
+npm run invite:stats                     # 查看统计信息
 ```
+
+## 邀请码注册限制系统
+
+### 系统架构
+- **命令行管理工具**:
+  - 集成到主程序，使用 commander.js 处理命令行参数
+  - 创建邀请码：支持批量、时效、使用次数、前缀等选项
+  - 查看、删除、禁用邀请码，统计使用情况
+  - 无 HTTP API 暴露，确保安全性
+
+### 数据库设计
+- **invite_codes 表**:
+  - 存储邀请码信息和使用记录
+  - 支持过期时间、使用次数限制
+  - 记录创建者、使用者、使用时间等审计信息
+  - 索引优化查询性能
+
+### 注册流程集成
+- **环境变量控制**: REQUIRE_INVITE_CODE=true 启用
+- **前后端同步**: 前后端同时验证，确保一致性
+- **事务处理**: 数据库事务保证原子性操作
+- **错误处理**: 详细的错误信息反馈
+
+### 生产环境支持
+- **Docker**: `docker exec -it claude-web-backend npm run invite:create`
+- **PM2**: `pm2 exec claude-web-backend -- npm run invite:create`
+- **编译后**: `node dist/server.js invite:create`
+- **远程执行**: 支持 SSH 远程管理
 

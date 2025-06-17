@@ -124,7 +124,7 @@ export const LoginPage: React.FC = () => {
     } catch (err: any) {
       debugLogger.logError('LOGIN', 'Login failed', err);
       // Display detailed error message
-      const errorMessage = err.message || err.response?.data?.error || 'Login failed';
+      const errorMessage = err.message || 'Login failed';
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -150,7 +150,9 @@ export const LoginPage: React.FC = () => {
       );
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Registration failed');
+      debugLogger.logError('REGISTER', 'Registration failed', err);
+      const errorMessage = err.message || 'Registration failed';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -70,22 +70,10 @@ export const useAuthStore = create<AuthState>()(
 
           debugLogger?.logInfo("AUTH", "Login response received", responseInfo);
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            const errorDetails = {
-              status: response.status,
-              statusText: response.statusText,
-              body: errorText,
-            };
-            debugLogger?.logError("AUTH", "HTTP error response", errorDetails);
-            throw new Error(
-              `HTTP ${response.status}: ${response.statusText}\nResponse: ${errorText}`
-            );
-          }
-
           const responseText = await response.text();
           debugLogger?.logInfo("AUTH", "Raw response received", {
             length: responseText.length,
+            status: response.status,
           });
 
           let data;
@@ -103,11 +91,12 @@ export const useAuthStore = create<AuthState>()(
               error: errorMessage,
               responseText: responseText.substring(0, 200),
             });
-            throw new Error(`Invalid JSON response: ${responseText}`);
+            throw new Error(`Invalid server response`);
           }
 
-          if (!data.success) {
-            debugLogger?.logError("AUTH", "Server returned error", {
+          if (!response.ok || !data.success) {
+            debugLogger?.logError("AUTH", "Login failed", {
+              status: response.status,
               error: data.error,
             });
             throw new Error(data.error || "Login failed");
@@ -174,13 +163,9 @@ export const useAuthStore = create<AuthState>()(
             }),
           });
 
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
           const data = await response.json();
 
-          if (!data.success) {
+          if (!response.ok || !data.success) {
             throw new Error(data.error || "Registration failed");
           }
 

@@ -148,7 +148,7 @@ export default async function (fastify: FastifyInstance) {
         if (result.rows.length === 0) {
           return reply.status(401).send({
             success: false,
-            error: 'Invalid credentials'
+            error: 'Email or password is incorrect. Please check and try again.'
           });
         }
 
@@ -159,7 +159,7 @@ export default async function (fastify: FastifyInstance) {
         if (!validPassword) {
           return reply.status(401).send({
             success: false,
-            error: 'Invalid credentials'
+            error: 'Email or password is incorrect. Please check and try again.'
           });
         }
 
@@ -248,7 +248,7 @@ export default async function (fastify: FastifyInstance) {
           if (!inviteCode) {
             return reply.status(400).send({
               success: false,
-              error: 'Invite code is required for registration'
+              error: 'An invite code is required to register. Please enter a valid invite code to continue.'
             });
           }
 
@@ -265,7 +265,7 @@ export default async function (fastify: FastifyInstance) {
             if (inviteResult.rows.length === 0) {
               return reply.status(400).send({
                 success: false,
-                error: 'Invalid invite code'
+                error: 'The invite code you entered is invalid or does not exist. Please check the code and try again.'
               });
             }
 
@@ -275,7 +275,7 @@ export default async function (fastify: FastifyInstance) {
             if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
               return reply.status(400).send({
                 success: false,
-                error: 'Invite code has expired'
+                error: 'This invite code has expired and can no longer be used. Please request a new invite code.'
               });
             }
 
@@ -283,7 +283,7 @@ export default async function (fastify: FastifyInstance) {
             if (invite.current_uses >= invite.max_uses) {
               return reply.status(400).send({
                 success: false,
-                error: 'Invite code has been fully used'
+                error: 'This invite code has reached its maximum number of uses and is no longer available. Please request a new invite code.'
               });
             }
           } finally {
@@ -351,7 +351,7 @@ export default async function (fastify: FastifyInstance) {
         if ((err as any).code === '23505') { // Unique violation
           return reply.status(400).send({
             success: false,
-            error: 'Email already exists'
+            error: 'An account with this email address already exists. Please use a different email or login with your existing account.'
           });
         }
         

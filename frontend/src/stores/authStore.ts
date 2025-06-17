@@ -13,7 +13,6 @@ console.log("AuthStore: Using API_BASE =", api.baseUrl());
 
 interface User {
   id: string;
-  username: string;
   email: string;
   role: string;
 }
@@ -104,7 +103,7 @@ export const useAuthStore = create<AuthState>()(
 
           const { token, user } = data.data;
           debugLogger?.logSuccess("AUTH", "Login successful", {
-            username: user.username,
+            email: user.email,
             tokenLength: token?.length,
           });
 

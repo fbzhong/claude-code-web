@@ -122,7 +122,6 @@ export default async function (fastify: FastifyInstance) {
               token: Type.String(),
               user: Type.Object({
                 id: Type.String(),
-                username: Type.String(),
                 email: Type.String(),
                 role: Type.String()
               })
@@ -167,7 +166,7 @@ export default async function (fastify: FastifyInstance) {
 
         const token = fastify.jwt.sign({
           id: user.id,
-          username: user.username,
+          email: user.email,
           role: user.role
         });
 
@@ -177,7 +176,6 @@ export default async function (fastify: FastifyInstance) {
             token,
             user: {
               id: user.id,
-              username: user.username,
               email: user.email,
               role: user.role
             }
@@ -300,11 +298,10 @@ export default async function (fastify: FastifyInstance) {
         try {
           await client.query('BEGIN');
 
-          // Create user (use email as username)
-          const username = email.split('@')[0]; // Extract username from email
+          // Create user
           const result = await client.query(
-            'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email',
-            [username, email, passwordHash]
+            'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING id, email, role',
+            [email, passwordHash, 'user']
           );
 
           const user = result.rows[0];
@@ -325,8 +322,8 @@ export default async function (fastify: FastifyInstance) {
 
           const token = fastify.jwt.sign({
             id: user.id,
-            username: user.username,
-            role: 'user'
+            email: user.email,
+            role: user.role
           });
 
           return {
@@ -335,9 +332,8 @@ export default async function (fastify: FastifyInstance) {
               token,
               user: {
                 id: user.id,
-                username: user.username,
                 email: user.email,
-                role: 'user'
+                role: user.role
               }
             }
           };

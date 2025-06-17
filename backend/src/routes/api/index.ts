@@ -112,7 +112,7 @@ export default async function (fastify: FastifyInstance) {
     fastify.post('/auth/login', {
       schema: {
         body: Type.Object({
-          username: Type.String(),
+          email: Type.String({ format: 'email' }),
           password: Type.String()
         }),
         response: {
@@ -135,13 +135,13 @@ export default async function (fastify: FastifyInstance) {
         }
       }
     }, async (request, reply) => {
-      const { username, password } = request.body as { username: string; password: string };
+      const { email, password } = request.body as { email: string; password: string };
       
       try {
         const client = await fastify.pg.connect();
         const result = await client.query(
-          'SELECT * FROM users WHERE username = $1',
-          [username]
+          'SELECT * FROM users WHERE email = $1',
+          [email]
         );
         client.release();
 
@@ -192,53 +192,166 @@ export default async function (fastify: FastifyInstance) {
       }
     });
 
+    // Password validation helper
+    function validatePassword(password: string): { valid: boolean; message?: string } {
+      if (password.length < 8) {
+        return { valid: false, message: 'Password must be at least 8 characters long' };
+      }
+      
+      const hasUpperCase = /[A-Z]/.test(password);
+      const hasLowerCase = /[a-z]/.test(password);
+      const hasNumbers = /\d/.test(password);
+      const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>?]/.test(password);
+      
+      const criteriaCount = [hasUpperCase, hasLowerCase, hasNumbers, hasSpecialChar].filter(Boolean).length;
+      
+      if (criteriaCount < 3) {
+        return { 
+          valid: false, 
+          message: 'Password must contain at least 3 of the following: uppercase letters, lowercase letters, numbers, special characters' 
+        };
+      }
+      
+      return { valid: true };
+    }
+
     // Register
     fastify.post('/auth/register', {
       schema: {
         body: Type.Object({
-          username: Type.String({ minLength: 3, maxLength: 50 }),
           email: Type.String({ format: 'email' }),
-          password: Type.String({ minLength: 6 })
+          password: Type.String({ minLength: 8 }),
+          inviteCode: Type.Optional(Type.String())
         })
       }
     }, async (request, reply) => {
-      const { username, email, password } = request.body as { username: string; email: string; password: string };
+      const { email, password, inviteCode } = request.body as { 
+        email: string; 
+        password: string;
+        inviteCode?: string;
+      };
       
       try {
+        // Validate password complexity
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+          return reply.status(400).send({
+            success: false,
+            error: passwordValidation.message
+          });
+        }
+        
+        // Check if registration requires invite code
+        const requireInviteCode = process.env.REQUIRE_INVITE_CODE === 'true';
+        
+        if (requireInviteCode) {
+          if (!inviteCode) {
+            return reply.status(400).send({
+              success: false,
+              error: 'Invite code is required for registration'
+            });
+          }
+
+          // Validate invite code
+          const client = await fastify.pg.connect();
+          try {
+            const inviteResult = await client.query(
+              `SELECT id, max_uses, current_uses, expires_at, is_active 
+               FROM invite_codes 
+               WHERE code = $1 AND is_active = true`,
+              [inviteCode]
+            );
+
+            if (inviteResult.rows.length === 0) {
+              return reply.status(400).send({
+                success: false,
+                error: 'Invalid invite code'
+              });
+            }
+
+            const invite = inviteResult.rows[0];
+
+            // Check if invite code is expired
+            if (invite.expires_at && new Date(invite.expires_at) < new Date()) {
+              return reply.status(400).send({
+                success: false,
+                error: 'Invite code has expired'
+              });
+            }
+
+            // Check if invite code has reached max uses
+            if (invite.current_uses >= invite.max_uses) {
+              return reply.status(400).send({
+                success: false,
+                error: 'Invite code has been fully used'
+              });
+            }
+          } finally {
+            client.release();
+          }
+        }
+
         const bcrypt = require('bcrypt');
         const passwordHash = await bcrypt.hash(password, 10);
         
+        // Start transaction
         const client = await fastify.pg.connect();
-        const result = await client.query(
-          'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email, role',
-          [username, email, passwordHash]
-        );
-        client.release();
+        
+        try {
+          await client.query('BEGIN');
 
-        const user = result.rows[0];
-        const token = fastify.jwt.sign({
-          id: user.id,
-          username: user.username,
-          role: user.role
-        });
+          // Create user (use email as username)
+          const username = email.split('@')[0]; // Extract username from email
+          const result = await client.query(
+            'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id, username, email',
+            [username, email, passwordHash]
+          );
 
-        return {
-          success: true,
-          data: {
-            token,
-            user: {
-              id: user.id,
-              username: user.username,
-              email: user.email,
-              role: user.role
-            }
+          const user = result.rows[0];
+
+          // Update invite code if used
+          if (requireInviteCode && inviteCode) {
+            await client.query(
+              `UPDATE invite_codes 
+               SET current_uses = current_uses + 1, 
+                   used_by = $1, 
+                   used_at = NOW() 
+               WHERE code = $2`,
+              [user.id, inviteCode]
+            );
           }
-        };
+
+          await client.query('COMMIT');
+
+          const token = fastify.jwt.sign({
+            id: user.id,
+            username: user.username,
+            role: 'user'
+          });
+
+          return {
+            success: true,
+            data: {
+              token,
+              user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: 'user'
+              }
+            }
+          };
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
       } catch (err) {
         if ((err as any).code === '23505') { // Unique violation
           return reply.status(400).send({
             success: false,
-            error: 'Username or email already exists'
+            error: 'Email already exists'
           });
         }
         

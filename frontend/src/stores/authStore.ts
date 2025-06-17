@@ -22,12 +22,12 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   register: (
-    username: string,
     email: string,
-    password: string
+    password: string,
+    inviteCode?: string
   ) => Promise<void>;
 }
 
@@ -38,8 +38,8 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
 
-      login: async (username: string, password: string) => {
-        debugLogger?.logInfo("AUTH", `Starting login for ${username}`, {
+      login: async (email: string, password: string) => {
+        debugLogger?.logInfo("AUTH", `Starting login for ${email}`, {
           apiBase: api.baseUrl(),
         });
 
@@ -55,7 +55,7 @@ export const useAuthStore = create<AuthState>()(
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              username,
+              email,
               password,
             }),
           });
@@ -160,7 +160,7 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
-      register: async (username: string, email: string, password: string) => {
+      register: async (email: string, password: string, inviteCode?: string) => {
         try {
           const response = await fetch(api.url(api.endpoints.AUTH.REGISTER), {
             method: "POST",
@@ -168,9 +168,9 @@ export const useAuthStore = create<AuthState>()(
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              username,
               email,
               password,
+              ...(inviteCode && { inviteCode })
             }),
           });
 

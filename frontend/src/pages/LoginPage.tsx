@@ -94,16 +94,16 @@ export const LoginPage: React.FC = () => {
 
   // Login form state
   const [loginForm, setLoginForm] = useState({
-    username: '',
+    email: '',
     password: '',
   });
 
   // Register form state
   const [registerForm, setRegisterForm] = useState({
-    username: '',
     email: '',
     password: '',
     confirmPassword: '',
+    inviteCode: '',
   });
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
@@ -117,8 +117,8 @@ export const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      debugLogger.logInfo('LOGIN', 'Attempting login', { username: loginForm.username });
-      await login(loginForm.username, loginForm.password);
+      debugLogger.logInfo('LOGIN', 'Attempting login', { email: loginForm.email });
+      await login(loginForm.email, loginForm.password);
       debugLogger.logSuccess('LOGIN', 'Login successful, navigating to home');
       navigate('/');
     } catch (err: any) {
@@ -144,9 +144,9 @@ export const LoginPage: React.FC = () => {
 
     try {
       await register(
-        registerForm.username,
         registerForm.email,
-        registerForm.password
+        registerForm.password,
+        registerForm.inviteCode || undefined
       );
       navigate('/');
     } catch (err: any) {
@@ -220,12 +220,13 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleLogin}>
             <TextField
               fullWidth
-              label="Username"
+              label="Email"
+              type="email"
               variant="outlined"
               margin="normal"
-              value={loginForm.username}
+              value={loginForm.email}
               onChange={(e) =>
-                setLoginForm({ ...loginForm, username: e.target.value })
+                setLoginForm({ ...loginForm, email: e.target.value })
               }
               required
               autoFocus={!isMobile} // Disable autofocus on mobile to prevent immediate keyboard
@@ -268,22 +269,6 @@ export const LoginPage: React.FC = () => {
           <form onSubmit={handleRegister}>
             <TextField
               fullWidth
-              label="Username"
-              variant="outlined"
-              margin="normal"
-              value={registerForm.username}
-              onChange={(e) =>
-                setRegisterForm({ ...registerForm, username: e.target.value })
-              }
-              required
-              inputProps={{
-                style: {
-                  fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
-                },
-              }}
-            />
-            <TextField
-              fullWidth
               label="Email"
               type="email"
               variant="outlined"
@@ -310,6 +295,7 @@ export const LoginPage: React.FC = () => {
                 setRegisterForm({ ...registerForm, password: e.target.value })
               }
               required
+              helperText="Password must be at least 8 characters and contain 3 of: uppercase, lowercase, numbers, special characters"
               inputProps={{
                 style: {
                   fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
@@ -336,6 +322,28 @@ export const LoginPage: React.FC = () => {
                 },
               }}
             />
+            {process.env.REACT_APP_REQUIRE_INVITE_CODE === 'true' && (
+              <TextField
+                fullWidth
+                label="Invite Code"
+                variant="outlined"
+                margin="normal"
+                value={registerForm.inviteCode}
+                onChange={(e) =>
+                  setRegisterForm({
+                    ...registerForm,
+                    inviteCode: e.target.value,
+                  })
+                }
+                required
+                inputProps={{
+                  style: {
+                    fontSize: isMobile ? '16px' : '14px', // Prevent zoom on iOS
+                  },
+                }}
+                helperText="An invite code is required to register"
+              />
+            )}
             <Button
               type="submit"
               fullWidth

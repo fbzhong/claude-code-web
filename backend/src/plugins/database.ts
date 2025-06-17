@@ -8,13 +8,6 @@ export default fp(async function (fastify: FastifyInstance) {
     connectionString: process.env.DATABASE_URL || 'postgresql://fbzhong@localhost:5432/claude_web'
   });
 
-  // Redis connection
-  await fastify.register((await import('@fastify/redis')).default, {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    password: process.env.REDIS_PASSWORD
-  });
-
   // Database initialization - MINIMAL TABLES FOR PRIVACY
   fastify.addHook('onReady', async function () {
     // Create tables if they don't exist

@@ -5,7 +5,6 @@ declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
     pg: any;
-    redis: any;
     jwt: {
       sign: (payload: any) => string;
       verify: (token: string) => any;
@@ -20,10 +19,5 @@ declare module 'fastify' {
       role: string;
     };
     jwtVerify: () => Promise<any>;
-    session: {
-      get: (key: string) => Promise<any>;
-      set: (key: string, value: any) => Promise<void>;
-      del: (key: string) => Promise<void>;
-    };
   }
 }

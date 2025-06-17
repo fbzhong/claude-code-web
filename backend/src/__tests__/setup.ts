@@ -6,8 +6,6 @@ beforeAll(async () => {
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'test-secret-key';
   process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/claude_web_test';
-  process.env.REDIS_HOST = 'localhost';
-  process.env.REDIS_PORT = '6379';
 });
 
 afterAll(async () => {

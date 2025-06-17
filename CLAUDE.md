@@ -9,7 +9,7 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 - **架构方案**: 自建 PTY 方案（node-pty + WebSocket）
 - **前端**: React + TypeScript + xterm.js + Material-UI
 - **后端**: Fastify + WebSocket + node-pty
-- **数据库**: PostgreSQL (用户认证) + Redis (会话管理)
+- **数据库**: PostgreSQL (用户认证)
 - **IDE集成**: code-server
 - **部署**: Docker + Docker Compose
 - **包管理**: pnpm (monorepo)

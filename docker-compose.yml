@@ -18,19 +18,6 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: claude-web-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   backend:
     build:
       context: ./backend
@@ -39,8 +26,6 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://claude_web:claude_web_password@postgres:5432/claude_web
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-here}
       FASTIFY_HOST: 0.0.0.0
       FASTIFY_PORT: 12021
@@ -61,8 +46,6 @@ services:
       - ./sshpiper/workingdir:/app/sshpiper/workingdir:rw
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     networks:
       - default
@@ -114,7 +97,6 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
 
 networks:
   default:

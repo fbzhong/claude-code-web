@@ -62,17 +62,6 @@ export default async function (fastify: FastifyInstance) {
       health.status = 'unhealthy';
     }
 
-    // Check Redis
-    try {
-      await fastify.redis.ping();
-      health.services.redis = { status: 'healthy' };
-    } catch (err: any) {
-      health.services.redis = {
-        status: 'unhealthy',
-        error: err.message
-      };
-      health.status = 'unhealthy';
-    }
 
     // Check container mode if enabled
     if (process.env.CONTAINER_MODE === 'true') {

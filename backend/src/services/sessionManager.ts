@@ -59,15 +59,7 @@ export class SessionManager extends EventEmitter {
       this.auditConnectionCounts();
     }, 30000); // Every 30 seconds
 
-    // Load active sessions from database on startup
-    setTimeout(() => {
-      this.loadActiveSessionsFromDatabase().catch((err) => {
-        this.fastify.log.error(
-          "Failed to load sessions from database on startup:",
-          err
-        );
-      });
-    }, 1000); // Delay to ensure database is ready
+    // Sessions are now ephemeral - no database persistence
   }
 
   static getInstance(fastify: any): SessionManager {
@@ -214,13 +206,7 @@ export class SessionManager extends EventEmitter {
 
     this.sessions.set(sessionId, session);
 
-    // Save session to database asynchronously (don't block the response)
-    this.saveSessionToDb(session).catch((err) => {
-      this.fastify.log.error(
-        "Failed to save session to database after creation:",
-        err
-      );
-    });
+    // Sessions are ephemeral - no database persistence
 
     this.fastify.log.info(
       `Created new terminal session: ${sessionId} (${sessionName}) for user ${userId}`
@@ -244,8 +230,8 @@ export class SessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
 
     if (!session) {
-      // Try to restore from database
-      return this.restoreSessionFromDb(sessionId, userId);
+      // Sessions are ephemeral - cannot be restored after disconnect
+      throw new Error("Session not found or has been terminated");
     }
 
     if (session.userId !== userId) {
@@ -335,8 +321,7 @@ export class SessionManager extends EventEmitter {
       this.outputUpdateTimers.delete(sessionId);
     }
 
-    // Update database
-    await this.updateSessionInDb(session);
+    // Sessions are ephemeral - no database updates
 
     this.fastify.log.info(
       `Killed terminal session: ${sessionId} for user ${userId}`
@@ -705,13 +690,7 @@ export class SessionManager extends EventEmitter {
         }
       }, 100);
 
-      // Update database asynchronously (don't await to avoid blocking)
-      this.updateSessionInDb(session).catch((err) => {
-        this.fastify.log.error(
-          "Failed to update session activity in database:",
-          err
-        );
-      });
+      // Sessions are ephemeral - no database updates
     }
   }
 
@@ -789,171 +768,7 @@ export class SessionManager extends EventEmitter {
     this.emit("session_updated", sessionInfo);
   }
 
-  private async saveSessionToDb(session: TerminalSession): Promise<void> {
-    try {
-      const client = await this.fastify.pg.connect();
-      // PRIVACY: Only save minimal session metadata
-      await client.query(
-        `INSERT INTO persistent_sessions (id, user_id, name, status, created_at, last_activity)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (id) DO UPDATE SET
-         name = EXCLUDED.name,
-         status = EXCLUDED.status,
-         last_activity = EXCLUDED.last_activity`,
-        [
-          session.id,
-          session.userId,
-          session.name,
-          session.status,
-          session.createdAt,
-          session.lastActivity,
-        ]
-      );
-      client.release();
-      this.fastify.log.info(
-        `Session ${session.id} saved to database successfully`
-      );
-    } catch (err: any) {
-      this.fastify.log.error("Failed to save session to database:", {
-        error: err.message,
-        code: err.code,
-        detail: err.detail,
-        hint: err.hint,
-        sessionId: session.id,
-      });
-      // Don't throw error - allow session creation to continue even if DB save fails
-    }
-  }
-
-  private async updateSessionInDb(session: TerminalSession): Promise<void> {
-    try {
-      const client = await this.fastify.pg.connect();
-      await client.query(
-        "UPDATE persistent_sessions SET status = $1, last_activity = $2 WHERE id = $3",
-        [session.status, session.lastActivity, session.id]
-      );
-      client.release();
-    } catch (err) {
-      this.fastify.log.error("Failed to update session in database:", err);
-    }
-  }
-
-  private async restoreSessionFromDb(
-    sessionId: string,
-    userId: string
-  ): Promise<TerminalSession> {
-    let client;
-    try {
-      client = await this.fastify.pg.connect();
-      const result = await client.query(
-        "SELECT * FROM persistent_sessions WHERE id = $1 AND user_id = $2",
-        [sessionId, userId]
-      );
-      if (result.rows.length === 0) {
-        client.release();
-        throw new Error("Session not found");
-      }
-
-      const row = result.rows[0];
-
-      // Recreate the session
-      const restoredSession = await this.createSession(userId, {
-        sessionId: row.id,
-        name: row.name,
-        workingDir: row.working_dir,
-        environment: JSON.parse(row.environment || "{}"),
-      });
-
-      // PRIVACY: Do not restore output buffer from database
-      // Output is only kept in memory for active sessions
-
-      client.release();
-      return restoredSession;
-    } catch (err) {
-      if (client) {
-        client.release();
-      }
-      this.fastify.log.error("Failed to restore session from database:", err);
-      throw err;
-    }
-  }
-
-  private async loadActiveSessionsFromDatabase(): Promise<void> {
-    let client;
-    try {
-      client = await this.fastify.pg.connect();
-
-      // Load all active and detached sessions from database
-      const result = await client.query(
-        `SELECT * FROM persistent_sessions
-         WHERE status IN ('active', 'detached')
-         ORDER BY last_activity DESC`
-      );
-
-      this.fastify.log.info(
-        `Found ${result.rows.length} sessions in database to restore`
-      );
-
-      for (const row of result.rows) {
-        try {
-          this.fastify.log.info(
-            `Processing session from DB: ${row.id} (${row.name})`
-          );
-
-          // Check if session already exists in memory
-          if (this.sessions.has(row.id)) {
-            this.fastify.log.info(
-              `Session ${row.id} already exists in memory, skipping`
-            );
-            continue;
-          }
-
-          // Create session object without PTY (sessions are detached)
-          // PRIVACY: Only restore minimal session data
-          const session: TerminalSession = {
-            id: row.id,
-            userId: row.user_id,
-            name: row.name,
-            pty: undefined, // No PTY for loaded sessions until reattached
-            history: [],
-            createdAt: new Date(row.created_at),
-            lastActivity: new Date(row.last_activity),
-            workingDir: process.env.HOME || "/tmp", // Default working dir
-            environment: {}, // Empty environment
-            status: "detached", // Always detached when loaded from DB
-            outputBuffer: [],
-            connectedClients: 0,
-          };
-
-          // PRIVACY: Do not load output buffer from database
-          // Output is only kept in memory for active sessions
-          this.fastify.log.info(
-            `Loaded session ${row.id} (${row.name}) without output history`
-          );
-
-          // Add session to memory
-          this.sessions.set(row.id, session);
-        } catch (err: any) {
-          this.fastify.log.error(`Failed to restore session ${row.id}:`, err);
-          this.fastify.log.error("Error details:", {
-            message: err.message,
-            stack: err.stack,
-          });
-        }
-      }
-
-      this.fastify.log.info(
-        `Successfully restored ${this.sessions.size} sessions to memory`
-      );
-
-      client.release();
-    } catch (err) {
-      if (client) {
-        client.release();
-      }
-      this.fastify.log.error("Failed to load sessions from database:", err);
-    }
-  }
+  // Database methods removed - sessions are now ephemeral
 
   private auditConnectionCounts(): void {
     let hasChanges = false;
@@ -1025,7 +840,7 @@ export class SessionManager extends EventEmitter {
       if (session.status === "active") {
         session.status = "detached";
         session.connectedClients = 0;
-        await this.updateSessionInDb(session);
+        // Sessions are ephemeral - no database updates
       }
     }
   }

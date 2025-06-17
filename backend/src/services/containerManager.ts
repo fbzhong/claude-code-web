@@ -499,35 +499,12 @@ export class ContainerManager extends EventEmitter {
             reason = `exited ${Math.round(hoursAgo)} hours ago`;
           }
         } else if (containerInfo.State === "running") {
-          // For running containers, check last session activity
-          try {
-            const client = await this.fastify.pg.connect();
-            const result = await client.query(
-              "SELECT MAX(last_activity) as last_activity FROM persistent_sessions WHERE user_id = $1",
-              [userId]
-            );
-            client.release();
-
-            if (result.rows[0]?.last_activity) {
-              const lastActivity = new Date(result.rows[0].last_activity);
-              const hoursInactive =
-                (Date.now() - lastActivity.getTime()) / (1000 * 60 * 60);
-
-              if (hoursInactive > inactiveHours) {
-                shouldRemove = true;
-                reason = `inactive for ${Math.round(hoursInactive)} hours`;
-              }
-            } else {
-              // No sessions found
-              shouldRemove = true;
-              reason = "no sessions found";
-            }
-          } catch (err) {
-            this.fastify.log.error(
-              `Failed to check activity for user ${userId}:`,
-              err
-            );
-          }
+          // For running containers, we can't determine activity without session persistence
+          // For now, keep running containers unless manually stopped
+          // This prevents accidental cleanup of active containers
+          this.fastify.log.info(
+            `Container ${containerName} is running - keeping it active`
+          );
         }
 
         if (shouldRemove) {
@@ -556,20 +533,7 @@ export class ContainerManager extends EventEmitter {
               );
             }
 
-            // Update dead sessions in database
-            try {
-              const client = await this.fastify.pg.connect();
-              await client.query(
-                "UPDATE persistent_sessions SET status = $1 WHERE user_id = $2 AND status != $1",
-                ["dead", userId]
-              );
-              client.release();
-            } catch (err) {
-              this.fastify.log.error(
-                `Failed to update sessions for user ${userId}:`,
-                err
-              );
-            }
+            // Sessions are ephemeral - no database updates needed
           } catch (err) {
             this.fastify.log.error(`Failed to remove container ${name}:`, err);
           }

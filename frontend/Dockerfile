@@ -28,6 +28,7 @@ RUN pnpm run build
 FROM nginx:alpine
 
 # Copy custom nginx config
+COPY nginx-main.conf /etc/nginx/nginx.conf
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application from builder stage

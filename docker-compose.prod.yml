@@ -104,7 +104,7 @@ services:
     volumes:
       - ${SSHPIPER}:/sshpiper:rw
     environment:
-      SSHPIPER_PORT: "${SSHPIPER_SSH_PORT:-2222}"
+      SSHPIPER_PORT: 2222
       SSHPIPER_SERVER_KEY: "/sshpiper/hostkeys/ssh_host_ed25519_key"
       SSHPIPER_WORKINGDIR_ROOT: "/sshpiper/workingdir"
       SSHPIPER_LOG_LEVEL: ${SSHPIPER_LOG_LEVEL:-debug}

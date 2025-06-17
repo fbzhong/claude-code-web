@@ -11,7 +11,6 @@ export interface TerminalSession {
   status: 'active' | 'detached' | 'dead';
   outputBuffer: string[];
   connectedClients: number;
-  persistentId?: string; // For database persistence
 }
 
 export interface CommandHistory {

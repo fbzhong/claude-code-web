@@ -32,22 +32,6 @@ export default fp(async function (fastify: FastifyInstance) {
         )
       `);
 
-      // Persistent sessions table - MINIMAL: no command history or output
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS persistent_sessions (
-          id UUID PRIMARY KEY,
-          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          name VARCHAR(255) NOT NULL DEFAULT 'Session',
-          status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'detached', 'dead')),
-          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-          last_activity TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-        )
-      `);
-
-      // Create indexes for persistent_sessions
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_persistent_sessions_user_id ON persistent_sessions(user_id)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_persistent_sessions_status ON persistent_sessions(status)`);
-
       // Invite codes table
       await client.query(`
         CREATE TABLE IF NOT EXISTS invite_codes (
@@ -68,13 +52,15 @@ export default fp(async function (fastify: FastifyInstance) {
       await client.query(`CREATE INDEX IF NOT EXISTS idx_invite_codes_code ON invite_codes(code)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_invite_codes_active ON invite_codes(is_active) WHERE is_active = true`);
 
-      // Note: We do NOT store:
-      // - Command history
-      // - Terminal output
-      // - Working directories
-      // - Environment variables
-      // - Any user activity logs
-      // We only keep minimal data needed for authentication and session management
+      // Note: Sessions are now fully ephemeral
+      // We do NOT store any session data:
+      // - No session persistence
+      // - No command history
+      // - No terminal output
+      // - No working directories
+      // - No environment variables
+      // - No user activity logs
+      // We only keep minimal data needed for authentication
 
       fastify.log.info('Database initialized successfully with minimal tables for privacy');
     } catch (err) {

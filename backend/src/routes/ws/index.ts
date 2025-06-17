@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { ClaudeService } from "../../services/claude";
-import { SessionManager } from "../../services";
+import { SessionManager } from "../../services/sessionManager";
 
 export default async function (fastify: FastifyInstance) {
   // Get the singleton SessionManager instance
@@ -544,25 +544,37 @@ export default async function (fastify: FastifyInstance) {
       timestamp: new Date(),
     });
 
+    fastify.log.info(
+      `Broadcasting session_deleted to ${sessionListConnections.size} connections for session ${sessionId}`
+    );
+
     // Broadcast to all session list connections
     sessionListConnections.forEach((socket) => {
       if (socket.readyState === 1) {
         // WebSocket.OPEN
         socket.send(message);
+        fastify.log.info(
+          `Sent session_deleted message to a WebSocket connection`
+        );
       }
     });
   };
 
   // Listen to session manager events
   sessionManager.on("session_created", (sessionInfo) => {
+    fastify.log.info(`SessionManager emitted session_created event`);
     broadcastSessionUpdate(sessionInfo, "created");
   });
 
   sessionManager.on("session_updated", (sessionInfo) => {
+    fastify.log.info(`SessionManager emitted session_updated event`);
     broadcastSessionUpdate(sessionInfo, "updated");
   });
 
   sessionManager.on("session_deleted", (sessionId) => {
+    fastify.log.info(
+      `SessionManager emitted session_deleted event for ${sessionId}`
+    );
     broadcastSessionDeleted(sessionId);
   });
 

@@ -33,11 +33,11 @@ export default async function (fastify: FastifyInstance) {
         SELECT table_name 
         FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name IN ('users', 'persistent_sessions')
+        AND table_name = 'users'
       `);
       
       const existingTables = tableCheck.rows.map((row: any) => row.table_name);
-      const requiredTables = ['users', 'persistent_sessions'];
+      const requiredTables = ['users'];
       const missingTables = requiredTables.filter(t => !existingTables.includes(t));
       
       client.release();

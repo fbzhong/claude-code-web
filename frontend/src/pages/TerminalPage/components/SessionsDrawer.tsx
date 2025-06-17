@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -12,6 +12,7 @@ import {
   LinearProgress,
   CircularProgress,
   Drawer,
+  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -20,8 +21,10 @@ import {
   Circle as CircleIcon,
   Close as CloseIcon,
   PlayArrow as PlayArrowIcon,
+  RestartAlt as RestartAltIcon,
 } from '@mui/icons-material';
 import { SessionInfo } from '../../../components/SessionList';
+import { containerApi } from '../../../services/api';
 
 // Props interface
 interface SessionsDrawerProps {
@@ -138,6 +141,29 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
   onRenameSession,
   onRefreshSessions,
 }) => {
+  const [isRestarting, setIsRestarting] = useState(false);
+
+  const handleRestartContainer = async () => {
+    if (!window.confirm('This will restart your container and terminate all active sessions. Continue?')) {
+      return;
+    }
+
+    setIsRestarting(true);
+    try {
+      await containerApi.restart();
+      // Close the drawer and refresh after a short delay
+      setTimeout(() => {
+        onClose();
+        window.location.reload();
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to restart container:', error);
+      alert('Failed to restart container. Please try again.');
+    } finally {
+      setIsRestarting(false);
+    }
+  };
+
   return (
     <Drawer
       anchor="left"
@@ -187,12 +213,26 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
           onClick={onRefreshSessions}
           disabled={operationStates.refreshing}
           size="small"
-          sx={{ mb: 2 }}
+          sx={{ mb: 1 }}
         >
           {operationStates.refreshing ? 'Refreshing...' : 'Refresh'}
         </Button>
 
         {operationStates.refreshing && <LinearProgress sx={{ mb: 1 }} />}
+
+        <Divider sx={{ my: 2 }} />
+
+        <Button
+          fullWidth
+          variant="outlined"
+          color="warning"
+          startIcon={isRestarting ? <CircularProgress size={18} /> : <RestartAltIcon />}
+          onClick={handleRestartContainer}
+          disabled={isRestarting}
+          sx={{ mb: 2 }}
+        >
+          {isRestarting ? 'Restarting Container...' : 'Restart Container'}
+        </Button>
 
         <Box sx={{ flex: 1, overflow: 'auto' }}>
           {sessions.length === 0 ? (

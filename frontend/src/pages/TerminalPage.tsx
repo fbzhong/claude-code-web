@@ -131,6 +131,7 @@ export const TerminalPage: React.FC = () => {
     isTerminalReady,
     terminalRef,
     setSessions,
+    setCurrentSessionId,
     setError,
     isMobileKeyboard,
     isKeyboardToolbarVisible,

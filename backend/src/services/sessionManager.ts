@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import * as crypto from "crypto";
 import { TerminalSession, CommandHistory } from "../types";
 import { ContainerManager } from "./containerManager";
+import { PtyAdapter } from "./ptyAdapter";
 
 export interface SessionInfo {
   id: string;
@@ -28,6 +29,7 @@ export class SessionManager extends EventEmitter {
   private outputUpdateTimers = new Map<string, NodeJS.Timeout>(); // Timers for output update delays
   private containerManager?: ContainerManager;
   private useContainers: boolean;
+  private readonly useDockerode: boolean = true;
 
   constructor(private fastify: any) {
     super();
@@ -39,7 +41,9 @@ export class SessionManager extends EventEmitter {
       this.containerManager = new ContainerManager(fastify);
       // Register containerManager on fastify instance for other routes to access
       fastify.decorate("containerManager", this.containerManager);
-      this.fastify.log.info("Container mode enabled");
+      this.fastify.log.info(
+        `Container mode enabled (dockerode: ${this.useDockerode})`
+      );
     } else {
       this.fastify.log.info("Local shell mode enabled");
       // SSHConfigManager will be initialized by database plugin
@@ -55,15 +59,7 @@ export class SessionManager extends EventEmitter {
       this.auditConnectionCounts();
     }, 30000); // Every 30 seconds
 
-    // Load active sessions from database on startup
-    setTimeout(() => {
-      this.loadActiveSessionsFromDatabase().catch((err) => {
-        this.fastify.log.error(
-          "Failed to load sessions from database on startup:",
-          err
-        );
-      });
-    }, 1000); // Delay to ensure database is ready
+    // Sessions are now ephemeral - no database persistence
   }
 
   static getInstance(fastify: any): SessionManager {
@@ -117,30 +113,28 @@ export class SessionManager extends EventEmitter {
         // Use container's home directory as default
         workingDir = options.workingDir || "/home/developer";
 
-        // Create PTY process in container
         this.fastify.log.info(
-          `[SessionManager] Creating PTY process in container ${containerId}...`
+          `[SessionManager] Creating dockerode exec session in container ${containerId}...`
         );
-        // Use pty.spawn to run docker exec -it
-        const runtime = process.env.CONTAINER_RUNTIME || "docker";
-        ptyProcess = pty.spawn(
-          runtime,
-          ["exec", "-it", "-u", "developer", "-w", workingDir, containerId, "bash"],
+
+        const execSession = await this.containerManager.createExecSession(
+          containerId,
           {
-            name: "xterm-color",
-            cols: 80,
-            rows: 24,
-            cwd: process.cwd(), // Host cwd doesn't matter for docker exec
+            cmd: ["/bin/bash"],
+            workingDir,
+            user: "developer",
             env: {
-              ...process.env,
               TERM: "xterm-256color",
               COLORTERM: "truecolor",
             },
           }
         );
 
+        // Create PTY adapter
+        ptyProcess = new PtyAdapter(execSession, sessionId);
+
         this.fastify.log.info(
-          `[SessionManager] Created container PTY for session ${sessionId} in container ${containerId}`
+          `[SessionManager] Created dockerode exec session for ${sessionId} in container ${containerId}`
         );
       } catch (error: any) {
         this.fastify.log.error(
@@ -212,13 +206,7 @@ export class SessionManager extends EventEmitter {
 
     this.sessions.set(sessionId, session);
 
-    // Save session to database asynchronously (don't block the response)
-    this.saveSessionToDb(session).catch((err) => {
-      this.fastify.log.error(
-        "Failed to save session to database after creation:",
-        err
-      );
-    });
+    // Sessions are ephemeral - no database persistence
 
     this.fastify.log.info(
       `Created new terminal session: ${sessionId} (${sessionName}) for user ${userId}`
@@ -242,8 +230,8 @@ export class SessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
 
     if (!session) {
-      // Try to restore from database
-      return this.restoreSessionFromDb(sessionId, userId);
+      // Sessions are ephemeral - cannot be restored after disconnect
+      throw new Error("Session not found or has been terminated");
     }
 
     if (session.userId !== userId) {
@@ -283,7 +271,7 @@ export class SessionManager extends EventEmitter {
 
     session.connectedClients = Math.max(0, session.connectedClients - 1);
 
-    if (session.connectedClients === 0) {
+    if (session.connectedClients === 0 && session.status === "active") {
       session.status = "detached";
     }
 
@@ -333,8 +321,7 @@ export class SessionManager extends EventEmitter {
       this.outputUpdateTimers.delete(sessionId);
     }
 
-    // Update database
-    await this.updateSessionInDb(session);
+    // Sessions are ephemeral - no database updates
 
     this.fastify.log.info(
       `Killed terminal session: ${sessionId} for user ${userId}`
@@ -355,11 +342,6 @@ export class SessionManager extends EventEmitter {
     // Buffer commands for history tracking
     if (data === "\r" || data === "\n") {
       const command = this.commandBuffer.get(sessionId) || "";
-      // this.fastify.log.info(
-      //   `Enter pressed (${
-      //     data === "\r" ? "CR" : "LF"
-      //   }), command buffer: "${command}", length: ${command.length}`
-      // );
       if (command.trim()) {
         // Only record the command to history, don't predict CWD changes
         // Real CWD will be detected from shell output
@@ -612,9 +594,6 @@ export class SessionManager extends EventEmitter {
     }, delay);
 
     this.cwdCheckTimers.set(sessionId, timer);
-    // this.fastify.log.debug(
-    //   `Scheduled CWD check for session ${sessionId} in ${delay}ms`
-    // );
   }
 
   private scheduleOutputBasedCWDCheck(sessionId: string): void {
@@ -711,13 +690,7 @@ export class SessionManager extends EventEmitter {
         }
       }, 100);
 
-      // Update database asynchronously (don't await to avoid blocking)
-      this.updateSessionInDb(session).catch((err) => {
-        this.fastify.log.error(
-          "Failed to update session activity in database:",
-          err
-        );
-      });
+      // Sessions are ephemeral - no database updates
     }
   }
 
@@ -795,299 +768,7 @@ export class SessionManager extends EventEmitter {
     this.emit("session_updated", sessionInfo);
   }
 
-  private async processCommand(
-    sessionId: string,
-    command: string
-  ): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) return;
-
-    this.fastify.log.info(
-      `Processing command for session ${sessionId}: ${command}`
-    );
-
-    // Predict working directory changes for cd commands
-    if (command.startsWith("cd ")) {
-      const targetDir = command.substring(3).trim();
-      this.fastify.log.info(
-        `CD command detected: "${command}", target: "${targetDir}"`
-      );
-
-      if (targetDir) {
-        let newWorkingDir = session.workingDir;
-
-        if (targetDir === "..") {
-          const parts = session.workingDir
-            .split("/")
-            .filter((p) => p.length > 0);
-          newWorkingDir = "/" + parts.slice(0, -1).join("/");
-          if (newWorkingDir === "/") newWorkingDir = "/";
-        } else if (targetDir.startsWith("./")) {
-          newWorkingDir = session.workingDir.endsWith("/")
-            ? session.workingDir + targetDir.substring(2)
-            : session.workingDir + "/" + targetDir.substring(2);
-        } else if (targetDir.startsWith("/")) {
-          newWorkingDir = targetDir;
-        } else if (targetDir === "~") {
-          newWorkingDir =
-            process.env.HOME || "/home/" + (process.env.USER || "user");
-        } else if (targetDir.startsWith("~/")) {
-          const homeDir =
-            process.env.HOME || "/home/" + (process.env.USER || "user");
-          newWorkingDir = homeDir + "/" + targetDir.substring(2);
-        } else {
-          // Relative path
-          newWorkingDir = session.workingDir.endsWith("/")
-            ? session.workingDir + targetDir
-            : session.workingDir + "/" + targetDir;
-        }
-
-        // Normalize path (remove double slashes, resolve . and ..)
-        newWorkingDir = this.normalizePath(newWorkingDir);
-
-        this.fastify.log.info(
-          `Working directory change: ${session.workingDir} -> ${newWorkingDir}`
-        );
-        this.fastify.log.info(
-          `New working dir length: ${newWorkingDir.length}, content: "${newWorkingDir}"`
-        );
-        session.workingDir = newWorkingDir;
-        this.fastify.log.info(
-          `Session workingDir after assignment: "${session.workingDir}", length: ${session.workingDir.length}`
-        );
-      }
-    }
-
-    // Record the command
-    await this.recordCommand(sessionId, command);
-  }
-
-  private async recordCommand(
-    sessionId: string,
-    command: string
-  ): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (!session) return;
-
-    const commandRecord: CommandHistory = {
-      id: crypto.randomUUID(),
-      sessionId,
-      command,
-      output: "",
-      exitCode: null,
-      timestamp: new Date(),
-      duration: 0,
-    };
-
-    session.history.push(commandRecord);
-
-    // PRIVACY: Do not save command history to database
-    // Commands are only kept in memory for active sessions
-
-    this.emit("command", sessionId, commandRecord);
-
-    // Emit session update for last command change (and potential CWD change)
-    const sessionInfo = this.sessionToInfo(session);
-    this.fastify.log.info(
-      `Emitting session_updated event for command processing:`,
-      sessionInfo
-    );
-    this.emit("session_updated", sessionInfo);
-  }
-
-  private async saveSessionToDb(session: TerminalSession): Promise<void> {
-    try {
-      const client = await this.fastify.pg.connect();
-      // PRIVACY: Only save minimal session metadata
-      await client.query(
-        `INSERT INTO persistent_sessions (id, user_id, name, status, created_at, last_activity)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (id) DO UPDATE SET
-         name = EXCLUDED.name,
-         status = EXCLUDED.status,
-         last_activity = EXCLUDED.last_activity`,
-        [
-          session.id,
-          session.userId,
-          session.name,
-          session.status,
-          session.createdAt,
-          session.lastActivity,
-        ]
-      );
-      client.release();
-      this.fastify.log.info(
-        `Session ${session.id} saved to database successfully`
-      );
-    } catch (err: any) {
-      this.fastify.log.error("Failed to save session to database:", {
-        error: err.message,
-        code: err.code,
-        detail: err.detail,
-        hint: err.hint,
-        sessionId: session.id,
-      });
-      // Don't throw error - allow session creation to continue even if DB save fails
-    }
-  }
-
-  private async updateSessionInDb(session: TerminalSession): Promise<void> {
-    try {
-      const client = await this.fastify.pg.connect();
-      await client.query(
-        "UPDATE persistent_sessions SET status = $1, last_activity = $2 WHERE id = $3",
-        [session.status, session.lastActivity, session.id]
-      );
-      client.release();
-    } catch (err) {
-      this.fastify.log.error("Failed to update session in database:", err);
-    }
-  }
-
-  private async restoreSessionFromDb(
-    sessionId: string,
-    userId: string
-  ): Promise<TerminalSession> {
-    let client;
-    try {
-      client = await this.fastify.pg.connect();
-      const result = await client.query(
-        "SELECT * FROM persistent_sessions WHERE id = $1 AND user_id = $2",
-        [sessionId, userId]
-      );
-      if (result.rows.length === 0) {
-        client.release();
-        throw new Error("Session not found");
-      }
-
-      const row = result.rows[0];
-
-      // Recreate the session
-      const restoredSession = await this.createSession(userId, {
-        sessionId: row.id,
-        name: row.name,
-        workingDir: row.working_dir,
-        environment: JSON.parse(row.environment || "{}"),
-      });
-
-      // Restore output buffer from database
-      try {
-        const bufferResult = await client.query(
-          "SELECT output_data, sequence_number FROM session_output_buffer WHERE session_id = $1 ORDER BY sequence_number DESC LIMIT $2",
-          [sessionId, this.maxOutputBuffer]
-        );
-
-        // Reverse to get chronological order
-        const outputChunks = bufferResult.rows
-          .map((r: any) => r.output_data)
-          .reverse();
-        restoredSession.outputBuffer = outputChunks;
-
-        // Set the sequence number to continue from where we left off
-        if (bufferResult.rows.length > 0) {
-          const maxSequence = Math.max(
-            ...bufferResult.rows.map((r: any) => r.sequence_number)
-          );
-          this.sessionSequenceNumbers.set(sessionId, maxSequence);
-        }
-
-        this.fastify.log.info(
-          `Restored session ${sessionId} with ${outputChunks.length} output chunks from database for user ${userId}`
-        );
-      } catch (err) {
-        this.fastify.log.error(
-          "Failed to restore output buffer from database:",
-          err
-        );
-      }
-
-      client.release();
-      return restoredSession;
-    } catch (err) {
-      if (client) {
-        client.release();
-      }
-      this.fastify.log.error("Failed to restore session from database:", err);
-      throw err;
-    }
-  }
-
-  private async loadActiveSessionsFromDatabase(): Promise<void> {
-    let client;
-    try {
-      client = await this.fastify.pg.connect();
-
-      // Load all active and detached sessions from database
-      const result = await client.query(
-        `SELECT * FROM persistent_sessions
-         WHERE status IN ('active', 'detached')
-         ORDER BY last_activity DESC`
-      );
-
-      this.fastify.log.info(
-        `Found ${result.rows.length} sessions in database to restore`
-      );
-
-      for (const row of result.rows) {
-        try {
-          this.fastify.log.info(
-            `Processing session from DB: ${row.id} (${row.name})`
-          );
-
-          // Check if session already exists in memory
-          if (this.sessions.has(row.id)) {
-            this.fastify.log.info(
-              `Session ${row.id} already exists in memory, skipping`
-            );
-            continue;
-          }
-
-          // Create session object without PTY (sessions are detached)
-          // PRIVACY: Only restore minimal session data
-          const session: TerminalSession = {
-            id: row.id,
-            userId: row.user_id,
-            name: row.name,
-            pty: undefined, // No PTY for loaded sessions until reattached
-            history: [],
-            createdAt: new Date(row.created_at),
-            lastActivity: new Date(row.last_activity),
-            workingDir: process.env.HOME || "/tmp", // Default working dir
-            environment: {}, // Empty environment
-            status: "detached", // Always detached when loaded from DB
-            outputBuffer: [],
-            connectedClients: 0,
-          };
-
-          // PRIVACY: Do not load output buffer from database
-          // Output is only kept in memory for active sessions
-          this.fastify.log.info(
-            `Loaded session ${row.id} (${row.name}) without output history`
-          );
-
-          // Add session to memory
-          this.sessions.set(row.id, session);
-        } catch (err: any) {
-          this.fastify.log.error(`Failed to restore session ${row.id}:`, err);
-          this.fastify.log.error("Error details:", {
-            message: err.message,
-            stack: err.stack,
-          });
-        }
-      }
-
-      this.fastify.log.info(
-        `Successfully restored ${this.sessions.size} sessions to memory`
-      );
-
-      client.release();
-    } catch (err) {
-      if (client) {
-        client.release();
-      }
-      this.fastify.log.error("Failed to load sessions from database:", err);
-    }
-  }
+  // Database methods removed - sessions are now ephemeral
 
   private auditConnectionCounts(): void {
     let hasChanges = false;
@@ -1159,7 +840,7 @@ export class SessionManager extends EventEmitter {
       if (session.status === "active") {
         session.status = "detached";
         session.connectedClients = 0;
-        await this.updateSessionInDb(session);
+        // Sessions are ephemeral - no database updates
       }
     }
   }

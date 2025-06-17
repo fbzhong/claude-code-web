@@ -67,4 +67,12 @@ api.interceptors.response.use(
   }
 );
 
+// Container operations
+export const containerApi = {
+  restart: async () => {
+    const response = await api.post("/api/container/restart");
+    return response.data;
+  },
+};
+
 export default api;

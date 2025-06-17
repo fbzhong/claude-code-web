@@ -169,8 +169,18 @@ export const TerminalPage: React.FC = () => {
 
   return (
     <Box sx={{ display: 'flex', height: '100vh', flexDirection: 'column' }}>
-      <AppBar position="static" sx={{ bgcolor: '#2d2d30' }}>
-        <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
+      <AppBar 
+        position="static" 
+        className="frosted-glass"
+        sx={{ 
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 1px 20px rgba(0, 0, 0, 0.3)",
+        }}
+      >
+        <Toolbar sx={{ 
+          minHeight: { xs: 56, sm: 64 },
+          gap: 1,
+        }}>
           <IconButton
             color="inherit"
             onClick={() => setSessionsDrawerOpen(true)}
@@ -181,9 +191,11 @@ export const TerminalPage: React.FC = () => {
           
           <Typography 
             variant={isMobile ? "subtitle1" : "h6"} 
+            className="gradient-text"
             sx={{ 
               flexGrow: 1, 
-              fontWeight: 600,
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
               display: { xs: 'none', sm: 'block' }
             }}
           >
@@ -192,10 +204,12 @@ export const TerminalPage: React.FC = () => {
           
           {/* Simplified mobile header */}
           <Typography 
-            variant="subtitle1" 
+            variant="subtitle1"
+            className="gradient-text" 
             sx={{ 
               flexGrow: 1, 
-              fontWeight: 600,
+              fontWeight: 700,
+              letterSpacing: '-0.01em',
               display: { xs: 'block', sm: 'none' }
             }}
           >
@@ -212,7 +226,14 @@ export const TerminalPage: React.FC = () => {
             color="inherit" 
             onClick={() => setGithubDialogOpen(true)}
             size={isMobile ? "medium" : "small"}
-            sx={{ mr: 1 }}
+            sx={{ 
+              mr: 1,
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                transform: 'scale(1.1)',
+              }
+            }}
             title="GitHub Integration"
           >
             <GitHubIcon />
@@ -222,7 +243,14 @@ export const TerminalPage: React.FC = () => {
             color="inherit" 
             onClick={() => setSSHInfoOpen(true)}
             size={isMobile ? "medium" : "small"}
-            sx={{ mr: 1 }}
+            sx={{ 
+              mr: 1,
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                transform: 'scale(1.1)',
+              }
+            }}
             title="SSH Access Management"
           >
             <VpnKeyIcon />
@@ -232,6 +260,13 @@ export const TerminalPage: React.FC = () => {
             color="inherit" 
             onClick={handleLogout} 
             size={isMobile ? "medium" : "small"}
+            sx={{
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 90, 95, 0.2)',
+                transform: 'scale(1.1)',
+              }
+            }}
           >
             <LogoutIcon />
           </IconButton>

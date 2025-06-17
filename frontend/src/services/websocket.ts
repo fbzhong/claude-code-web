@@ -38,6 +38,7 @@ export class WebSocketService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectTimeout: any = null;
+  private pendingResize: { cols: number; rows: number } | null = null;
 
   connect(sessionId: string, token: string): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -79,6 +80,20 @@ export class WebSocketService {
         this.ws.onopen = () => {
           console.log("WebSocket connected");
           this.reconnectAttempts = 0;
+          
+          // Send any pending resize message
+          if (this.pendingResize) {
+            console.log("Sending pending resize:", this.pendingResize);
+            this.ws!.send(
+              JSON.stringify({
+                type: "terminal_resize",
+                cols: this.pendingResize.cols,
+                rows: this.pendingResize.rows,
+              })
+            );
+            this.pendingResize = null;
+          }
+          
           resolve();
         };
 
@@ -148,7 +163,9 @@ export class WebSocketService {
 
   sendTerminalResize(cols: number, rows: number): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("WebSocket not connected, cannot send resize");
+      console.warn("WebSocket not connected, caching resize for later:", { cols, rows });
+      // Cache the resize to send when connection is established
+      this.pendingResize = { cols, rows };
       return;
     }
 

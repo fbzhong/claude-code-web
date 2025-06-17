@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { SessionManager, SessionInfo } from '../../services/sessionManager';
+import { SessionManager, SessionInfo } from '../../services';
 
 interface CreateSessionRequest {
   name?: string;

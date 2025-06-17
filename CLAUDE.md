@@ -72,6 +72,7 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 - ✅ SSH 公钥拖拽上传和智能解析
 - ✅ 多 IDE 支持（VS Code、Cursor、Windsurf）
 - ✅ 一键打开 IDE 功能实现
+- ✅ Dockerode 集成实现（替代 node-pty + docker exec）
 
 ## 关键决策记录
 1. **2025-06-14**: 最初选择 ttyd 混合方案，后决定使用 node-pty 自建方案
@@ -158,6 +159,13 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
     - 移除 ssh_password 和 ssh_password_hash 字段
     - 仅保留 ssh_public_keys 用于公钥认证
     - 清理 API 响应，移除不需要的 instructions 字段
+39. **2025-06-16**: 实现 Dockerode 集成方案：
+    - 使用 Docker API 替代命令行工具，提升性能和可靠性
+    - 支持远程 Docker daemon 连接 (DOCKER_HOST)
+    - 解决服务器重启时 exec 进程自动清理问题
+    - 创建 PtyAdapter 适配器，保持与 node-pty 接口兼容
+    - 通过 USE_DOCKERODE=true 环境变量启用新模式
+    - 向后兼容：默认使用原有的 node-pty 实现
 
 ## 技术特性
 
@@ -342,5 +350,11 @@ curl http://localhost:12021/health
 
 # 测试 SSH 公钥错误处理
 ./scripts/test-ssh-key-error-handling.sh
+
+# 测试 dockerode 集成
+node scripts/test-dockerode.js
+
+# 测试环境变量切换
+node scripts/test-runtime-switch.js
 ```
 

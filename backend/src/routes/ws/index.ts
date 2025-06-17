@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { ClaudeService } from "../../services/claude";
-import { SessionManager } from "../../services/sessionManager";
+import { SessionManager } from "../../services";
 
 export default async function (fastify: FastifyInstance) {
   // Get the singleton SessionManager instance

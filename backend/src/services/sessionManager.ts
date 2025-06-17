@@ -191,7 +191,7 @@ export class SessionManager extends EventEmitter {
     });
 
     // Handle PTY exit
-    ptyProcess.onExit(({ exitCode, signal }) => {
+    ptyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
       this.fastify.log.info(`Terminal session ${sessionId} exited`, {
         exitCode,
         signal,

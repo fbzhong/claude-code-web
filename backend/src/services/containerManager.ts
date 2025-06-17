@@ -54,7 +54,7 @@ export class ContainerManager extends EventEmitter {
       this.docker = new Docker({
         host: url.hostname,
         port: url.port || "2375",
-        protocol: url.protocol.replace(":", ""),
+        protocol: url.protocol.replace(":", "") as "http" | "https",
       });
       this.fastify.log.info(`Using remote Docker daemon at ${dockerHost}`);
     } else if (dockerHost && dockerHost.startsWith("unix://")) {
@@ -380,10 +380,10 @@ export class ContainerManager extends EventEmitter {
         return null;
       }
 
-      const container = containers[0];
+      const container = containers[0]!;
       return {
         id: container.Id,
-        name: container.Names[0].replace(/^\//, ""),
+        name: container.Names[0]!.replace(/^\//, ""),
         status: container.State.toLowerCase(),
         created: new Date(container.Created * 1000),
         image: container.Image,
@@ -415,9 +415,9 @@ export class ContainerManager extends EventEmitter {
       await container.restart({ t: 30 });
 
       this.fastify.log.info(`Restarted container for user ${userId}`);
-      
+
       // Wait a bit for container to be fully ready
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     } catch (error: any) {
       this.fastify.log.error(
         `Failed to restart container for user ${userId}:`,
@@ -510,11 +510,11 @@ export class ContainerManager extends EventEmitter {
       });
 
       for (const containerInfo of containers) {
-        const name = containerInfo.Names[0].replace(/^\//, "");
+        const name = containerInfo.Names[0]!.replace(/^\//, "");
         const userIdMatch = name.match(/claude-web-user-(.+)/);
         if (!userIdMatch) continue;
 
-        const userId = userIdMatch[1];
+        const userId = userIdMatch[1]!;
         let shouldRemove = false;
         let reason = "";
 
@@ -533,7 +533,7 @@ export class ContainerManager extends EventEmitter {
           // For now, keep running containers unless manually stopped
           // This prevents accidental cleanup of active containers
           this.fastify.log.info(
-            `Container ${containerName} is running - keeping it active`
+            `Container ${name} is running - keeping it active`
           );
         }
 

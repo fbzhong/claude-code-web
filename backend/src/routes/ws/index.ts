@@ -253,8 +253,9 @@ export default async function (fastify: FastifyInstance) {
 
           // Handle incoming messages from client
           connection.socket.on("message", async (message) => {
+            let data: any;
             try {
-              const data = JSON.parse(message.toString());
+              data = JSON.parse(message.toString());
 
               switch (data.type) {
                 case "terminal_input":
@@ -330,7 +331,7 @@ export default async function (fastify: FastifyInstance) {
               fastify.log.error("WebSocket message error:", {
                 error: (err as any).message,
                 stack: (err as any).stack,
-                messageType: data.type,
+                messageType: data?.type || 'unknown',
               });
               connection.socket.send(
                 JSON.stringify({

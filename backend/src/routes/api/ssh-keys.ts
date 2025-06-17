@@ -171,7 +171,7 @@ export default async function (fastify: FastifyInstance) {
       }
       
       // Remove key
-      const updatedKeys = currentKeys.filter((_, index) => index !== keyIndex);
+      const updatedKeys = currentKeys.filter((_: any, index: number) => index !== keyIndex);
       
       await client.query(
         'UPDATE users SET ssh_public_keys = $1 WHERE id = $2',

@@ -1,58 +1,60 @@
-FROM node:18-alpine AS builder
+# Build stage
+FROM node:20-alpine AS builder
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Install system dependencies for building native modules (node-pty)
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    bash
 
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install all dependencies (including dev dependencies for building)
+RUN pnpm install --frozen-lockfile --unsafe-perm \
+ && pnpm rebuild --unsafe-perm
 
 # Copy source code
 COPY src/ ./src/
 
 # Build the application
-RUN npm run build
+RUN pnpm run build
 
 # Production stage
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Install system dependencies for PTY
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    bash \
-    curl
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodeuser -u 1001
-
 # Copy package files
-COPY package*.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 
-# Install production dependencies
-RUN npm ci --only=production && npm cache clean --force
-
-# Copy built application
+# Copy built application first
 COPY --from=builder /app/dist ./dist
 
-# Copy any additional files needed
-COPY --chown=nodeuser:nodejs . .
+# Copy all node_modules from builder (including compiled native modules)
+# This avoids recompilation and ensures all modules work correctly
+COPY --from=builder /app/node_modules ./node_modules
 
-# Switch to non-root user
-USER nodeuser
+# Note: Running as root is required for:
+# - Docker socket access (/var/run/docker.sock)
+# - Managing SSHpiper workingdir files
+# - Creating and managing user containers
 
 # Expose port
-EXPOSE 3001
+EXPOSE 12021
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3001/health || exit 1
+    CMD curl -f http://localhost:12021/api/health || exit 1
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]

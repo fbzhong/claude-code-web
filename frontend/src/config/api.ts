@@ -5,7 +5,7 @@
 // 获取 API Base URL
 export const getApiBaseUrl = (): string => {
   if (!process.env.REACT_APP_API_URL) {
-    return "";
+    return `${window.location.protocol}//${window.location.host}`;
   }
 
   if (process.env.REACT_APP_API_SAME_HOST !== "true") {

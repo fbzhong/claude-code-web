@@ -139,7 +139,7 @@ export default async function (fastify: FastifyInstance) {
       
       // Check if route exists
       const routes = await sshConfigManager.listRoutes();
-      const isRegistered = routes.some(route => route.username === username);
+      const isRegistered = routes.includes(username);
 
       return {
         success: true,

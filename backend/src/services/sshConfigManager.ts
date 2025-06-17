@@ -20,16 +20,16 @@ export class SSHConfigManager {
 
   constructor(fastify: FastifyInstance) {
     this.fastify = fastify;
+    const sshpiperRoot = path.join(
+      process.cwd(),
+      process.env.SSHPIPER ?? "sshpiper"
+    );
     // SSHpiper workingDir root (relative to project root, not backend dir)
-    const projectRoot = path.dirname(process.cwd());
-    this.workingDirRoot =
-      process.env.SSHPIPER_WORKINGDIR ||
-      path.join(projectRoot, "sshpiper", "workingdir");
+    this.workingDirRoot = path.join(sshpiperRoot, "workingdir");
     // SSHpiper's private key for connecting to containers
-    this.sshpiperPrivateKey = path.join(
-      projectRoot,
-      "sshpiper",
-      "sshpiper_id_rsa"
+    this.sshpiperPrivateKey = path.join(sshpiperRoot, "sshpiper_id_rsa");
+    this.fastify.log.info(
+      `[SSHConfigManager] sshpiper root is ${sshpiperRoot}`
     );
   }
 

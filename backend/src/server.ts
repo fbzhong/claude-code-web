@@ -7,7 +7,7 @@ import databasePlugin from './plugins/database';
 import { setupInviteCommands } from './cli/invite-manager';
 
 // Check if running as CLI
-const isCliMode = process.argv.length > 2 && !process.argv[2].startsWith('-');
+const isCliMode = process.argv.length > 2 && process.argv[2] && !process.argv[2].startsWith('-');
 
 async function createFastifyInstance() {
   const app = Fastify({

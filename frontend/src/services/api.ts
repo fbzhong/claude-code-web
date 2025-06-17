@@ -6,7 +6,7 @@ console.log("API: Using API_BASE =", apiConfig.baseUrl());
 // Create axios instance
 const api: AxiosInstance = axios.create({
   baseURL: apiConfig.baseUrl(),
-  timeout: 30000,
+  timeout: 300000, // 5 minutes
   headers: {
     "Content-Type": "application/json",
   },

@@ -20,7 +20,7 @@ export class PtyAdapter extends EventEmitter {
     this.execSession.stream.on("data", (data: Buffer) => {
       // Docker uses multiplexed streams even with Tty: true when using hijack
       // Format: [stream_type(1)][000(3)][size(4)][payload]
-      if (data.length > 8 && data[0] <= 2) {
+      if (data.length > 8 && data[0] !== undefined && data[0] <= 2) {
         const payloadSize = data.readUInt32BE(4);
         if (payloadSize > 0 && data.length >= 8 + payloadSize) {
           // Extract payload, skipping the 8-byte header

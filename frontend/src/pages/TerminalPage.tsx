@@ -203,7 +203,7 @@ export const TerminalPage: React.FC = () => {
           
           {!isMobile && (
             <Typography variant="body2" sx={{ mr: 2, opacity: 0.9 }}>
-              {user?.username}
+              {user?.email}
             </Typography>
           )}
           

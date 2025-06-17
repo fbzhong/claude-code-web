@@ -15,7 +15,7 @@ import {
 } from '@mui/icons-material';
 
 interface TerminalHeaderProps {
-  user: { username: string } | null;
+  user: { username: string; email: string } | null;
   onMenuClick: () => void;
   onGitHubClick: () => void;
   onSSHClick: () => void;
@@ -68,7 +68,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
         
         {!isMobile && (
           <Typography variant="body2" sx={{ mr: 2, opacity: 0.9 }}>
-            {user?.username}
+            {user?.email}
           </Typography>
         )}
         

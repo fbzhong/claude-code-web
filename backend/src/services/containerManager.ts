@@ -1,10 +1,7 @@
 import { EventEmitter } from "events";
-import { exec, spawn } from "child_process";
-import { promisify } from "util";
+import Docker = require("dockerode");
 import { SSHConfigManager } from "./sshConfigManager";
-import * as pty from "node-pty";
-
-const execAsync = promisify(exec);
+import { Readable, Writable } from "stream";
 
 export interface ContainerConfig {
   image: string;
@@ -24,10 +21,19 @@ export interface ContainerInfo {
   image: string;
 }
 
+export interface ExecSession {
+  exec: Docker.Exec;
+  stream: NodeJS.ReadWriteStream;
+  resize: (rows: number, cols: number) => Promise<void>;
+  kill: () => void;
+}
+
 export class ContainerManager extends EventEmitter {
-  private runtime: "docker" | "podman";
+  private docker: Docker;
   private defaultImage: string;
   private cleanupInterval?: NodeJS.Timeout;
+  private networkName = "claude-web-bridge";
+
   private get sshConfigManager(): SSHConfigManager {
     if (!this.fastify.sshConfigManager) {
       throw new Error(
@@ -40,14 +46,31 @@ export class ContainerManager extends EventEmitter {
   constructor(private fastify: any) {
     super();
 
-    // Detect container runtime
-    this.runtime =
-      (process.env.CONTAINER_RUNTIME as "docker" | "podman") || "docker";
+    // Initialize Docker client
+    const dockerHost = process.env.CONTAINER_HOST;
+    if (dockerHost && dockerHost.startsWith("tcp://")) {
+      // Support remote Docker daemon (TCP only)
+      const url = new URL(dockerHost);
+      this.docker = new Docker({
+        host: url.hostname,
+        port: url.port || "2375",
+        protocol: url.protocol.replace(":", ""),
+      });
+      this.fastify.log.info(`Using remote Docker daemon at ${dockerHost}`);
+    } else if (dockerHost && dockerHost.startsWith("unix://")) {
+      // Unix socket
+      const socketPath = dockerHost.replace("unix://", "");
+      this.docker = new Docker({ socketPath });
+      this.fastify.log.info(`Using Docker daemon at ${dockerHost}`);
+    } else {
+      // Use default local Docker daemon
+      this.docker = new Docker();
+      this.fastify.log.info("Using local Docker daemon");
+    }
 
-    // Use custom image if specified, otherwise use default Ubuntu
-    this.defaultImage = process.env.CONTAINER_IMAGE || "ubuntu:22.04";
+    // Use custom image if specified, otherwise use default
+    this.defaultImage = process.env.CONTAINER_IMAGE || "claude-web-dev:latest";
 
-    this.fastify.log.info(`Using container runtime: ${this.runtime}`);
     this.fastify.log.info(`Using container image: ${this.defaultImage}`);
 
     // Start periodic cleanup of inactive containers
@@ -66,24 +89,21 @@ export class ContainerManager extends EventEmitter {
 
     try {
       // Check if container exists
-      this.fastify.log.info(
-        `[ContainerManager] Checking if container ${containerName} exists...`
-      );
       const existingContainer = await this.getContainer(containerName);
       if (existingContainer) {
         this.fastify.log.info(
           `[ContainerManager] Found existing container ${existingContainer.id} with status: ${existingContainer.status}`
         );
+
         // Ensure it's running
         if (existingContainer.status !== "running") {
           this.fastify.log.info(
             `[ContainerManager] Starting existing container ${existingContainer.id}`
           );
-          await this.startContainer(existingContainer.id);
+          const container = this.docker.getContainer(existingContainer.id);
+          await container.start();
         }
-        this.fastify.log.info(
-          `[ContainerManager] Using existing container ${existingContainer.id}`
-        );
+
         return existingContainer.id;
       }
 
@@ -91,9 +111,9 @@ export class ContainerManager extends EventEmitter {
       this.fastify.log.info(
         `[ContainerManager] No existing container found, creating new one...`
       );
-      this.fastify.log.info(
-        `[ContainerManager] Creating container with image: ${this.defaultImage}`
-      );
+
+      // Ensure network exists
+      await this.ensureNetworkExists();
 
       const containerConfig = {
         image: this.defaultImage,
@@ -114,18 +134,14 @@ export class ContainerManager extends EventEmitter {
         volumes: [`claude-web-user-${userId}-data:/home/developer`],
       };
 
-      this.fastify.log.info(
-        `[ContainerManager] Container config:`,
-        containerConfig
-      );
-
       const containerId = await this.createContainer(containerConfig);
 
       // Start the container
       this.fastify.log.info(
         `[ContainerManager] Starting container ${containerId}`
       );
-      await this.startContainer(containerId);
+      const container = this.docker.getContainer(containerId);
+      await container.start();
 
       // Register SSH route for the container
       try {
@@ -137,7 +153,6 @@ export class ContainerManager extends EventEmitter {
         this.fastify.log.warn(
           `[ContainerManager] Failed to register SSH route: ${error}`
         );
-        // 非致命错误，继续执行
       }
 
       this.fastify.log.info(
@@ -147,21 +162,80 @@ export class ContainerManager extends EventEmitter {
     } catch (error: any) {
       this.fastify.log.error(
         `[ContainerManager] Failed to get/create container for user ${userId}:`,
-        {
-          error: error.message,
-          stack: error.stack,
-          code: error.code,
-          stderr: error.stderr,
-          stdout: error.stdout,
-          containerName: containerName,
-        }
+        error
       );
       throw error;
     }
   }
 
   /**
-   * Execute a command in a container
+   * Create an interactive exec session in a container
+   */
+  async createExecSession(
+    containerId: string,
+    options: {
+      cmd?: string[];
+      workingDir?: string;
+      user?: string;
+      env?: Record<string, string>;
+    } = {}
+  ): Promise<ExecSession> {
+    const container = this.docker.getContainer(containerId);
+
+    // Create exec instance
+    const exec = await container.exec({
+      AttachStdin: true,
+      AttachStdout: true,
+      AttachStderr: true,
+      Tty: true,
+      Cmd: options.cmd || ["/bin/bash"],
+      User: options.user || "developer",
+      WorkingDir: options.workingDir || "/home/developer",
+      Env: options.env
+        ? Object.entries(options.env).map(([k, v]) => `${k}=${v}`)
+        : undefined,
+    });
+
+    // Start exec - when Tty is true, we get a single stream
+    // When Tty is false, stdout/stderr are multiplexed
+    const execResult = await exec.start({
+      hijack: true,
+      stdin: true,
+    });
+
+    // The stream is the raw socket when using hijack
+    const stream = execResult as NodeJS.ReadWriteStream;
+
+    // Create resize function
+    const resize = async (rows: number, cols: number) => {
+      try {
+        // this.fastify.log.debug(`resize:  ${rows} x ${cols}`);
+        await exec.resize({ h: rows, w: cols });
+      } catch (error) {
+        this.fastify.log.warn(`Failed to resize exec session: ${error}`);
+      }
+    };
+
+    // Create kill function
+    const kill = () => {
+      if ("destroy" in stream && typeof stream.destroy === "function") {
+        stream.destroy();
+      } else {
+        // Fallback for streams without destroy method
+        stream.end();
+      }
+    };
+
+    return {
+      exec,
+      stream,
+      resize,
+      kill,
+    };
+  }
+
+  /**
+   * Execute a command in a container (non-interactive)
    */
   async exec(
     containerId: string,
@@ -172,63 +246,45 @@ export class ContainerManager extends EventEmitter {
       user?: string;
     }
   ): Promise<{ stdout: string; stderr: string }> {
-    const args = ["exec"];
+    const container = this.docker.getContainer(containerId);
 
-    if (options?.workingDir) {
-      args.push("-w", options.workingDir);
-    }
+    const exec = await container.exec({
+      AttachStdout: true,
+      AttachStderr: true,
+      Cmd: command,
+      User: options?.user || "developer",
+      WorkingDir: options?.workingDir,
+      Env: options?.environment
+        ? Object.entries(options.environment).map(([k, v]) => `${k}=${v}`)
+        : undefined,
+    });
 
-    if (options?.environment) {
-      for (const [key, value] of Object.entries(options.environment)) {
-        args.push("-e", `${key}=${value}`);
-      }
-    }
+    return new Promise((resolve, reject) => {
+      exec.start({ Detach: false }, (err, stream) => {
+        if (err) return reject(err);
 
-    if (options?.user) {
-      args.push("-u", options.user);
-    }
+        let stdout = "";
+        let stderr = "";
 
-    args.push(containerId, ...command);
+        // Docker multiplexes stdout/stderr when Tty is false
+        container.modem.demuxStream(
+          stream!,
+          {
+            write: (chunk: any) => {
+              stdout += chunk;
+            },
+          } as Writable,
+          {
+            write: (chunk: any) => {
+              stderr += chunk;
+            },
+          } as Writable
+        );
 
-    const { stdout, stderr } = await execAsync(
-      `${this.runtime} ${args.join(" ")}`
-    );
-    return { stdout, stderr };
-  }
-
-  /**
-   * Execute an interactive command in a container (returns a child process)
-   */
-  execInteractive(
-    containerId: string,
-    command: string[],
-    options?: {
-      workingDir?: string;
-      environment?: Record<string, string>;
-      user?: string;
-    }
-  ) {
-    // Use -i only to keep stdin open
-    const args = ["exec", "-i"];
-
-    if (options?.workingDir) {
-      args.push("-w", options.workingDir);
-    }
-
-    if (options?.environment) {
-      for (const [key, value] of Object.entries(options.environment)) {
-        args.push("-e", `${key}=${value}`);
-      }
-    }
-
-    if (options?.user) {
-      args.push("-u", options.user);
-    }
-
-    args.push(containerId, ...command);
-
-    return spawn(this.runtime, args, {
-      stdio: ["pipe", "pipe", "pipe"],
+        stream!.on("end", () => {
+          resolve({ stdout, stderr });
+        });
+      });
     });
   }
 
@@ -236,31 +292,37 @@ export class ContainerManager extends EventEmitter {
    * Ensure Docker network exists
    */
   private async ensureNetworkExists(): Promise<void> {
-    const networkName = "claude-web-bridge";
-
     try {
-      // Check if network exists
-      const { stdout } = await execAsync(
-        `${this.runtime} network ls --format "{{.Name}}" | grep "^${networkName}$" || echo ""`
-      );
+      const networks = await this.docker.listNetworks({
+        filters: { name: [this.networkName] },
+      });
 
-      if (!stdout.trim()) {
-        // Create network
+      if (networks.length === 0) {
         this.fastify.log.info(
-          `[ContainerManager] Creating Docker network: ${networkName}`
+          `[ContainerManager] Creating Docker network: ${this.networkName}`
         );
-        await execAsync(
-          `${this.runtime} network create --driver bridge --subnet 172.20.0.0/16 --gateway 172.20.0.1 ${networkName}`
-        );
+
+        await this.docker.createNetwork({
+          Name: this.networkName,
+          Driver: "bridge",
+          IPAM: {
+            Config: [
+              {
+                Subnet: "172.20.0.0/16",
+                Gateway: "172.20.0.1",
+              },
+            ],
+          },
+        });
+
         this.fastify.log.info(
-          `[ContainerManager] Network ${networkName} created successfully`
+          `[ContainerManager] Network ${this.networkName} created successfully`
         );
       }
     } catch (error) {
       this.fastify.log.warn(
         `[ContainerManager] Failed to ensure network exists: ${error}`
       );
-      // Non-fatal, continue without custom network
     }
   }
 
@@ -268,9 +330,6 @@ export class ContainerManager extends EventEmitter {
    * Create a new container
    */
   private async createContainer(config: ContainerConfig): Promise<string> {
-    // Ensure network exists first
-    await this.ensureNetworkExists();
-
     this.fastify.log.info(
       `[ContainerManager] Creating container with config:`,
       {
@@ -281,95 +340,28 @@ export class ContainerManager extends EventEmitter {
       }
     );
 
-    const args = ["create"];
-
-    // Container name
-    args.push("--name", config.name);
-
-    // Network configuration
-    args.push("--network", "claude-web-bridge");
-
-    // Resource limits - comment out for debugging
-    // if (config.memory) {
-    //   args.push('--memory', config.memory);
-    // }
-
-    // if (config.cpu) {
-    //   args.push('--cpus', config.cpu);
-    // }
-
-    // Environment variables
-    if (config.environment) {
-      for (const [key, value] of Object.entries(config.environment)) {
-        args.push("-e", `${key}=${value}`);
-      }
-    }
-
-    // Always add USER_ID for SSH registration
-    args.push("-e", `USER_ID=${config.userId}`);
-
-    // Volumes
-    if (config.volumes) {
-      for (const volume of config.volumes) {
-        args.push("-v", volume);
-      }
-    }
-
-    // Use the image's default CMD (which runs startup.sh)
-    args.push(config.image);
-
-    const command = `${this.runtime} ${args.join(" ")}`;
-    this.fastify.log.info(`[ContainerManager] Executing: ${command}`);
-
-    try {
-      const { stdout, stderr } = await execAsync(command);
-      const containerId = stdout.trim();
-
-      if (!containerId) {
-        throw new Error("Container creation returned empty ID");
-      }
-
-      if (stderr) {
-        this.fastify.log.warn(
-          `[ContainerManager] Container creation stderr:`,
-          stderr
-        );
-      }
-
-      this.fastify.log.info(
-        `[ContainerManager] Created container ${containerId} for user ${config.userId}`
-      );
-      return containerId;
-    } catch (error: any) {
-      this.fastify.log.error(`[ContainerManager] Failed to create container:`, {
-        command,
-        error: error.message,
-        stderr: error.stderr,
-        stdout: error.stdout,
-      });
-      throw new Error(`Failed to create container: ${error.message}`);
-    }
-  }
-
-  /**
-   * Start a container
-   */
-  private async startContainer(containerId: string): Promise<void> {
-    const command = `${this.runtime} start ${containerId}`;
-    this.fastify.log.info(`[ContainerManager] Executing: ${command}`);
-
-    const { stdout, stderr } = await execAsync(command);
-
-    if (stderr) {
-      this.fastify.log.warn(
-        `[ContainerManager] Container start stderr:`,
-        stderr
-      );
-    }
+    const container = await this.docker.createContainer({
+      name: config.name,
+      Image: config.image,
+      Env: [
+        ...Object.entries(config.environment || {}).map(
+          ([k, v]) => `${k}=${v}`
+        ),
+        `USER_ID=${config.userId}`,
+      ],
+      HostConfig: {
+        NetworkMode: this.networkName,
+        Binds: config.volumes,
+        // Memory: config.memory ? parseInt(config.memory) * 1024 * 1024 * 1024 : undefined,
+        // CpuShares: config.cpu ? parseInt(config.cpu) * 1024 : undefined,
+      },
+    });
 
     this.fastify.log.info(
-      `[ContainerManager] Started container ${containerId}, stdout: ${stdout.trim()}`
+      `[ContainerManager] Created container ${container.id} for user ${config.userId}`
     );
+
+    return container.id;
   }
 
   /**
@@ -377,52 +369,31 @@ export class ContainerManager extends EventEmitter {
    */
   private async getContainer(nameOrId: string): Promise<ContainerInfo | null> {
     try {
-      const command = `${this.runtime} inspect ${nameOrId} --format '{{json .}}'`;
-      this.fastify.log.debug(`[ContainerManager] Executing: ${command}`);
+      const containers = await this.docker.listContainers({
+        all: true,
+        filters: {
+          name: [nameOrId],
+        },
+      });
 
-      const { stdout, stderr } = await execAsync(command);
-
-      if (stderr) {
-        this.fastify.log.debug(
-          `[ContainerManager] Container inspect stderr:`,
-          stderr
-        );
-      }
-
-      const data = JSON.parse(stdout);
-
-      return {
-        id: data.Id || data.ID,
-        name: data.Name.replace(/^\//, ""),
-        status: data.State.Status || data.State.Running ? "running" : "stopped",
-        created: new Date(data.Created),
-        image: data.Config.Image,
-      };
-    } catch (error: any) {
-      // Check for container not found errors
-      const errorMessage = error.stderr || error.message || "";
-      if (
-        error.code === 125 ||
-        errorMessage.includes("No such object") ||
-        errorMessage.includes("no such container") ||
-        errorMessage.includes("No such container")
-      ) {
-        this.fastify.log.info(
-          `[ContainerManager] Container ${nameOrId} not found, will create new one`
-        );
+      if (containers.length === 0) {
         return null;
       }
+
+      const container = containers[0];
+      return {
+        id: container.Id,
+        name: container.Names[0].replace(/^\//, ""),
+        status: container.State.toLowerCase(),
+        created: new Date(container.Created * 1000),
+        image: container.Image,
+      };
+    } catch (error: any) {
       this.fastify.log.error(
-        `[ContainerManager] Error inspecting container ${nameOrId}:`,
-        {
-          error: error.message,
-          code: error.code,
-          stderr: error.stderr,
-          stdout: error.stdout,
-          fullError: error.toString(),
-        }
+        `[ContainerManager] Error getting container ${nameOrId}:`,
+        error
       );
-      throw error;
+      return null;
     }
   }
 
@@ -433,13 +404,15 @@ export class ContainerManager extends EventEmitter {
     const containerName = `claude-web-user-${userId}`;
 
     try {
-      const container = await this.getContainer(containerName);
-      if (container) {
+      const containerInfo = await this.getContainer(containerName);
+      if (containerInfo) {
+        const container = this.docker.getContainer(containerInfo.id);
+
         // Stop the container
-        await execAsync(`${this.runtime} stop ${container.id}`);
+        await container.stop();
 
         // Remove the container
-        await execAsync(`${this.runtime} rm ${container.id}`);
+        await container.remove();
 
         this.fastify.log.info(`Removed container for user ${userId}`);
       }
@@ -497,50 +470,37 @@ export class ContainerManager extends EventEmitter {
     this.fastify.log.info(
       `Starting container cleanup (inactive threshold: ${inactiveHours} hours)`
     );
+
     try {
-      const { stdout } = await execAsync(
-        `${this.runtime} ps -a --filter "name=claude-web-user-" --format "{{.ID}} {{.Names}} {{.Status}}"`
-      );
+      const containers = await this.docker.listContainers({
+        all: true,
+        filters: {
+          name: ["claude-web-user-"],
+        },
+      });
 
-      const lines = stdout.trim().split("\n").filter(Boolean);
-      const now = new Date();
-
-      for (const line of lines) {
-        const [id, name, ...statusParts] = line.split(" ");
-        const status = statusParts.join(" ");
-
-        // Extract user ID from container name
+      for (const containerInfo of containers) {
+        const name = containerInfo.Names[0].replace(/^\//, "");
         const userIdMatch = name.match(/claude-web-user-(.+)/);
         if (!userIdMatch) continue;
 
         const userId = userIdMatch[1];
-
-        // Check container age and activity
         let shouldRemove = false;
         let reason = "";
 
-        // Check if container is stopped
-        if (status.includes("Exited")) {
-          const match = status.match(
-            /Exited.*\((\d+)\s+(days?|hours?|minutes?)\s+ago\)/
-          );
-          if (match) {
-            const [, amount, unit] = match;
-            const value = parseInt(amount);
+        // Check container state
+        if (containerInfo.State === "exited") {
+          // Container is stopped, check how long ago
+          const created = new Date(containerInfo.Created * 1000);
+          const hoursAgo = (Date.now() - created.getTime()) / (1000 * 60 * 60);
 
-            // Remove if exited more than 1 hour ago
-            if (unit.startsWith("hour") && value >= 1) {
-              shouldRemove = true;
-              reason = `exited ${value} hours ago`;
-            } else if (unit.startsWith("day")) {
-              shouldRemove = true;
-              reason = `exited ${value} days ago`;
-            }
+          if (hoursAgo > 1) {
+            shouldRemove = true;
+            reason = `exited ${Math.round(hoursAgo)} hours ago`;
           }
-        } else if (status.includes("Up")) {
+        } else if (containerInfo.State === "running") {
           // For running containers, check last session activity
           try {
-            // Query database for last activity of sessions belonging to this user
             const client = await this.fastify.pg.connect();
             const result = await client.query(
               "SELECT MAX(last_activity) as last_activity FROM persistent_sessions WHERE user_id = $1",
@@ -558,22 +518,9 @@ export class ContainerManager extends EventEmitter {
                 reason = `inactive for ${Math.round(hoursInactive)} hours`;
               }
             } else {
-              // No sessions found, check container uptime
-              const uptimeMatch = status.match(
-                /Up\s+(\d+)\s+(days?|hours?|minutes?)/
-              );
-              if (uptimeMatch) {
-                const [, amount, unit] = uptimeMatch;
-                const value = parseInt(amount);
-
-                if (
-                  unit.startsWith("day") ||
-                  (unit.startsWith("hour") && value >= inactiveHours)
-                ) {
-                  shouldRemove = true;
-                  reason = `no sessions and up for ${value} ${unit}`;
-                }
-              }
+              // No sessions found
+              shouldRemove = true;
+              reason = "no sessions found";
             }
           } catch (err) {
             this.fastify.log.error(
@@ -585,16 +532,21 @@ export class ContainerManager extends EventEmitter {
 
         if (shouldRemove) {
           try {
-            // Stop and remove container
-            if (!status.includes("Exited")) {
-              await execAsync(`${this.runtime} stop ${id}`);
+            const container = this.docker.getContainer(containerInfo.Id);
+
+            // Stop if running
+            if (containerInfo.State === "running") {
+              await container.stop();
             }
-            await execAsync(`${this.runtime} rm ${id}`);
+
+            // Remove container
+            await container.remove();
+
             this.fastify.log.info(
               `Removed inactive container: ${name} (${reason})`
             );
 
-            // Disable SSH route for the container (preserves authorized_keys)
+            // Disable SSH route
             try {
               await this.sshConfigManager.disableUserRoute(userId);
               this.fastify.log.info(`SSH route disabled for user ${userId}`);

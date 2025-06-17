@@ -8,6 +8,7 @@ interface UseWebSocketConnectionProps {
   isTerminalReady: boolean;
   terminalRef: RefObject<TerminalHandle>;
   setSessions: React.Dispatch<React.SetStateAction<any[]>>;
+  setCurrentSessionId: React.Dispatch<React.SetStateAction<string | null>>;
   setError: (error: string | null) => void;
   isMobileKeyboard: boolean;
   isKeyboardToolbarVisible: boolean;
@@ -24,6 +25,7 @@ export function useWebSocketConnection({
   isTerminalReady,
   terminalRef,
   setSessions,
+  setCurrentSessionId,
   setError,
   isMobileKeyboard,
   isKeyboardToolbarVisible,
@@ -60,16 +62,40 @@ export function useWebSocketConnection({
       }
     };
     
+    const terminalExitHandler = (message: any) => {
+      const exitCode = message.data?.exitCode || 0;
+      console.log(`Session ${currentSessionId} exited with code ${exitCode}`);
+      
+      // Show notification
+      setError(`Session terminated (exit code: ${exitCode})`);
+      
+      // Update session status locally to show it's dead
+      setSessions(prev => prev.map(s => 
+        s.id === currentSessionId 
+          ? { ...s, status: 'dead' }
+          : s
+      ));
+      
+      // Disconnect WebSocket to prevent reconnection attempts
+      wsService.disconnect();
+      
+      // Clear the current session ID
+      setCurrentSessionId(null);
+      
+    };
+    
     wsService.onMessage('terminal_data', terminalDataHandler);
     wsService.onMessage('terminal_clear', terminalClearHandler);
+    wsService.onMessage('terminal_exit', terminalExitHandler);
     
     return () => {
       console.log('Cleaning up WebSocket connection for session:', currentSessionId);
       wsService.offMessage('terminal_data');
       wsService.offMessage('terminal_clear');
+      wsService.offMessage('terminal_exit');
       wsService.disconnect();
     };
-  }, [currentSessionId, token, isTerminalReady, terminalRef, setSessions, setError]);
+  }, [currentSessionId, token, isTerminalReady, terminalRef, setSessions, setCurrentSessionId, setError]);
 
   // Terminal handlers
   const handleTerminalData = useCallback((data: string) => {

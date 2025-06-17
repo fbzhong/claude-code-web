@@ -303,12 +303,19 @@ export const useSessionManagement = ({
       };
       
       const handleSessionDeleted = (message: any) => {
-        console.log('Session deleted:', message.data);
+        console.log('🗑️ Session deleted event received:', message.data);
         const { sessionId } = message.data;
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        
+        console.log('Current sessions before deletion:', sessions.map(s => s.id));
+        setSessions(prev => {
+          const filtered = prev.filter(s => s.id !== sessionId);
+          console.log('Sessions after deletion:', filtered.map(s => s.id));
+          return filtered;
+        });
         
         // If current session was deleted, clear it
         if (sessionId === currentSessionId) {
+          console.log('Deleted session was current session, clearing currentSessionId');
           setCurrentSessionId(null);
         }
       };

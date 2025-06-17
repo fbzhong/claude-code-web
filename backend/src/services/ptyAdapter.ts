@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { ExecSession } from "./containerManager2";
+import { ExecSession } from "./containerManager";
 
 /**
  * PTY Adapter - Makes dockerode exec session compatible with node-pty interface
@@ -26,7 +26,7 @@ export class PtyAdapter extends EventEmitter {
           // Extract payload, skipping the 8-byte header
           const payload = data.slice(8, 8 + payloadSize);
           this.emit("data", payload.toString());
-          
+
           // If there's more data after this packet, process it recursively
           if (data.length > 8 + payloadSize) {
             const remaining = data.slice(8 + payloadSize);
@@ -35,7 +35,7 @@ export class PtyAdapter extends EventEmitter {
           return;
         }
       }
-      
+
       // Fallback: forward raw data if not multiplexed format
       this.emit("data", data.toString());
     });

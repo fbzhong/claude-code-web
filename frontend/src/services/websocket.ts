@@ -261,6 +261,12 @@ export class WebSocketService {
   }
 
   private handleReconnect(token: string): void {
+    // Don't reconnect if manually disconnected
+    if (!this.sessionId) {
+      console.log("Session manually disconnected, not reconnecting");
+      return;
+    }
+    
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error("Max reconnection attempts reached");
       return;

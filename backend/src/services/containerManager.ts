@@ -398,6 +398,36 @@ export class ContainerManager extends EventEmitter {
   }
 
   /**
+   * Restart a user's container
+   */
+  async restartUserContainer(userId: string): Promise<void> {
+    const containerName = `claude-web-user-${userId}`;
+
+    try {
+      const containerInfo = await this.getContainer(containerName);
+      if (!containerInfo) {
+        throw new Error(`Container not found for user ${userId}`);
+      }
+
+      const container = this.docker.getContainer(containerInfo.id);
+
+      // Restart the container with a 30 second timeout
+      await container.restart({ t: 30 });
+
+      this.fastify.log.info(`Restarted container for user ${userId}`);
+      
+      // Wait a bit for container to be fully ready
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    } catch (error: any) {
+      this.fastify.log.error(
+        `Failed to restart container for user ${userId}:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Stop and remove a user's container
    */
   async removeUserContainer(userId: string): Promise<void> {

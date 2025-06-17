@@ -17,6 +17,7 @@ interface SessionParams {
 
 export default async function sessionsRoutes(fastify: FastifyInstance) {
   const sessionManager = SessionManager.getInstance(fastify);
+  const containerManager = (fastify as any).containerManager;
 
   // Get all user sessions
   fastify.get(
@@ -344,6 +345,49 @@ export default async function sessionsRoutes(fastify: FastifyInstance) {
         };
       } catch (error: any) {
         fastify.log.error("Failed to rename session:", error);
+        return reply.status(500).send({
+          success: false,
+          error: error.message,
+          timestamp: new Date(),
+        });
+      }
+    }
+  );
+
+  // Restart container
+  fastify.post(
+    "/container/restart",
+    {
+      preHandler: [fastify.authenticate],
+    },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const user = (request as any).user;
+
+        if (!containerManager) {
+          return reply.status(503).send({
+            success: false,
+            error: "Container service not available",
+            timestamp: new Date(),
+          });
+        }
+
+        // Kill all sessions for this user before restarting
+        const sessions = sessionManager.getUserSessions(user.id);
+        for (const session of sessions) {
+          await sessionManager.killSession(session.id, user.id);
+        }
+
+        // Restart the container
+        await containerManager.restartUserContainer(user.id);
+
+        return {
+          success: true,
+          message: "Container restarted successfully",
+          timestamp: new Date(),
+        };
+      } catch (error: any) {
+        fastify.log.error("Failed to restart container:", error);
         return reply.status(500).send({
           success: false,
           error: error.message,

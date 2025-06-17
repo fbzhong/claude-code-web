@@ -124,8 +124,8 @@ vim .env
 2. **Build development container (first time only)**
 
 ```bash
-# Build the user development container image
-./scripts/build-dev-container.sh
+SCRIPT_DIR="$(dirname "$0")"
+"${SCRIPT_DIR}/rebuild-dev-image.sh"
 ```
 
 3. **Deploy services**

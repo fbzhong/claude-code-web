@@ -35,7 +35,7 @@ export class SessionManager extends EventEmitter {
     super();
 
     // Check if container mode is enabled
-    this.useContainers = process.env.CONTAINER_MODE === "true";
+    this.useContainers = process.env.CONTAINER_MODE?.toLowerCase() === "true";
 
     if (this.useContainers) {
       this.containerManager = new ContainerManager(fastify);

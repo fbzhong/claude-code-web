@@ -40,7 +40,7 @@ services:
       GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL}
       # Container settings
       CONTAINER_MODE: true
-      CONTAINER_HOST: unix:///var/run/docker.sock
+      CONTAINER_HOST: ${CONTAINER_HOST:-unix:///var/run/docker.sock}
       CONTAINER_IMAGE: claude-web-dev:latest
       CONTAINER_NETWORK: claude-web-bridge
       CONTAINER_MEMORY_LIMIT: ${CONTAINER_MEMORY_LIMIT:-2g}

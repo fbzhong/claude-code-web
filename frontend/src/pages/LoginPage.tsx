@@ -334,7 +334,8 @@ export const LoginPage: React.FC = () => {
                   },
                 }}
               />
-              {process.env.REACT_APP_REQUIRE_INVITE_CODE === "true" && (
+              {process.env.REACT_APP_REQUIRE_INVITE_CODE?.toLowerCase() ===
+                "true" && (
                 <TextField
                   fullWidth
                   label="Invite Code"

@@ -48,8 +48,13 @@ export class ContainerManager extends EventEmitter {
 
     // Initialize Docker client
     const dockerHost = process.env.CONTAINER_HOST;
-    if (dockerHost && dockerHost.startsWith("tcp://")) {
-      // Support remote Docker daemon (TCP only)
+    if (dockerHost && dockerHost.startsWith("unix://")) {
+      // Unix socket
+      const socketPath = dockerHost.replace("unix://", "");
+      this.docker = new Docker({ socketPath });
+      this.fastify.log.info(`Using Docker daemon at ${dockerHost}`);
+    } else if (dockerHost && dockerHost.includes("://")) {
+      // Support remote Docker daemon
       const url = new URL(dockerHost);
       this.docker = new Docker({
         host: url.hostname,
@@ -57,11 +62,6 @@ export class ContainerManager extends EventEmitter {
         protocol: url.protocol.replace(":", "") as "http" | "https",
       });
       this.fastify.log.info(`Using remote Docker daemon at ${dockerHost}`);
-    } else if (dockerHost && dockerHost.startsWith("unix://")) {
-      // Unix socket
-      const socketPath = dockerHost.replace("unix://", "");
-      this.docker = new Docker({ socketPath });
-      this.fastify.log.info(`Using Docker daemon at ${dockerHost}`);
     } else {
       // Use default local Docker daemon
       this.docker = new Docker();

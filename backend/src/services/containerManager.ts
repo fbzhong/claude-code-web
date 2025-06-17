@@ -311,6 +311,8 @@ export class ContainerManager extends EventEmitter {
         Binds: config.volumes,
         // Memory: config.memory ? parseInt(config.memory) * 1024 * 1024 * 1024 : undefined,
         // CpuShares: config.cpu ? parseInt(config.cpu) * 1024 : undefined,
+        // ref: https://bugzilla.redhat.com/show_bug.cgi?id=1923728
+        CapAdd: ["AUDIT_WRITE", "SYS_CHROOT"],
       },
     });
 

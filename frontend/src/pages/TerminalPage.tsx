@@ -241,7 +241,7 @@ export const TerminalPage: React.FC = () => {
             Terminal
           </Typography>
 
-{/* Connection Status - Hidden per user request */}
+          {/* Connection Status - Hidden per user request */}
 
           {!isMobile && (
             <Typography variant="body2" sx={{ mr: 2, opacity: 0.9 }}>
@@ -269,7 +269,18 @@ export const TerminalPage: React.FC = () => {
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ display: "flex", flex: 1, minHeight: 0, overflow: "hidden" }}>
+      <Box
+        sx={{
+          display: "flex",
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+          position: "relative",
+          // Prevent outer container from scrolling
+          touchAction:
+            isKeyboardToolbarVisible && isMobileKeyboard ? "none" : "auto",
+        }}
+      >
         {/* Terminal Area */}
         <Box
           sx={{
@@ -280,6 +291,9 @@ export const TerminalPage: React.FC = () => {
             position: "relative",
             minHeight: 0,
             overflow: "hidden",
+            // Lock the outer container when keyboard is visible
+            touchAction:
+              isKeyboardToolbarVisible && isMobileKeyboard ? "none" : "auto",
           }}
         >
           {currentSessionId ? (
@@ -290,11 +304,16 @@ export const TerminalPage: React.FC = () => {
                 p: 1,
                 display: "flex",
                 minHeight: 0,
-                // Adjust height when keyboard is visible
-                pb:
+                position: "relative",
+                // Use fixed height calculation when keyboard is visible
+                height:
                   isKeyboardToolbarVisible && isMobileKeyboard
-                    ? `${keyboardHeight + 100}px`
-                    : 1,
+                    ? `calc(100vh - 64px - ${keyboardHeight + 10}px)` // viewport - appbar - keyboard - toolbar
+                    : "100%",
+                maxHeight:
+                  isKeyboardToolbarVisible && isMobileKeyboard
+                    ? `calc(100vh - 64px - ${keyboardHeight + 10}px)`
+                    : "100%",
               }}
             >
               <Terminal
@@ -364,7 +383,6 @@ export const TerminalPage: React.FC = () => {
         />
       )}
 
-
       {/* Error Snackbar */}
       <Snackbar
         open={!!error}
@@ -398,7 +416,6 @@ export const TerminalPage: React.FC = () => {
           {successMessage}
         </Alert>
       </Snackbar>
-
     </Box>
   );
 };

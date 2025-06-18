@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
+import { CanvasAddon } from "@xterm/addon-canvas";
 import "@xterm/xterm/css/xterm.css";
 import { Box } from "@mui/material";
 import { useMobileTerminalEnhancements } from "../hooks/useMobileTerminalEnhancements";
@@ -27,7 +29,7 @@ export const StableTerminal = React.forwardRef<
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  
+
   // Store current onData callback in a ref that updates on each render
   const onDataRef = useRef(onData);
   onDataRef.current = onData;
@@ -87,7 +89,7 @@ export const StableTerminal = React.forwardRef<
     // Detect if mobile device
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    // Create terminal instance with stable version
+    // Create terminal instance with optimized settings for platform
     const term = new Terminal({
       cols: 80,
       rows: 24,
@@ -115,7 +117,7 @@ export const StableTerminal = React.forwardRef<
         brightWhite: "#e5e5e5",
       },
       cursorBlink: !isMobile, // Disable cursor blink on mobile to reduce redraws
-      scrollback: isMobile ? 500 : 1000, // Reduce scrollback on mobile
+      scrollback: isMobile ? 500 : 1000, // Further reduce scrollback on mobile for memory
       convertEol: true,
       // 改善CJK输入法支持
       allowTransparency: false,
@@ -123,9 +125,14 @@ export const StableTerminal = React.forwardRef<
       rightClickSelectsWord: false,
       // 处理输入法相关设置
       windowsMode: false,
-      // Mobile optimizations
+      // iOS/Mobile optimizations
       fastScrollModifier: "shift",
-      fastScrollSensitivity: 5,
+      fastScrollSensitivity: isMobile ? 3 : 5, // Slower scrolling on mobile
+      // Disable features that cause performance issues on mobile
+      logLevel: isMobile ? "warn" : "info", // Reduce logging on mobile
+      // GPU acceleration hints
+      disableStdin: false,
+      smoothScrollDuration: 80,
     });
 
     terminalRef.current = term;
@@ -134,6 +141,64 @@ export const StableTerminal = React.forwardRef<
     const fitAddon = new FitAddon();
     fitAddonRef.current = fitAddon;
     term.loadAddon(fitAddon);
+
+    // Load high-performance renderer based on device and capabilities
+    try {
+      if (isMobile) {
+        // For mobile devices (especially iOS), try WebGL first, fallback to Canvas
+        try {
+          const webglAddon = new WebglAddon();
+          term.loadAddon(webglAddon);
+          console.log(
+            "✅ Loaded WebGL renderer for mobile - should have best performance"
+          );
+        } catch (webglError) {
+          console.warn(
+            "WebGL not supported, falling back to Canvas:",
+            webglError
+          );
+          try {
+            const canvasAddon = new CanvasAddon();
+            term.loadAddon(canvasAddon);
+            console.log(
+              "⚠️ Loaded Canvas renderer for mobile - good performance"
+            );
+          } catch (canvasError) {
+            console.error(
+              "❌ Canvas renderer also failed, using DOM renderer (slower):",
+              canvasError
+            );
+          }
+        }
+      } else {
+        // For desktop, WebGL is usually well supported
+        try {
+          const webglAddon = new WebglAddon();
+          term.loadAddon(webglAddon);
+          console.log("Loaded WebGL renderer for desktop");
+        } catch (webglError) {
+          console.warn(
+            "WebGL not supported on desktop, falling back to Canvas:",
+            webglError
+          );
+          try {
+            const canvasAddon = new CanvasAddon();
+            term.loadAddon(canvasAddon);
+            console.log("Loaded Canvas renderer for desktop");
+          } catch (canvasError) {
+            console.warn(
+              "Canvas renderer failed, using DOM renderer:",
+              canvasError
+            );
+          }
+        }
+      }
+    } catch (rendererError) {
+      console.warn(
+        "All hardware-accelerated renderers failed, using DOM:",
+        rendererError
+      );
+    }
 
     try {
       // Open terminal
@@ -451,14 +516,14 @@ export const StableTerminal = React.forwardRef<
               } else {
                 // Detect if this is diff output
                 const isDiff = ansiPatterns.diffPattern.test(data);
-                
+
                 // Use adaptive buffer time based on content type
                 let bufferTime = 50; // Default
-                
+
                 if (isDiff) {
                   // For diff output, use longer buffer to batch color changes
                   bufferTime = 150;
-                  
+
                   // If buffer is getting large (many diff lines), flush sooner
                   if (writeBufferRef.current.length > 20) {
                     bufferTime = 20;
@@ -467,7 +532,7 @@ export const StableTerminal = React.forwardRef<
                   // Regular color codes
                   bufferTime = 100;
                 }
-                
+
                 writeTimerRef.current = setTimeout(
                   flushWriteBuffer,
                   bufferTime
@@ -597,8 +662,7 @@ export const StableTerminal = React.forwardRef<
           // Enable smooth scrolling on iOS
           overflow: "auto !important",
           WebkitOverflowScrolling: "touch", // iOS momentum scrolling
-          // Prevent overscroll bounce on iOS
-          overscrollBehavior: "contain",
+          // Don't use overscrollBehavior: "contain" as it can cause issues with keyboard
           // Force GPU acceleration
           transform: "translateZ(0)",
           willChange: "scroll-position",

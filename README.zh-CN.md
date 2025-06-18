@@ -33,14 +33,14 @@ cd claude-web
 2. **配置环境变量**
 
 ```bash
-cp .env.production.example .env
-# 编辑 .env 文件，填入你的配置
+cp .env.production.example .env.prod
+# 编辑 .env.prod 文件，填入你的配置
 ```
 
 3. **使用 Docker 部署**
 
 ```bash
-./scripts/deploy.sh
+./deploy.sh
 ```
 
 ## 开发环境设置
@@ -50,11 +50,11 @@ cp .env.production.example .env
 1. **安装依赖**
 
 ```bash
-# 后端
-cd backend && npm install
+# 安装 pnpm（如果尚未安装）
+npm install -g pnpm
 
-# 前端
-cd frontend && npm install
+# 安装依赖（从项目根目录）
+pnpm install
 ```
 
 2. **设置数据库**
@@ -85,10 +85,10 @@ cp .env.example .env
 
 ```bash
 # 终端 1：后端（端口 12021）
-cd backend && npm run dev
+cd backend && pnpm run dev
 
 # 终端 2：前端（端口 12020）
-cd frontend && npm start
+cd frontend && pnpm start
 ```
 
 ### 项目结构
@@ -97,10 +97,13 @@ cd frontend && npm start
 claude-web/
 ├── backend/          # Fastify API 服务器
 ├── frontend/         # React 应用
-├── containers/dev/   # 用户开发容器
-├── scripts/          # 部署和工具脚本
-├── sshpiper/        # SSH 代理配置
-└── docs/            # 文档
+├── docker/           # Docker 配置
+│   ├── dev/          # 用户开发容器
+│   └── sshpiper/     # SSHpiper 容器
+├── scripts/          # 工具脚本
+├── sshpiper/         # SSH 代理运行时数据
+├── data/             # 数据库和持久化数据
+└── docs/             # 文档
 ```
 
 ## 生产环境部署
@@ -110,38 +113,51 @@ claude-web/
 1. **准备环境**
 
 ```bash
+# 自动化部署（推荐）
+./deploy.sh
+
+# 脚本将自动：
+# - 检查 .env.prod 配置文件
+# - 创建必要的目录
+# - 生成 SSH 密钥
+# - 构建并启动所有服务
+```
+
+**手动配置（可选）：**
+
+```bash
 # 复制并配置环境变量
-cp .env.production.example .env
-vim .env
+cp .env.production.example .env.prod
+vim .env.prod
 
 # 必需的变量：
-# - POSTGRES_PASSWORD
-# - JWT_SECRET（生成：openssl rand -base64 32）
-# - ENCRYPTION_KEY（生成：openssl rand -base64 32）
-# - GITHUB_CLIENT_ID 和 GITHUB_CLIENT_SECRET
+# - DATABASE_PASSWORD（生成：openssl rand -hex 32）
+# - JWT_SECRET（生成：openssl rand -hex 32）
+# - ENCRYPTION_KEY（生成：openssl rand -hex 32）
+# - GITHUB_CLIENT_ID 和 GITHUB_CLIENT_SECRET（手动设置）
+
+# 然后运行部署
+./deploy.sh
 ```
 
-2. **构建开发容器（仅首次需要）**
+2. **创建邀请码（如果启用）**
 
 ```bash
-# 构建用户开发容器镜像
-./scripts/build-dev-container.sh
-```
-
-3. **部署服务**
-
-```bash
-# 构建并启动所有服务
-./scripts/deploy.sh
-
-# 或手动执行：
-docker compose -f docker-compose.prod.yml up -d
-```
-
-4. **创建邀请码（如果启用）**
-
-```bash
+# 在 .env.prod 中设置 REQUIRE_INVITE_CODE=true，然后：
 docker exec claude-web-backend npm run invite:create -- --count 10
+```
+
+3. **服务管理**
+
+```bash
+# 查看日志
+docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f
+
+# 停止服务
+docker compose -f docker-compose.prod.yml --env-file .env.prod down
+
+# 重启服务
+docker compose -f docker-compose.prod.yml --env-file .env.prod restart
 ```
 
 ### 服务端口
@@ -219,10 +235,10 @@ docker exec claude-web-backend npm run invite:delete CODE123
 
 ```bash
 # 查看服务状态
-docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml --env-file .env.prod ps
 
 # 查看日志
-docker compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f
 
 # 监控资源使用
 docker stats --filter "name=claude-web"
@@ -236,7 +252,7 @@ docker exec claude-web-postgres pg_dump -U claude_web claude_web > backup.sql
 
 # 更新部署
 git pull
-./scripts/deploy.sh
+./deploy.sh
 
 # 清理旧容器
 docker exec claude-web-backend npm run cleanup:containers
@@ -281,20 +297,26 @@ docker exec claude-web-backend npm run cleanup:containers
 
 ```bash
 # 后端测试
-cd backend && npm test
+cd backend && pnpm test
 
 # 前端测试
-cd frontend && npm test
+cd frontend && pnpm test
+
+# 所有测试
+pnpm test
 ```
 
 ### 构建生产版本
 
 ```bash
 # 构建后端
-cd backend && npm run build
+cd backend && pnpm run build
 
 # 构建前端
-cd frontend && npm run build
+cd frontend && pnpm run build
+
+# 构建全部
+pnpm build
 
 # 构建 Docker 镜像
 docker compose -f docker-compose.prod.yml build

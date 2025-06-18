@@ -33,14 +33,14 @@ cd claude-web
 2. **Configure environment**
 
 ```bash
-cp .env.production.example .env
-# Edit .env file with your configuration
+cp .env.production.example .env.prod
+# Edit .env.prod file with your configuration
 ```
 
 3. **Deploy with Docker**
 
 ```bash
-./scripts/deploy.sh
+./deploy.sh
 ```
 
 ## Development Setup
@@ -50,11 +50,11 @@ cp .env.production.example .env
 1. **Install dependencies**
 
 ```bash
-# Backend
-cd backend && npm install
+# Install pnpm if not already installed
+npm install -g pnpm
 
-# Frontend
-cd frontend && npm install
+# Install dependencies (from project root)
+pnpm install
 ```
 
 2. **Setup database**
@@ -85,10 +85,10 @@ cp .env.example .env
 
 ```bash
 # Terminal 1: Backend (port 12021)
-cd backend && npm run dev
+cd backend && pnpm run dev
 
 # Terminal 2: Frontend (port 12020)
-cd frontend && npm start
+cd frontend && pnpm start
 ```
 
 ### Project Structure
@@ -97,10 +97,13 @@ cd frontend && npm start
 claude-web/
 ├── backend/          # Fastify API server
 ├── frontend/         # React application
-├── containers/dev/   # User development container
-├── scripts/          # Deployment and utility scripts
-├── sshpiper/        # SSH proxy configuration
-└── docs/            # Documentation
+├── docker/           # Docker configurations
+│   ├── dev/          # User development container
+│   └── sshpiper/     # SSHpiper container
+├── scripts/          # Utility scripts
+├── sshpiper/         # SSH proxy runtime data
+├── data/             # Database and persistent data
+└── docs/             # Documentation
 ```
 
 ## Production Deployment
@@ -110,38 +113,51 @@ claude-web/
 1. **Prepare environment**
 
 ```bash
+# Automated deployment (recommended)
+./deploy.sh
+
+# The script will:
+# - Check for .env.prod configuration
+# - Create necessary directories  
+# - Generate SSH keys
+# - Build and start all services
+```
+
+**Manual Configuration (optional):**
+
+```bash
 # Copy and configure environment variables
-cp .env.production.example .env
-vim .env
+cp .env.production.example .env.prod
+vim .env.prod
 
 # Required variables:
-# - POSTGRES_PASSWORD
-# - JWT_SECRET (generate: openssl rand -base64 32)
-# - ENCRYPTION_KEY (generate: openssl rand -base64 32)
-# - GITHUB_CLIENT_ID & GITHUB_CLIENT_SECRET
+# - DATABASE_PASSWORD (generate: openssl rand -hex 32)
+# - JWT_SECRET (generate: openssl rand -hex 32)  
+# - ENCRYPTION_KEY (generate: openssl rand -hex 32)
+# - GITHUB_CLIENT_ID & GITHUB_CLIENT_SECRET (manual setup)
+
+# Then run deployment
+./deploy.sh
 ```
 
-2. **Build development container (first time only)**
+2. **Create invite codes (if enabled)**
 
 ```bash
-SCRIPT_DIR="$(dirname "$0")"
-"${SCRIPT_DIR}/rebuild-dev-image.sh"
-```
-
-3. **Deploy services**
-
-```bash
-# Build and start all services
-./scripts/deploy.sh
-
-# Or manually:
-docker compose -f docker-compose.prod.yml up -d
-```
-
-4. **Create invite codes (if enabled)**
-
-```bash
+# Set REQUIRE_INVITE_CODE=true in .env.prod, then:
 docker exec claude-web-backend npm run invite:create -- --count 10
+```
+
+3. **Service Management**
+
+```bash
+# View logs
+docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f
+
+# Stop services
+docker compose -f docker-compose.prod.yml --env-file .env.prod down
+
+# Restart services
+docker compose -f docker-compose.prod.yml --env-file .env.prod restart
 ```
 
 ### Service Ports
@@ -219,10 +235,10 @@ docker exec claude-web-backend npm run invite:delete CODE123
 
 ```bash
 # View service status
-docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml --env-file .env.prod ps
 
 # View logs
-docker compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f
 
 # Monitor resources
 docker stats --filter "name=claude-web"
@@ -236,7 +252,7 @@ docker exec claude-web-postgres pg_dump -U claude_web claude_web > backup.sql
 
 # Update deployment
 git pull
-./scripts/deploy.sh
+./deploy.sh
 
 # Clean up old containers
 docker exec claude-web-backend npm run cleanup:containers
@@ -281,20 +297,26 @@ Key variables:
 
 ```bash
 # Backend tests
-cd backend && npm test
+cd backend && pnpm test
 
 # Frontend tests
-cd frontend && npm test
+cd frontend && pnpm test
+
+# All tests
+pnpm test
 ```
 
 ### Building for Production
 
 ```bash
 # Build backend
-cd backend && npm run build
+cd backend && pnpm run build
 
 # Build frontend
-cd frontend && npm run build
+cd frontend && pnpm run build
+
+# Build all
+pnpm build
 
 # Build Docker images
 docker compose -f docker-compose.prod.yml build

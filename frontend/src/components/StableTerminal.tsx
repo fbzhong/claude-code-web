@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { Box } from "@mui/material";
 import { useMobileTerminalEnhancements } from "../hooks/useMobileTerminalEnhancements";
+import { ansiOptimizer } from "../utils/ansiOptimizer";
 
 interface StableTerminalProps {
   onData: (data: string) => void;
@@ -383,27 +384,13 @@ export const StableTerminal = React.forwardRef<
       let data = writeBufferRef.current.join("");
       writeBufferRef.current = [];
 
-      // On mobile, simplify redundant ANSI sequences
+      // On mobile, use advanced ANSI sequence optimization
       if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Remove redundant cursor movements
-        data = data.replace(/(\x1b\[\d*[CD])+/g, (match) => {
-          // Combine multiple right/left movements
-          const total =
-            match.match(/\x1b\[\d*[CD]/g)?.reduce((sum, seq) => {
-              const num = parseInt(seq.match(/\d+/)?.[0] || "1");
-              return seq.includes("C") ? sum + num : sum - num;
-            }, 0) || 0;
-
-          if (total > 0) return `\x1b[${total}C`;
-          if (total < 0) return `\x1b[${-total}D`;
-          return "";
-        });
-
-        // Simplify color codes - remove redundant resets
-        data = data.replace(/(\x1b\[0m\x1b\[\d+m)+/g, (match) => {
-          const lastColor = match.match(/\x1b\[\d+m$/)?.[0];
-          return lastColor || match;
-        });
+        try {
+          data = ansiOptimizer.optimize(data);
+        } catch (e) {
+          console.warn("ANSI optimization failed, using original data:", e);
+        }
       }
 
       try {
@@ -443,6 +430,7 @@ export const StableTerminal = React.forwardRef<
                 colorCodes: /\x1b\[\d+(;\d+)*m/,
                 saveRestoreCursor: /\x1b\[s|\x1b\[u/,
                 scrollRegion: /\x1b\[\d*;\d*r/,
+                diffPattern: /^[\+\-]|\x1b\[3[12]m/, // Detect diff output
               };
 
               // Check if this requires immediate flush
@@ -456,10 +444,25 @@ export const StableTerminal = React.forwardRef<
               if (requiresImmediateFlush) {
                 flushWriteBuffer();
               } else {
-                // Use longer buffer time for color codes only
-                const bufferTime = ansiPatterns.colorCodes.test(data)
-                  ? 100
-                  : 50;
+                // Detect if this is diff output
+                const isDiff = ansiPatterns.diffPattern.test(data);
+                
+                // Use adaptive buffer time based on content type
+                let bufferTime = 50; // Default
+                
+                if (isDiff) {
+                  // For diff output, use longer buffer to batch color changes
+                  bufferTime = 150;
+                  
+                  // If buffer is getting large (many diff lines), flush sooner
+                  if (writeBufferRef.current.length > 20) {
+                    bufferTime = 20;
+                  }
+                } else if (ansiPatterns.colorCodes.test(data)) {
+                  // Regular color codes
+                  bufferTime = 100;
+                }
+                
                 writeTimerRef.current = setTimeout(
                   flushWriteBuffer,
                   bufferTime
@@ -586,8 +589,14 @@ export const StableTerminal = React.forwardRef<
         },
         "& .xterm-viewport": {
           width: "100% !important",
-          // Allow scrolling in viewport
+          // Enable smooth scrolling on iOS
           overflow: "auto !important",
+          WebkitOverflowScrolling: "touch", // iOS momentum scrolling
+          // Prevent overscroll bounce on iOS
+          overscrollBehavior: "contain",
+          // Force GPU acceleration
+          transform: "translateZ(0)",
+          willChange: "scroll-position",
         },
         "& .xterm-screen": {
           width: "100% !important",

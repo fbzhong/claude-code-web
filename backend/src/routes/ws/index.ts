@@ -89,6 +89,20 @@ export default async function (fastify: FastifyInstance) {
                 );
                 break;
 
+              case "ping":
+                // Respond with pong
+                connection.socket.send(
+                  JSON.stringify({
+                    type: "pong",
+                    timestamp: new Date(),
+                  })
+                );
+                break;
+
+              case "pong":
+                // Client responded to our ping
+                break;
+
               default:
                 fastify.log.warn(
                   `Unknown session list message type: ${data.type}`
@@ -125,9 +139,10 @@ export default async function (fastify: FastifyInstance) {
       async (connection, request) => {
         const { sessionId } = request.params as { sessionId: string };
 
-        // Get token from query parameter
+        // Get token and deviceId from query parameters
         const url = new URL(request.url, `http://${request.headers.host}`);
         const token = url.searchParams.get("token");
+        const deviceId = url.searchParams.get("deviceId");
 
         let user;
         if (token) {
@@ -144,44 +159,54 @@ export default async function (fastify: FastifyInstance) {
         }
 
         fastify.log.info(
-          `Terminal WebSocket connected: ${sessionId} for user ${user.id}`
+          `Terminal WebSocket connected: ${sessionId} for user ${user.id} (device: ${deviceId})`
         );
 
         try {
-          // Try to attach to existing session or restore from database
-          let session = sessionManager.getSession(sessionId);
-          fastify.log.info(
-            `Looking for session ${sessionId}, found in memory: ${!!session}`
-          );
+          let session;
+          
+          // If device ID is provided, use device-based session management
+          if (deviceId) {
+            fastify.log.info(
+              `Using device-based session management for device ${deviceId}`
+            );
+            
+            session = await sessionManager.getOrCreateSessionForDevice(
+              user.id,
+              deviceId,
+              {
+                name: `Session ${new Date().toLocaleString()}`
+              }
+            );
+            
+            // If the session ID doesn't match requested one, it means we're reusing an existing session
+            if (session.id !== sessionId) {
+              fastify.log.info(
+                `Reusing existing session ${session.id} for device ${deviceId} (requested: ${sessionId})`
+              );
+            }
+          } else {
+            // Fallback to traditional session management
+            session = sessionManager.getSession(sessionId);
+            fastify.log.info(
+              `Looking for session ${sessionId}, found in memory: ${!!session}`
+            );
 
-          if (!session) {
-            // Try to restore from database or create new session
-            try {
+            if (!session) {
+              // Sessions are ephemeral now, create new one
               fastify.log.info(
-                `Attempting to restore session ${sessionId} from database`
-              );
-              session = await sessionManager.attachToSession(
-                sessionId,
-                user.id
-              );
-              fastify.log.info(
-                `Session ${sessionId} restored from database, buffer length: ${session.outputBuffer.length}`
-              );
-            } catch (err) {
-              // Session not found in DB, create new one
-              fastify.log.info(
-                `Session ${sessionId} not found in DB, creating new session`
+                `Session ${sessionId} not found, creating new session`
               );
               session = await sessionManager.createSession(user.id, {
                 sessionId,
               });
+            } else {
+              // Session exists in memory, attach to it
+              fastify.log.info(
+                `Session ${sessionId} exists in memory, buffer length: ${session.outputBuffer.length}`
+              );
+              session = await sessionManager.attachToSession(sessionId, user.id);
             }
-          } else {
-            // Session exists in memory, attach to it
-            fastify.log.info(
-              `Session ${sessionId} exists in memory, buffer length: ${session.outputBuffer.length}`
-            );
-            session = await sessionManager.attachToSession(sessionId, user.id);
           }
 
           // Handle terminal data from PTY
@@ -324,6 +349,20 @@ export default async function (fastify: FastifyInstance) {
                   );
                   break;
 
+                case "ping":
+                  // Respond with pong
+                  connection.socket.send(
+                    JSON.stringify({
+                      type: "pong",
+                      timestamp: new Date(),
+                    })
+                  );
+                  break;
+
+                case "pong":
+                  // Client responded to our ping, connection is healthy
+                  break;
+
                 default:
                   fastify.log.warn(`Unknown message type: ${data.type}`);
               }
@@ -368,7 +407,7 @@ export default async function (fastify: FastifyInstance) {
 
           // Cleanup on disconnect
           connection.socket.on("close", () => {
-            fastify.log.info(`Terminal WebSocket disconnected: ${sessionId}`);
+            fastify.log.info(`Terminal WebSocket disconnected: ${session.id} (device: ${deviceId})`);
 
             // Clear heartbeat interval
             if (heartbeatInterval) {
@@ -376,8 +415,8 @@ export default async function (fastify: FastifyInstance) {
               heartbeatInterval = null;
             }
 
-            // Detach from session (decrements client count)
-            sessionManager.detachFromSession(sessionId, user.id);
+            // Detach from session (decrements client count and handles cleanup)
+            sessionManager.detachFromSession(session.id, user.id, deviceId || undefined);
 
             // Remove event listeners
             sessionManager.off("data", onData);
@@ -420,16 +459,17 @@ export default async function (fastify: FastifyInstance) {
             // Add small delay to ensure terminal is cleared
             setTimeout(() => {
               // Send history as a single block to preserve formatting
+              // Use configurable reconnect history size from SessionManager
+              const reconnectHistorySize = sessionManager.getReconnectHistorySize();
               const recentOutput = sessionManager.getSessionOutput(
                 sessionId,
-                100
-              ); // Last 100 chunks
+                reconnectHistorySize
+              ); // Last N chunks based on config
               const historyBlock = recentOutput.join(""); // Join without adding extra newlines
 
               fastify.log.info(
-                `Sending history for session ${sessionId}, length: ${
-                  historyBlock.length
-                }, first 100 chars: ${historyBlock.substring(0, 100)}`
+                `Sending history for session ${sessionId}, chunks: ${recentOutput.length}, ` +
+                `bytes: ${historyBlock.length}, first 100 chars: ${historyBlock.substring(0, 100)}`
               );
 
               if (historyBlock.trim()) {

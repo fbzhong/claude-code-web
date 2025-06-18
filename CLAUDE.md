@@ -346,6 +346,35 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
 - 端到端测试覆盖关键用户流程
 - 每次提交自动运行回归测试
 
+## 环境变量配置
+
+### Session 缓冲区配置
+
+- `MAX_OUTPUT_BUFFER`: 每个 session 保存的最大输出块数量（默认: 5000）
+- `MAX_OUTPUT_BUFFER_MB`: 每个 session 的最大缓冲区大小（MB）（默认: 5）
+- `RECONNECT_HISTORY_SIZE`: 重连时发送的历史记录块数量（默认: 500）
+
+### 使用示例
+
+```bash
+# 开发环境（较小缓冲区）
+export MAX_OUTPUT_BUFFER=2000
+export MAX_OUTPUT_BUFFER_MB=2
+export RECONNECT_HISTORY_SIZE=200
+
+# 生产环境（较大缓冲区）
+export MAX_OUTPUT_BUFFER=10000
+export MAX_OUTPUT_BUFFER_MB=10
+export RECONNECT_HISTORY_SIZE=1000
+```
+
+### 性能优化说明
+
+- **块数量限制**: 防止内存中存储过多小块数据
+- **字节大小限制**: 防止少量大块数据占用过多内存
+- **双重限制**: 同时检查块数量和字节大小，先到达限制的优先生效
+- **自动清理**: 超出限制时自动删除最旧的数据块
+
 ## 常用命令
 
 ```bash

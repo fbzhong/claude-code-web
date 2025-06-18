@@ -197,10 +197,8 @@ export default async function (fastify: FastifyInstance) {
 
             session = await sessionManager.getOrCreateSessionForDevice(
               user.id,
-              deviceId,
-              {
-                name: `Session ${new Date().toLocaleString()}`,
-              }
+              deviceId
+              // Don't specify name - let sessionManager generate a random animal name
             );
 
             // If the session ID doesn't match requested one, it means we're reusing an existing device session

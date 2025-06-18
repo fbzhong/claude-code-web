@@ -5,6 +5,37 @@ import { TerminalSession, CommandHistory } from "../types";
 import { ContainerManager } from "./containerManager";
 import { PtyAdapter } from "./ptyAdapter";
 
+// Random words for session naming
+const SESSION_ANIMALS = [
+  "Tiger", "Lion", "Eagle", "Falcon", "Hawk", "Wolf", "Fox", "Bear",
+  "Panda", "Koala", "Dolphin", "Whale", "Shark", "Octopus", "Turtle",
+  "Rabbit", "Deer", "Moose", "Elk", "Bison", "Horse", "Zebra", "Giraffe",
+  "Elephant", "Rhino", "Hippo", "Gorilla", "Chimp", "Monkey", "Lemur",
+  "Kangaroo", "Wallaby", "Platypus", "Penguin", "Parrot", "Toucan",
+  "Flamingo", "Peacock", "Swan", "Goose", "Duck", "Heron", "Crane",
+  "Owl", "Raven", "Crow", "Robin", "Sparrow", "Finch", "Cardinal",
+  "Jaguar", "Leopard", "Cheetah", "Panther", "Lynx", "Bobcat", "Cougar",
+  "Otter", "Beaver", "Badger", "Raccoon", "Squirrel", "Chipmunk",
+  "Hamster", "Gerbil", "Gecko", "Iguana", "Chameleon", "Cobra", "Python",
+  "Llama", "Alpaca", "Camel", "Yak", "Buffalo", "Gazelle", "Antelope"
+];
+
+// Helper function to get a random session name
+function getRandomSessionName(existingNames: Set<string>): string {
+  // Try up to 100 times to find a unique name
+  for (let i = 0; i < 100; i++) {
+    const animal = SESSION_ANIMALS[Math.floor(Math.random() * SESSION_ANIMALS.length)];
+    const name = `Session ${animal}`;
+    
+    if (!existingNames.has(name)) {
+      return name;
+    }
+  }
+  
+  // Fallback to timestamp-based name if we can't find a unique animal name
+  return `Session ${Date.now()}`;
+}
+
 export interface SessionInfo {
   id: string;
   name: string;
@@ -123,7 +154,8 @@ export class SessionManager extends EventEmitter {
     const newSession = await this.createSession(userId, {
       ...options,
       deviceId,
-      name: options.name || `Device ${deviceId.substring(0, 8)}`,
+      // Don't override name here - let createSession generate a random name if not provided
+      name: options.name,
     });
 
     // Register the device-session mapping
@@ -184,8 +216,18 @@ export class SessionManager extends EventEmitter {
     } = {}
   ): Promise<TerminalSession> {
     const sessionId = options.sessionId || crypto.randomUUID();
-    const sessionName =
-      options.name || `Session ${this.getUserSessions(userId).length + 1}`;
+    
+    // Generate session name if not provided
+    let sessionName: string;
+    if (options.name && options.name.trim()) {
+      sessionName = options.name;
+    } else {
+      // Get existing session names for this user to avoid duplicates
+      const existingNames = new Set(
+        this.getUserSessions(userId).map(s => s.name)
+      );
+      sessionName = getRandomSessionName(existingNames);
+    }
 
     // Check session limit
     const userSessions = this.getUserSessions(userId);

@@ -12,6 +12,7 @@ interface StableTerminalProps {
   onData: (data: string) => void;
   onResize?: (cols: number, rows: number) => void;
   onTerminalReady?: () => void;
+  onFocus?: () => void;
 }
 
 export interface StableTerminalHandle {
@@ -25,7 +26,7 @@ export interface StableTerminalHandle {
 export const StableTerminal = React.forwardRef<
   StableTerminalHandle,
   StableTerminalProps
->(({ onData, onResize, onTerminalReady }, ref) => {
+>(({ onData, onResize, onTerminalReady, onFocus }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -38,6 +39,8 @@ export const StableTerminal = React.forwardRef<
   const isDisposedRef = useRef<boolean>(false);
   const animationFrameRef = useRef<number | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const onFocusRef = useRef(onFocus);
+  onFocusRef.current = onFocus;
 
   // Use mobile enhancements
   const mobileEnhancements = useMobileTerminalEnhancements({
@@ -356,6 +359,24 @@ export const StableTerminal = React.forwardRef<
       term.onResize(({ cols, rows }) => {
         onResize(cols, rows);
       });
+    }
+
+    // Add focus event listener
+    if (onFocusRef.current) {
+      const element = term.element;
+      if (element) {
+        const handleFocus = () => {
+          if (onFocusRef.current) {
+            onFocusRef.current();
+          }
+        };
+        element.addEventListener('focus', handleFocus, true);
+        // Also listen to the textarea element inside xterm
+        const textarea = element.querySelector('textarea');
+        if (textarea) {
+          textarea.addEventListener('focus', handleFocus, true);
+        }
+      }
     }
 
     // Don't write welcome message - let the server send initial content

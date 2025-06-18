@@ -322,6 +322,21 @@ export const TerminalPage: React.FC = () => {
                 onData={handleTerminalData}
                 onResize={handleTerminalResize}
                 onTerminalReady={handleTerminalReady}
+                onFocus={() => {
+                  // Scroll the entire page to bottom when terminal gets focus
+                  // This ensures the terminal fills the screen and header doesn't obstruct input
+                  const scrollHeight = document.documentElement.scrollHeight;
+                  const windowHeight = window.innerHeight;
+                  const currentScroll = window.scrollY;
+                  
+                  // Only scroll if there's something to scroll to
+                  if (scrollHeight > windowHeight && currentScroll < scrollHeight - windowHeight) {
+                    window.scrollTo({
+                      top: scrollHeight,
+                      behavior: 'smooth'
+                    });
+                  }
+                }}
               />
             </Box>
           ) : (
@@ -341,7 +356,8 @@ export const TerminalPage: React.FC = () => {
         currentSessionId={currentSessionId}
         operationStates={operationStates}
         onCreateSession={() => {
-          createNewSessionWithClear(`Session ${sessions.length + 1}`);
+          // Don't pass a name - let the backend generate a random animal name
+          createNewSessionWithClear("");
           setSessionsDrawerOpen(false);
         }}
         onSelectSession={(id) => {

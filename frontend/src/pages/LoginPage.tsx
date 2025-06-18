@@ -46,7 +46,7 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`auth-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ p: 3 }}>{children}</Box>}
+      {value === index && <Box sx={{ p: 2 }}>{children}</Box>}
     </div>
   );
 }
@@ -188,12 +188,13 @@ export const LoginPage: React.FC = () => {
       className="tech-grid"
       sx={{
         // Use dynamic viewport height for mobile browsers
-        minHeight: ["100vh", "100dvh"],
+        height: ["100vh", "100dvh"],
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         bgcolor: "background.default",
-        p: { xs: 2, sm: 3 },
+        p: { xs: 1, sm: 2 },
         position: "relative",
         overflow: "hidden",
         // Subtle gradient overlay
@@ -238,7 +239,7 @@ export const LoginPage: React.FC = () => {
           elevation={0}
           sx={{
             width: "100%",
-            p: { xs: 2, sm: 3, md: 4 },
+            p: { xs: 2, sm: 2.5, md: 3 },
             borderRadius: 3,
             position: "relative",
             overflow: "hidden",
@@ -265,27 +266,88 @@ export const LoginPage: React.FC = () => {
               }),
           }}
         >
-          <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <Typography
-              variant={isMobile ? "h5" : "h4"}
-              gutterBottom
-              className="gradient-text"
-              sx={{ 
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                mb: 1,
+          <Box sx={{ textAlign: 'center', mb: 2 }}>
+            {/* Compact ASCII Art */}
+            <Box
+              sx={{
+                mb: 1.5,
+                opacity: 0.9,
+                fontSize: { xs: "0.35rem", sm: "0.5rem", md: "0.6rem" },
+                lineHeight: 1.2,
+                fontFamily: "monospace",
+                color: "#007AFF",
+                whiteSpace: "pre",
+                userSelect: "none",
+                letterSpacing: "-0.05em",
+                fontWeight: 800,
+                textShadow: "0 0 20px rgba(0, 122, 255, 0.5)",
               }}
             >
-              Claude Web Terminal
-            </Typography>
+{`███╗   ███╗ █████╗ ██████╗ ████████╗██╗  █████╗ ███╗   ██╗
+████╗ ████║██╔══██╗██╔══██╗╚══██╔══╝██║ ██╔══██╗████╗  ██║
+██╔████╔██║███████║██████╔╝   ██║   ██║ ███████║██╔██╗ ██║
+██║╚██╔╝██║██╔══██║██╔══██╗   ██║   ██║ ██╔══██║██║╚██╗██║
+██║ ╚═╝ ██║██║  ██║██║  ██║   ██║   ██║ ██║  ██║██║ ╚████║
+╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═╝  ╚═╝╚═╝  ╚═══╝
+
+          ██████╗  ██████╗ ██████╗ ███████╗
+          ██╔════╝ ██╔═══██╗██╔══██╗██╔════╝
+          ██║      ██║   ██║██║  ██║█████╗  
+          ██║      ██║   ██║██║  ██║██╔══╝  
+          ╚██████╗ ╚██████╔╝██████╔╝███████╗
+           ╚═════╝  ╚═════╝ ╚═════╝ ╚══════╝`}
+            </Box>
+            <Box
+              sx={{
+                fontSize: { xs: '0.5rem', sm: '0.7rem', md: '0.85rem' },
+                lineHeight: 1,
+                fontFamily: 'monospace',
+                whiteSpace: 'pre',
+                userSelect: 'none',
+                fontWeight: 700,
+                position: 'relative',
+                background: 'linear-gradient(90deg, #FF006E, #8338EC, #3A86FF, #06FFB4, #FFBE0B, #FB5607, #FF006E, #8338EC)',
+                backgroundSize: '200% 100%',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'rainbowFlow 6s linear infinite',
+                '@keyframes rainbowFlow': {
+                  '0%': {
+                    backgroundPosition: '0% 50%',
+                  },
+                  '100%': {
+                    backgroundPosition: '200% 50%',
+                  },
+                },
+                '&::before': {
+                  content: '""',
+                  position: 'absolute',
+                  inset: '-2px',
+                  background: 'linear-gradient(90deg, #FF006E, #8338EC, #3A86FF, #06FFB4, #FFBE0B, #FB5607, #FF006E, #8338EC)',
+                  backgroundSize: '200% 100%',
+                  filter: 'blur(10px)',
+                  opacity: 0.3,
+                  animation: 'rainbowFlow 6s linear infinite',
+                  zIndex: -1,
+                },
+              }}
+            >
+{`╦  ╦╦╔╗ ╔═╗  ╔═╗╔═╗╔╦╗╦╔╗╔╔═╗
+╚╗╔╝║╠╩╗║╣   ║  ║ ║ ║║║║║║║ ╦
+ ╚╝ ╩╚═╝╚═╝  ╚═╝╚═╝═╩╝╩╝╚╝╚═╝`}
+            </Box>
             <Typography
               variant="body2"
               sx={{ 
+                mt: 1,
                 color: 'rgba(255, 255, 255, 0.6)',
-                fontSize: '0.95rem',
+                fontSize: { xs: '0.75rem', sm: '0.85rem' },
+                fontStyle: 'italic',
+                letterSpacing: '0.05em',
               }}
             >
-              Your powerful remote development environment
+              Lo-fi Flow, Hi-fi Code
             </Typography>
           </Box>
 
@@ -803,12 +865,6 @@ export const LoginPage: React.FC = () => {
         </Paper>
       </Container>
 
-      {/* Debug Info for mobile debugging */}
-      <DebugInfo
-        logs={debugLogger.logs}
-        onClear={debugLogger.clearLogs}
-        maxLogs={20}
-      />
     </Box>
   );
 };

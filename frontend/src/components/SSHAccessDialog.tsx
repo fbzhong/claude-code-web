@@ -314,10 +314,32 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
 
   if (loading && !sshInfo && !credentials) {
     return (
-      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+      <Dialog 
+        open={open} 
+        onClose={handleClose} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: 'rgba(10, 10, 10, 0.95)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 2,
+            boxShadow: '0 24px 48px rgba(0, 0, 0, 0.4)',
+          }
+        }}
+      >
         <DialogContent>
           <Box display="flex" justifyContent="center" alignItems="center" p={4}>
-            <CircularProgress />
+            <CircularProgress 
+              sx={{ 
+                color: '#007AFF',
+                '& .MuiCircularProgress-circle': {
+                  strokeLinecap: 'round',
+                }
+              }} 
+            />
           </Box>
         </DialogContent>
       </Dialog>
@@ -326,25 +348,93 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
 
   return (
     <>
-      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-        <DialogTitle>
+      <Dialog 
+        open={open} 
+        onClose={handleClose} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: 'rgba(10, 10, 10, 0.95)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 2,
+            boxShadow: '0 24px 48px rgba(0, 0, 0, 0.4)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
           <Box
             display="flex"
             alignItems="center"
             justifyContent="space-between"
           >
             <Box display="flex" alignItems="center" gap={1}>
-              <TerminalIcon color="primary" />
-              <Typography variant="h6">SSH Access Management</Typography>
+              <TerminalIcon 
+                sx={{ 
+                  color: '#007AFF',
+                  fontSize: 28,
+                }} 
+              />
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                SSH Access Management
+              </Typography>
             </Box>
-            <IconButton onClick={handleClose} size="small">
+            <IconButton 
+              onClick={handleClose} 
+              size="small"
+              sx={{ 
+                color: 'rgba(255, 255, 255, 0.7)',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  color: '#fff',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  transform: 'scale(1.1)',
+                }
+              }}
+            >
               <CloseIcon />
             </IconButton>
           </Box>
         </DialogTitle>
 
-        <Box sx={{ borderBottom: 1, borderColor: "divider" }}>
-          <Tabs value={tabValue} onChange={(e, v) => setTabValue(v)}>
+        <Box sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <Tabs 
+            value={tabValue} 
+            onChange={(e, v) => setTabValue(v)}
+            sx={{
+              '& .MuiTab-root': {
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontWeight: 500,
+                fontSize: '0.9375rem',
+                textTransform: 'none',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  color: '#fff',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                },
+                '&.Mui-selected': {
+                  color: '#007AFF',
+                  fontWeight: 600,
+                },
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#007AFF',
+                height: 3,
+                borderRadius: '3px 3px 0 0',
+              },
+            }}
+          >
             <Tab label="Connection Info" />
             <Tab label="SSH Credentials" />
           </Tabs>
@@ -357,9 +447,30 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
               {/* Connection Details */}
               <Paper
                 elevation={0}
-                sx={{ p: 3, mb: 3, bgcolor: "background.default" }}
+                className="frosted-glass"
+                sx={{ 
+                  p: 3, 
+                  mb: 3,
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'all 0.3s ease-in-out',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                  }
+                }}
               >
-                <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+                <Typography 
+                  variant="subtitle1" 
+                  gutterBottom 
+                  sx={{ 
+                    fontWeight: 600,
+                    fontSize: '1.1rem',
+                    mb: 2,
+                  }}
+                >
                   SSH Connection Information
                 </Typography>
                 <Box sx={{ mt: 2, display: "flex", gap: 2, flexWrap: "wrap" }}>
@@ -368,18 +479,48 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                     variant="outlined"
                     onDelete={() => copyToClipboard(sshInfo.username)}
                     deleteIcon={<CopyIcon />}
+                    sx={{
+                      borderColor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      '& .MuiChip-deleteIcon': {
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        '&:hover': {
+                          color: '#007AFF',
+                        }
+                      }
+                    }}
                   />
                   <Chip
                     label={`Host: ${sshInfo.host}`}
                     variant="outlined"
                     onDelete={() => copyToClipboard(sshInfo.host)}
                     deleteIcon={<CopyIcon />}
+                    sx={{
+                      borderColor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      '& .MuiChip-deleteIcon': {
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        '&:hover': {
+                          color: '#007AFF',
+                        }
+                      }
+                    }}
                   />
                   <Chip
                     label={`Port: ${sshInfo.port}`}
                     variant="outlined"
                     onDelete={() => copyToClipboard(sshInfo.port.toString())}
                     deleteIcon={<CopyIcon />}
+                    sx={{
+                      borderColor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'rgba(255, 255, 255, 0.9)',
+                      '& .MuiChip-deleteIcon': {
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        '&:hover': {
+                          color: '#007AFF',
+                        }
+                      }
+                    }}
                   />
                 </Box>
 
@@ -391,7 +532,16 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                   >
                     Connection Command:
                   </Typography>
-                  <Paper variant="outlined" sx={{ p: 2, bgcolor: "grey.900" }}>
+                  <Paper 
+                    variant="outlined" 
+                    sx={{ 
+                      p: 2, 
+                      bgcolor: 'rgba(0, 0, 0, 0.6)',
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: 1.5,
+                      backdropFilter: 'blur(5px)',
+                    }}
+                  >
                     <Box
                       display="flex"
                       alignItems="center"
@@ -411,6 +561,15 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                         onClick={() =>
                           copyToClipboard(sshInfo.command, "SSH command")
                         }
+                        sx={{
+                          color: 'rgba(255, 255, 255, 0.5)',
+                          transition: 'all 0.2s ease-in-out',
+                          '&:hover': {
+                            color: '#007AFF',
+                            backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                            transform: 'scale(1.1)',
+                          }
+                        }}
                       >
                         <CopyIcon fontSize="small" />
                       </IconButton>
@@ -420,13 +579,47 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
               </Paper>
 
               {/* VS Code Setup */}
-              <Paper elevation={0} sx={{ p: 2, bgcolor: "background.default" }}>
-                <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+              <Paper 
+                elevation={0} 
+                className="frosted-glass"
+                sx={{ 
+                  p: 3,
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'all 0.3s ease-in-out',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                  }
+                }}
+              >
+                <Typography 
+                  variant="subtitle1" 
+                  gutterBottom 
+                  sx={{ 
+                    fontWeight: 600,
+                    fontSize: '1.1rem',
+                    mb: 2,
+                  }}
+                >
                   IDE Remote-SSH Setup
                 </Typography>
 
                 {/* Prerequisites */}
-                <Alert severity="info" sx={{ mb: 2, py: 0.5 }}>
+                <Alert 
+                  severity="info" 
+                  sx={{ 
+                    mb: 2, 
+                    py: 0.5,
+                    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                    border: '1px solid rgba(0, 122, 255, 0.3)',
+                    '& .MuiAlert-icon': {
+                      color: '#5AC8FA',
+                    },
+                  }}
+                >
                   <Typography variant="caption">
                     <strong>Prerequisites:</strong> VS Code/Cursor/Windsurf with
                     Remote-SSH extension
@@ -444,7 +637,6 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                 >
                   <Button
                     variant="contained"
-                    color="primary"
                     size="medium"
                     startIcon={<OpenInNewIcon />}
                     onClick={() => {
@@ -457,13 +649,20 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                       fontSize: "0.9rem",
                       textTransform: "none",
                       flex: 1,
+                      background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                      boxShadow: '0 4px 12px rgba(0, 122, 255, 0.15)',
+                      transition: 'all 0.2s ease-in-out',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #0051D5 0%, #3F3C9F 100%)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 20px rgba(0, 122, 255, 0.25)',
+                      },
                     }}
                   >
                     VS Code
                   </Button>
                   <Button
                     variant="contained"
-                    color="secondary"
                     size="medium"
                     startIcon={<OpenInNewIcon />}
                     onClick={() => {
@@ -476,13 +675,20 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                       fontSize: "0.9rem",
                       textTransform: "none",
                       flex: 1,
+                      background: 'linear-gradient(135deg, #5856D6 0%, #AF52DE 100%)',
+                      boxShadow: '0 4px 12px rgba(88, 86, 214, 0.15)',
+                      transition: 'all 0.2s ease-in-out',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #3F3C9F 0%, #8E44AD 100%)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 20px rgba(88, 86, 214, 0.25)',
+                      },
                     }}
                   >
                     Cursor
                   </Button>
                   <Button
                     variant="contained"
-                    color="success"
                     size="medium"
                     startIcon={<OpenInNewIcon />}
                     onClick={() => {
@@ -495,6 +701,14 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                       fontSize: "0.9rem",
                       textTransform: "none",
                       flex: 1,
+                      background: 'linear-gradient(135deg, #34C759 0%, #30D158 100%)',
+                      boxShadow: '0 4px 12px rgba(52, 199, 89, 0.15)',
+                      transition: 'all 0.2s ease-in-out',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #248A3D 0%, #25A846 100%)',
+                        transform: 'translateY(-2px)',
+                        boxShadow: '0 8px 20px rgba(52, 199, 89, 0.25)',
+                      },
                     }}
                   >
                     Windsurf
@@ -516,7 +730,22 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
           {tabValue === 1 && credentials && (
             <Box>
               {/* SSH Public Keys */}
-              <Paper elevation={0} sx={{ p: 3, bgcolor: "background.default" }}>
+              <Paper 
+                elevation={0} 
+                className="frosted-glass"
+                sx={{ 
+                  p: 3,
+                  borderRadius: 2,
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'all 0.3s ease-in-out',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                  }
+                }}
+              >
                 <Box
                   display="flex"
                   justifyContent="space-between"
@@ -524,8 +753,14 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                   mb={2}
                 >
                   <Box display="flex" alignItems="center" gap={1}>
-                    <KeyIcon color="primary" />
-                    <Typography variant="subtitle1" fontWeight="bold">
+                    <KeyIcon sx={{ color: '#007AFF', fontSize: 24 }} />
+                    <Typography 
+                      variant="subtitle1" 
+                      sx={{ 
+                        fontWeight: 600,
+                        fontSize: '1.1rem',
+                      }}
+                    >
                       SSH Public Keys ({credentials.sshPublicKeys.length})
                     </Typography>
                   </Box>
@@ -534,13 +769,32 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                     startIcon={<AddIcon />}
                     onClick={() => setAddKeyDialog(true)}
                     size="small"
+                    sx={{
+                      borderColor: '#007AFF',
+                      color: '#007AFF',
+                      borderWidth: 2,
+                      '&:hover': {
+                        borderColor: '#0051D5',
+                        backgroundColor: 'rgba(0, 122, 255, 0.08)',
+                        borderWidth: 2,
+                      }
+                    }}
                   >
                     Add Key
                   </Button>
                 </Box>
 
                 {credentials.sshPublicKeys.length === 0 ? (
-                  <Alert severity="info">
+                  <Alert 
+                    severity="info"
+                    sx={{
+                      backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                      border: '1px solid rgba(0, 122, 255, 0.3)',
+                      '& .MuiAlert-icon': {
+                        color: '#5AC8FA',
+                      },
+                    }}
+                  >
                     No SSH keys added yet. Add your public key to enable SSH
                     access.
                   </Alert>
@@ -555,7 +809,7 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
 
                       return (
                         <React.Fragment key={index}>
-                          {index > 0 && <Divider />}
+                          {index > 0 && <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />}
                           <ListItem>
                             <ListItemText
                               primary={
@@ -569,7 +823,12 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                                   <Chip
                                     label={keyType}
                                     size="small"
-                                    color="primary"
+                                    sx={{
+                                      backgroundColor: 'rgba(0, 122, 255, 0.15)',
+                                      color: '#5AC8FA',
+                                      fontWeight: 500,
+                                      border: '1px solid rgba(0, 122, 255, 0.3)',
+                                    }}
                                   />
                                   <Typography
                                     variant="body2"
@@ -586,7 +845,16 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                                 <IconButton
                                   edge="end"
                                   onClick={() => copyToClipboard(key)}
-                                  sx={{ mr: 1 }}
+                                  sx={{ 
+                                    mr: 1,
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': {
+                                      color: '#007AFF',
+                                      backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                                      transform: 'scale(1.1)',
+                                    }
+                                  }}
                                 >
                                   <CopyIcon />
                                 </IconButton>
@@ -595,6 +863,15 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                                 <IconButton
                                   edge="end"
                                   onClick={() => deleteKey(index)}
+                                  sx={{
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                    transition: 'all 0.2s ease-in-out',
+                                    '&:hover': {
+                                      color: '#FF3B30',
+                                      backgroundColor: 'rgba(255, 59, 48, 0.1)',
+                                      transform: 'scale(1.1)',
+                                    }
+                                  }}
                                 >
                                   <DeleteIcon />
                                 </IconButton>
@@ -611,8 +888,19 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
           )}
         </DialogContent>
 
-        <DialogActions>
-          <Button onClick={handleClose}>Close</Button>
+        <DialogActions sx={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', p: 2 }}>
+          <Button 
+            onClick={handleClose}
+            sx={{
+              color: 'rgba(255, 255, 255, 0.7)',
+              '&:hover': {
+                color: '#fff',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              }
+            }}
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -622,8 +910,25 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
         onClose={closeAddKeyDialog}
         maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: 'rgba(10, 10, 10, 0.95)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            borderRadius: 2,
+            boxShadow: '0 24px 48px rgba(0, 0, 0, 0.4)',
+          }
+        }}
       >
-        <DialogTitle>Add SSH Public Key</DialogTitle>
+        <DialogTitle 
+          sx={{ 
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+            fontWeight: 600,
+          }}
+        >
+          Add SSH Public Key
+        </DialogTitle>
         <DialogContent
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -657,17 +962,17 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                 justifyContent: "center",
                 p: 4,
                 border: "2px dashed",
-                borderColor: "divider",
+                borderColor: "rgba(255, 255, 255, 0.1)",
                 borderRadius: 2,
-                bgcolor: "background.default",
+                bgcolor: "rgba(255, 255, 255, 0.02)",
                 transition: "all 0.2s ease-in-out",
                 cursor: "pointer",
                 "&:hover": {
-                  borderColor: "primary.main",
-                  bgcolor: "action.hover",
+                  borderColor: "#007AFF",
+                  bgcolor: "rgba(0, 122, 255, 0.05)",
                   "& .upload-icon": {
                     transform: "scale(1.1)",
-                    color: "primary.main",
+                    color: "#007AFF",
                   },
                 },
               }}
@@ -709,6 +1014,14 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
                   textTransform: "none",
                   px: 3,
                   py: 1,
+                  background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                  boxShadow: '0 4px 12px rgba(0, 122, 255, 0.15)',
+                  transition: 'all 0.2s ease-in-out',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #0051D5 0%, #3F3C9F 100%)',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 8px 20px rgba(0, 122, 255, 0.25)',
+                  },
                 }}
               >
                 Choose File
@@ -769,7 +1082,22 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
             placeholder="ssh-rsa AAAAB3NzaC1yc2... user@host"
             value={newKey}
             onChange={(e) => setNewKey(e.target.value)}
-            sx={{ mb: 2 }}
+            sx={{ 
+              mb: 2,
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                },
+                '&.Mui-focused': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#007AFF',
+                    borderWidth: 2,
+                  },
+                },
+              },
+            }}
             helperText="Paste your SSH public key here. Usually found in ~/.ssh/id_rsa.pub"
           />
           <TextField
@@ -778,14 +1106,53 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
             placeholder="My Laptop"
             value={keyName}
             onChange={(e) => setKeyName(e.target.value)}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                },
+                '&.Mui-focused': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#007AFF',
+                    borderWidth: 2,
+                  },
+                },
+              },
+            }}
           />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={closeAddKeyDialog}>Cancel</Button>
+        <DialogActions sx={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', p: 2 }}>
+          <Button 
+            onClick={closeAddKeyDialog}
+            sx={{
+              color: 'rgba(255, 255, 255, 0.7)',
+              '&:hover': {
+                color: '#fff',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              }
+            }}
+          >
+            Cancel
+          </Button>
           <Button
             onClick={addPublicKey}
             variant="contained"
             disabled={!newKey.trim()}
+            sx={{
+              background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+              boxShadow: '0 4px 12px rgba(0, 122, 255, 0.15)',
+              transition: 'all 0.2s ease-in-out',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #0051D5 0%, #3F3C9F 100%)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 8px 20px rgba(0, 122, 255, 0.25)',
+              },
+              '&:disabled': {
+                background: 'rgba(255, 255, 255, 0.12)',
+              }
+            }}
           >
             Add Key
           </Button>
@@ -802,6 +1169,34 @@ export const SSHAccessDialog: React.FC<SSHAccessDialogProps> = ({
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
+          sx={{
+            backgroundColor: snackbar.severity === 'success' 
+              ? 'rgba(52, 199, 89, 0.15)' 
+              : snackbar.severity === 'error'
+              ? 'rgba(255, 59, 48, 0.15)'
+              : snackbar.severity === 'warning'
+              ? 'rgba(255, 149, 0, 0.15)'
+              : 'rgba(0, 122, 255, 0.15)',
+            border: `1px solid ${
+              snackbar.severity === 'success' 
+                ? 'rgba(52, 199, 89, 0.3)' 
+                : snackbar.severity === 'error'
+                ? 'rgba(255, 59, 48, 0.3)'
+                : snackbar.severity === 'warning'
+                ? 'rgba(255, 149, 0, 0.3)'
+                : 'rgba(0, 122, 255, 0.3)'
+            }`,
+            '& .MuiAlert-icon': {
+              color: snackbar.severity === 'success' 
+                ? '#34C759' 
+                : snackbar.severity === 'error'
+                ? '#FF3B30'
+                : snackbar.severity === 'warning'
+                ? '#FF9500'
+                : '#5AC8FA',
+            },
+            backdropFilter: 'blur(20px)',
+          }}
         >
           {snackbar.message}
         </Alert>

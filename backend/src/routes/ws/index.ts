@@ -164,21 +164,21 @@ export default async function (fastify: FastifyInstance) {
 
         try {
           let session;
-          
+
           // If device ID is provided, use device-based session management
           if (deviceId) {
             fastify.log.info(
               `Using device-based session management for device ${deviceId}`
             );
-            
+
             session = await sessionManager.getOrCreateSessionForDevice(
               user.id,
               deviceId,
               {
-                name: `Session ${new Date().toLocaleString()}`
+                name: `Session ${new Date().toLocaleString()}`,
               }
             );
-            
+
             // If the session ID doesn't match requested one, it means we're reusing an existing session
             if (session.id !== sessionId) {
               fastify.log.info(
@@ -205,7 +205,10 @@ export default async function (fastify: FastifyInstance) {
               fastify.log.info(
                 `Session ${sessionId} exists in memory, buffer length: ${session.outputBuffer.length}`
               );
-              session = await sessionManager.attachToSession(sessionId, user.id);
+              session = await sessionManager.attachToSession(
+                sessionId,
+                user.id
+              );
             }
           }
 
@@ -370,7 +373,7 @@ export default async function (fastify: FastifyInstance) {
               fastify.log.error("WebSocket message error:", {
                 error: (err as any).message,
                 stack: (err as any).stack,
-                messageType: data?.type || 'unknown',
+                messageType: data?.type || "unknown",
               });
               connection.socket.send(
                 JSON.stringify({
@@ -407,7 +410,9 @@ export default async function (fastify: FastifyInstance) {
 
           // Cleanup on disconnect
           connection.socket.on("close", () => {
-            fastify.log.info(`Terminal WebSocket disconnected: ${session.id} (device: ${deviceId})`);
+            fastify.log.info(
+              `Terminal WebSocket disconnected: ${session.id} (device: ${deviceId})`
+            );
 
             // Clear heartbeat interval
             if (heartbeatInterval) {
@@ -416,7 +421,11 @@ export default async function (fastify: FastifyInstance) {
             }
 
             // Detach from session (decrements client count and handles cleanup)
-            sessionManager.detachFromSession(session.id, user.id, deviceId || undefined);
+            sessionManager.detachFromSession(
+              session.id,
+              user.id,
+              deviceId || undefined
+            );
 
             // Remove event listeners
             sessionManager.off("data", onData);
@@ -460,7 +469,8 @@ export default async function (fastify: FastifyInstance) {
             setTimeout(() => {
               // Send history as a single block to preserve formatting
               // Use configurable reconnect history size from SessionManager
-              const reconnectHistorySize = sessionManager.getReconnectHistorySize();
+              const reconnectHistorySize =
+                sessionManager.getReconnectHistorySize();
               const recentOutput = sessionManager.getSessionOutput(
                 sessionId,
                 reconnectHistorySize
@@ -469,7 +479,9 @@ export default async function (fastify: FastifyInstance) {
 
               fastify.log.info(
                 `Sending history for session ${sessionId}, chunks: ${recentOutput.length}, ` +
-                `bytes: ${historyBlock.length}, first 100 chars: ${historyBlock.substring(0, 100)}`
+                  `bytes: ${
+                    historyBlock.length
+                  }, first 100 chars: ${historyBlock.substring(0, 100)}`
               );
 
               if (historyBlock.trim()) {
@@ -493,7 +505,7 @@ export default async function (fastify: FastifyInstance) {
               connection.socket.send(
                 JSON.stringify({
                   type: "terminal_data",
-                  data: "\x1b[1;32mWelcome to Claude Web Terminal!\x1b[0m\r\n",
+                  data: "\x1b[1;32mWelcome to Martian Code!\x1b[0m\r\n",
                 })
               );
               connection.socket.send(

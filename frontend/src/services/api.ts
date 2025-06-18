@@ -75,4 +75,24 @@ export const containerApi = {
   },
 };
 
+// SSH operations
+export const sshApi = {
+  getSSHInfo: async () => {
+    const response = await api.get("/api/ssh-info");
+    return response.data.data;
+  },
+  getSSHKeys: async () => {
+    const response = await api.get("/api/ssh-keys");
+    return response.data.data.sshPublicKeys || [];
+  },
+  addSSHKey: async (keyData: string) => {
+    const response = await api.post("/api/ssh-keys", { keyData });
+    return response.data;
+  },
+  deleteSSHKey: async (index: number) => {
+    const response = await api.delete(`/api/ssh-keys/${index}`);
+    return response.data;
+  },
+};
+
 export default api;

@@ -19,9 +19,6 @@ import {
   Add as AddIcon,
   Close as CloseIcon,
   Keyboard as KeyboardIcon,
-  GitHub as GitHubIcon,
-  Code as CodeIcon,
-  VpnKey as VpnKeyIcon,
 } from "@mui/icons-material";
 import { Fab } from "@mui/material";
 import { StableTerminal as Terminal } from "../components/StableTerminal";
@@ -34,8 +31,7 @@ import {
   useMobileKeyboardToolbar,
 } from "../components/MobileKeyboardToolbar";
 import { Dialog, DialogContent, DialogTitle } from "@mui/material";
-import GitHubManager from "../components/GitHubManager";
-import { SSHAccessDialog } from "../components/SSHAccessDialog";
+import { IntegrationIcons } from "../components/IntegrationIcons";
 import { SessionsDrawer } from "./TerminalPage/components/SessionsDrawer";
 import { useSessionManagement } from "./TerminalPage/hooks/useSessionManagement";
 import { useWebSocketConnection } from "./TerminalPage/hooks/useWebSocketConnection";
@@ -50,10 +46,8 @@ export const TerminalPage: React.FC = () => {
 
   // UI states
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
-  const [sshInfoOpen, setSSHInfoOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [githubDialogOpen, setGithubDialogOpen] = useState(false);
 
   // Session management hook
   const {
@@ -269,39 +263,8 @@ export const TerminalPage: React.FC = () => {
             </Typography>
           )}
 
-          <IconButton
-            color="inherit"
-            onClick={() => setGithubDialogOpen(true)}
-            size={isMobile ? "medium" : "small"}
-            sx={{
-              mr: 1,
-              transition: "all 0.2s ease",
-              "&:hover": {
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                transform: "scale(1.1)",
-              },
-            }}
-            title="GitHub Integration"
-          >
-            <GitHubIcon />
-          </IconButton>
-
-          <IconButton
-            color="inherit"
-            onClick={() => setSSHInfoOpen(true)}
-            size={isMobile ? "medium" : "small"}
-            sx={{
-              mr: 1,
-              transition: "all 0.2s ease",
-              "&:hover": {
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                transform: "scale(1.1)",
-              },
-            }}
-            title="SSH Access Management"
-          >
-            <VpnKeyIcon />
-          </IconButton>
+          {/* Dynamic Integration Icons */}
+          <IntegrationIcons isMobile={isMobile} />
 
           <IconButton
             color="inherit"
@@ -415,11 +378,6 @@ export const TerminalPage: React.FC = () => {
         />
       )}
 
-      {/* SSH Access Dialog */}
-      <SSHAccessDialog
-        open={sshInfoOpen}
-        onClose={() => setSSHInfoOpen(false)}
-      />
 
       {/* Error Snackbar */}
       <Snackbar
@@ -455,30 +413,6 @@ export const TerminalPage: React.FC = () => {
         </Alert>
       </Snackbar>
 
-      {/* GitHub Manager Dialog */}
-      <Dialog
-        open={githubDialogOpen}
-        onClose={() => setGithubDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        sx={{ "& .MuiDialog-paper": { minHeight: "60vh" } }}
-      >
-        <DialogTitle>
-          <Box
-            display="flex"
-            alignItems="center"
-            justifyContent="space-between"
-          >
-            <Typography variant="h6">GitHub Integration</Typography>
-            <IconButton onClick={() => setGithubDialogOpen(false)}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <GitHubManager />
-        </DialogContent>
-      </Dialog>
     </Box>
   );
 };

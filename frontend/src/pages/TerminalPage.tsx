@@ -52,6 +52,7 @@ export const TerminalPage: React.FC = () => {
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
   const [sshInfoOpen, setSSHInfoOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
 
   // Session management hook
@@ -156,6 +157,7 @@ export const TerminalPage: React.FC = () => {
     setSessions,
     setCurrentSessionId,
     setError,
+    setSuccessMessage,
     isMobileKeyboard,
     isKeyboardToolbarVisible,
   });
@@ -168,7 +170,10 @@ export const TerminalPage: React.FC = () => {
   // Terminal ready callback
   const handleTerminalReady = useCallback(() => {
     console.log("Terminal is ready, enabling WebSocket connection");
-    setIsTerminalReady(true);
+    // Add a small delay to ensure WebSocket is fully connected
+    setTimeout(() => {
+      setIsTerminalReady(true);
+    }, 100);
   }, []);
 
   const handleMobileKeyPress = useCallback(
@@ -430,6 +435,23 @@ export const TerminalPage: React.FC = () => {
           sx={{ width: "100%" }}
         >
           {error}
+        </Alert>
+      </Snackbar>
+
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setSuccessMessage(null)}
+          severity="success"
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {successMessage}
         </Alert>
       </Snackbar>
 

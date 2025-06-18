@@ -32,7 +32,7 @@ export default async function sessionsRoutes(fastify: FastifyInstance) {
 
         return {
           success: true,
-          data: sessions.filter((s) => s.status !== "dead"),
+          data: sessions,
           timestamp: new Date(),
         };
       } catch (error: any) {

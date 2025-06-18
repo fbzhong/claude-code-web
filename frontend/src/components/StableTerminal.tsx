@@ -27,6 +27,10 @@ export const StableTerminal = React.forwardRef<
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  
+  // Store current onData callback in a ref that updates on each render
+  const onDataRef = useRef(onData);
+  onDataRef.current = onData;
   const writeBufferRef = useRef<string[]>([]);
   const writeTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isDisposedRef = useRef<boolean>(false);
@@ -279,7 +283,8 @@ export const StableTerminal = React.forwardRef<
     term.onData((data) => {
       // xterm.js 5.5.0 has improved IME handling
       // Just pass through all data without custom filtering
-      onData(data);
+      // Use ref to always call the latest onData callback
+      onDataRef.current(data);
     });
 
     if (onResize) {

@@ -192,6 +192,7 @@ export class ContainerManager extends EventEmitter {
 
     // Start exec - when Tty is true, we get a single stream
     // When Tty is false, stdout/stderr are multiplexed
+    this.fastify.log.info(`[ContainerManager] Starting exec session with hijack...`);
     const execResult = await exec.start({
       hijack: true,
       stdin: true,
@@ -199,6 +200,7 @@ export class ContainerManager extends EventEmitter {
 
     // The stream is the raw socket when using hijack
     const stream = execResult as NodeJS.ReadWriteStream;
+    this.fastify.log.info(`[ContainerManager] Exec session started, stream type: ${stream.constructor.name}`);
 
     // Create resize function
     const resize = async (rows: number, cols: number) => {

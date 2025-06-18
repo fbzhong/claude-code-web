@@ -39,8 +39,8 @@ export class SessionManager extends EventEmitter {
   constructor(private fastify: any) {
     super();
 
-    // Log buffer configuration
-    this.fastify.log.info('SessionManager buffer configuration:', {
+    // Buffer configuration (logged at debug level)
+    this.fastify.log.debug('SessionManager buffer configuration:', {
       maxOutputBuffer: this.maxOutputBuffer,
       maxOutputBufferMB: this.maxOutputBufferBytes / 1024 / 1024,
       reconnectHistorySize: this.reconnectHistorySize,
@@ -53,11 +53,11 @@ export class SessionManager extends EventEmitter {
       this.containerManager = new ContainerManager(fastify);
       // Register containerManager on fastify instance for other routes to access
       fastify.decorate("containerManager", this.containerManager);
-      this.fastify.log.info(
+      this.fastify.log.debug(
         `Container mode enabled (dockerode: ${this.useDockerode})`
       );
     } else {
-      this.fastify.log.info("Local shell mode enabled");
+      this.fastify.log.debug("Local shell mode enabled");
       // SSHConfigManager will be initialized by database plugin
     }
 
@@ -103,7 +103,7 @@ export class SessionManager extends EventEmitter {
       
       // If session exists and is alive, return it
       if (session && session.status !== "dead") {
-        this.fastify.log.info(
+        this.fastify.log.debug(
           `Reusing existing session ${existingSessionId} for device ${deviceKey}`
         );
         return session;
@@ -126,7 +126,7 @@ export class SessionManager extends EventEmitter {
     // Register the device-session mapping
     this.userDeviceSessions.set(deviceKey, newSession.id);
     
-    this.fastify.log.info(
+    this.fastify.log.debug(
       `Created new session ${newSession.id} for device ${deviceKey}`
     );
     
@@ -154,7 +154,7 @@ export class SessionManager extends EventEmitter {
     
     // Kill the old sessions
     for (const sessionId of sessionsToKill) {
-      this.fastify.log.info(
+      this.fastify.log.debug(
         `Cleaning up old session ${sessionId} for user ${userId}`
       );
       this.killSession(sessionId, userId);
@@ -188,25 +188,25 @@ export class SessionManager extends EventEmitter {
 
     if (this.useContainers && this.containerManager) {
       // Container mode - each user gets their own container
-      this.fastify.log.info(
+      this.fastify.log.debug(
         `[SessionManager] Creating containerized session for user ${userId}`
       );
 
       try {
         // Get or create user's container
-        this.fastify.log.info(
+        this.fastify.log.debug(
           `[SessionManager] Getting container for user ${userId}...`
         );
         const containerId =
           await this.containerManager.getOrCreateUserContainer(userId);
-        this.fastify.log.info(
+        this.fastify.log.debug(
           `[SessionManager] Got container ${containerId} for user ${userId}`
         );
 
         // Use container's home directory as default
         workingDir = options.workingDir || "/home/developer";
 
-        this.fastify.log.info(
+        this.fastify.log.debug(
           `[SessionManager] Creating dockerode exec session in container ${containerId}...`
         );
 
@@ -226,7 +226,7 @@ export class SessionManager extends EventEmitter {
         // Create PTY adapter
         ptyProcess = new PtyAdapter(execSession, sessionId);
 
-        this.fastify.log.info(
+        this.fastify.log.debug(
           `[SessionManager] Created dockerode exec session for ${sessionId} in container ${containerId}`
         );
       } catch (error: any) {
@@ -243,22 +243,33 @@ export class SessionManager extends EventEmitter {
       const shell = process.platform === "win32" ? "powershell.exe" : "bash";
       workingDir = options.workingDir || process.env.HOME || "/tmp";
 
-      this.fastify.log.info(
+      this.fastify.log.debug(
         `Creating local session with workingDir: "${workingDir}"`
       );
 
-      ptyProcess = pty.spawn(shell, [], {
-        name: "xterm-color",
-        cols: 80,
-        rows: 24,
-        cwd: workingDir,
-        env: {
-          ...process.env,
-          ...options.environment,
-          TERM: "xterm-256color",
-          COLORTERM: "truecolor",
-        },
-      });
+      try {
+        ptyProcess = pty.spawn(shell, [], {
+          name: "xterm-color",
+          cols: 80,
+          rows: 24,
+          cwd: workingDir,
+          env: {
+            ...process.env,
+            ...options.environment,
+            TERM: "xterm-256color",
+            COLORTERM: "truecolor",
+          },
+        });
+        
+        this.fastify.log.debug(`[SessionManager] PTY created successfully:`, {
+          pid: ptyProcess.pid,
+          process: ptyProcess.process,
+          sessionId: sessionId
+        });
+      } catch (error: any) {
+        this.fastify.log.error(`[SessionManager] Failed to create PTY:`, error);
+        throw new Error(`Failed to create PTY: ${error.message}`);
+      }
     }
 
     const session: TerminalSession = {
@@ -286,16 +297,17 @@ export class SessionManager extends EventEmitter {
 
     // Handle PTY exit
     ptyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-      this.fastify.log.info(`Terminal session ${sessionId} exited`, {
+      this.fastify.log.warn(`Terminal session ${sessionId} exited`, {
         exitCode,
         signal,
       });
-      const session = this.sessions.get(sessionId);
-      if (session) {
-        session.status = "dead";
-        session.pty = undefined;
-      }
+      
+      // Emit exit event first to notify clients
       this.emit("exit", sessionId, exitCode);
+      
+      // Immediately kill the session to clean up and emit session_deleted event
+      // This ensures the session is removed from memory and API responses
+      this.killSession(sessionId, userId);
     });
 
     this.sessions.set(sessionId, session);
@@ -303,16 +315,12 @@ export class SessionManager extends EventEmitter {
 
     // Sessions are ephemeral - no database persistence
 
-    this.fastify.log.info(
+    this.fastify.log.debug(
       `Created new terminal session: ${sessionId} (${sessionName}) for user ${userId}`
     );
 
     // Emit session list update event
     const sessionInfo = this.sessionToInfo(session);
-    this.fastify.log.info(
-      `Emitting session_created event for session ${sessionId}:`,
-      sessionInfo
-    );
     this.emit("session_created", sessionInfo);
 
     return session;
@@ -320,7 +328,8 @@ export class SessionManager extends EventEmitter {
 
   async attachToSession(
     sessionId: string,
-    userId: string
+    userId: string,
+    deviceId?: string
   ): Promise<TerminalSession> {
     const session = this.sessions.get(sessionId);
 
@@ -337,21 +346,24 @@ export class SessionManager extends EventEmitter {
       throw new Error("Cannot attach to dead session");
     }
 
+    // Log device attachment for monitoring
+    if (deviceId) {
+      this.fastify.log.debug(
+        `Device ${deviceId} attaching to session ${sessionId}`
+      );
+    }
+
     // Increment connected clients
     session.connectedClients++;
     session.status = "active";
     session.lastActivity = new Date();
 
-    this.fastify.log.info(
+    this.fastify.log.debug(
       `User ${userId} attached to session ${sessionId} (${session.connectedClients} clients)`
     );
 
     // Emit session list update event
     const sessionInfo = this.sessionToInfo(session);
-    this.fastify.log.info(
-      `Emitting session_updated event for session ${sessionId}:`,
-      sessionInfo
-    );
     this.emit("session_updated", sessionInfo);
 
     return session;
@@ -375,16 +387,12 @@ export class SessionManager extends EventEmitter {
       }
     }
 
-    this.fastify.log.info(
+    this.fastify.log.debug(
       `User ${userId} detached from session ${sessionId} (${session.connectedClients} clients remaining)`
     );
 
     // Emit session list update event
     const sessionInfo = this.sessionToInfo(session);
-    this.fastify.log.info(
-      `Emitting session_updated event for session ${sessionId}:`,
-      sessionInfo
-    );
     this.emit("session_updated", sessionInfo);
 
     return true;
@@ -402,7 +410,7 @@ export class SessionManager extends EventEmitter {
       
       // Only clean up if still detached and no clients
       if (session && session.status === "detached" && session.connectedClients === 0) {
-        this.fastify.log.info(
+        this.fastify.log.debug(
           `Auto-cleaning detached session ${sessionId} for device ${deviceId}`
         );
         
@@ -452,7 +460,7 @@ export class SessionManager extends EventEmitter {
 
     // Sessions are ephemeral - no database updates
 
-    this.fastify.log.info(
+    this.fastify.log.debug(
       `Killed terminal session: ${sessionId} for user ${userId}`
     );
 
@@ -464,7 +472,10 @@ export class SessionManager extends EventEmitter {
 
   writeToSession(sessionId: string, data: string): boolean {
     const session = this.sessions.get(sessionId);
+    
+    
     if (!session || !session.pty || session.status === "dead") {
+      this.fastify.log.warn(`[SessionManager] Cannot write to session ${sessionId}: session not ready`);
       return false;
     }
 
@@ -519,12 +530,9 @@ export class SessionManager extends EventEmitter {
       (s) => s.userId === userId && s.status !== "dead"
     );
 
-    this.fastify.log.info(
-      `Getting sessions for user ${userId}: ${userSessions.length} of ${allSessions.length} total sessions`
+    this.fastify.log.debug(
+      `Getting sessions for user ${userId}: ${userSessions.length} active of ${allSessions.length} total sessions`
     );
-    userSessions.forEach((s) => {
-      this.fastify.log.info(`  - Session ${s.id}: ${s.name} (${s.status})`);
-    });
 
     return userSessions.map((s) => this.sessionToInfo(s));
   }
@@ -575,15 +583,6 @@ export class SessionManager extends EventEmitter {
       deviceId: session.deviceId,
     };
 
-    this.fastify.log.info(`SessionToInfo debug:`, {
-      sessionId: session.id.slice(0, 8),
-      originalWorkingDir: session.workingDir,
-      workingDirLength: session.workingDir.length,
-      resultWorkingDir: sessionInfo.workingDir,
-      resultWorkingDirLength: sessionInfo.workingDir.length,
-      lastCommand: lastCommand,
-      historyLength: session.history.length,
-    });
 
     return sessionInfo;
   }
@@ -701,7 +700,7 @@ export class SessionManager extends EventEmitter {
 
     const realCwd = await this.getRealWorkingDirectory(sessionId);
     if (realCwd && realCwd !== session.workingDir) {
-      this.fastify.log.info(
+      this.fastify.log.debug(
         `Real CWD detected: ${session.workingDir} -> ${realCwd}`
       );
       session.workingDir = realCwd;
@@ -741,9 +740,7 @@ export class SessionManager extends EventEmitter {
     const timer = setTimeout(async () => {
       await this.updateWorkingDirectoryFromProcess(sessionId);
       this.outputUpdateTimers.delete(sessionId);
-      this.fastify.log.debug(
-        `Output-based CWD check completed for session ${sessionId}`
-      );
+      // CWD check completed
     }, 1000);
 
     this.outputUpdateTimers.set(sessionId, timer);
@@ -794,7 +791,7 @@ export class SessionManager extends EventEmitter {
       const updatedBytes = Math.max(0, (this.sessionBufferBytes.get(sessionId) || 0) - removedBytes);
       this.sessionBufferBytes.set(sessionId, updatedBytes);
       
-      this.fastify.log.info(
+      this.fastify.log.debug(
         `Trimmed session ${sessionId} buffer: removed ${removedBytes} bytes, ` +
         `now ${session.outputBuffer.length} chunks, ${updatedBytes} bytes`
       );
@@ -816,7 +813,7 @@ export class SessionManager extends EventEmitter {
         const nowExecuting = this.isSessionExecuting(session);
         if (wasExecuting !== nowExecuting) {
           // Execution status changed, emit update
-          this.fastify.log.info(
+          this.fastify.log.debug(
             `Session ${sessionId} execution status changed: ${wasExecuting} -> ${nowExecuting}`
           );
           this.emit("session_updated", this.sessionToInfo(session));
@@ -825,10 +822,10 @@ export class SessionManager extends EventEmitter {
     }, 100); // Small delay to let the output settle
 
     // Log buffer size periodically for debugging
-    if (session.outputBuffer.length % 20 === 0) {
+    if (session.outputBuffer.length % 100 === 0) {
       const bytes = this.sessionBufferBytes.get(sessionId) || 0;
       const mb = (bytes / 1024 / 1024).toFixed(2);
-      this.fastify.log.info(
+      this.fastify.log.debug(
         `Session ${sessionId} output buffer size: ${session.outputBuffer.length} chunks, ${mb} MB`
       );
     }
@@ -854,7 +851,7 @@ export class SessionManager extends EventEmitter {
 
           // Emit update if execution status changed or significant time passed
           if (oldExecuting !== nowExecuting || timeDiff > 3000) {
-            this.fastify.log.info(
+            this.fastify.log.debug(
               `Session ${sessionId} activity update - executing: ${oldExecuting} -> ${nowExecuting}`
             );
             this.emit("session_updated", this.sessionToInfo(session));
@@ -867,19 +864,11 @@ export class SessionManager extends EventEmitter {
   }
 
   private normalizePath(path: string): string {
-    this.fastify.log.info(
-      `NormalizePath input: "${path}", length: ${path.length}`
-    );
-
     // Remove multiple consecutive slashes
     path = path.replace(/\/+/g, "/");
-    this.fastify.log.info(
-      `After slash normalization: "${path}", length: ${path.length}`
-    );
 
     // Split into parts and resolve . and ..
     const parts = path.split("/").filter((p) => p.length > 0);
-    this.fastify.log.info(`Path parts:`, parts);
 
     const resolved = [];
 
@@ -897,13 +886,8 @@ export class SessionManager extends EventEmitter {
       }
     }
 
-    this.fastify.log.info(`Resolved parts:`, resolved);
-
     // Rebuild path
     const result = "/" + resolved.join("/");
-    this.fastify.log.info(
-      `NormalizePath result: "${result}", length: ${result.length}`
-    );
     return result === "/" ? "/" : result;
   }
 
@@ -914,7 +898,7 @@ export class SessionManager extends EventEmitter {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
-    this.fastify.log.info(
+    this.fastify.log.debug(
       `Recording command for session ${sessionId}: ${command}`
     );
 
@@ -966,7 +950,7 @@ export class SessionManager extends EventEmitter {
     });
 
     if (hasChanges) {
-      this.fastify.log.info("Connection count audit completed with changes");
+      this.fastify.log.debug("Connection count audit completed with changes");
     }
   }
 
@@ -990,7 +974,7 @@ export class SessionManager extends EventEmitter {
         session.connectedClients === 0 && 
         timeSinceActivity > detachedSessionThreshold
       ) {
-        this.fastify.log.info(
+        this.fastify.log.debug(
           `Cleaning up detached session ${sessionId} after ${Math.round(timeSinceActivity / 1000 / 60)} minutes of inactivity`
         );
         this.cleanupSession(sessionId, session);
@@ -1001,7 +985,7 @@ export class SessionManager extends EventEmitter {
     for (const [deviceKey, sessionId] of this.userDeviceSessions.entries()) {
       if (!this.sessions.has(sessionId)) {
         this.userDeviceSessions.delete(deviceKey);
-        this.fastify.log.info(`Cleaned up orphaned device mapping: ${deviceKey}`);
+        this.fastify.log.debug(`Cleaned up orphaned device mapping: ${deviceKey}`);
       }
     }
   }
@@ -1046,7 +1030,7 @@ export class SessionManager extends EventEmitter {
       }
     }
 
-    this.fastify.log.info(`Cleaned up session: ${sessionId} (status: ${session.status})`);
+    this.fastify.log.debug(`Cleaned up session: ${sessionId} (status: ${session.status})`);
     
     // Emit deletion event
     this.emit("session_deleted", sessionId);

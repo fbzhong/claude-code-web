@@ -34,7 +34,7 @@ export default async function (fastify: FastifyInstance) {
           return;
         }
 
-        fastify.log.info(
+        fastify.log.debug(
           `Session list WebSocket connected for user ${user.id}`
         );
 
@@ -104,7 +104,7 @@ export default async function (fastify: FastifyInstance) {
                 break;
 
               default:
-                fastify.log.warn(
+                fastify.log.debug(
                   `Unknown session list message type: ${data.type}`
                 );
             }
@@ -115,7 +115,7 @@ export default async function (fastify: FastifyInstance) {
 
         // Cleanup on disconnect
         connection.socket.on("close", () => {
-          fastify.log.info(
+          fastify.log.debug(
             `Session list WebSocket disconnected for user ${user.id}`
           );
 
@@ -158,17 +158,33 @@ export default async function (fastify: FastifyInstance) {
           return;
         }
 
-        fastify.log.info(
+        fastify.log.debug(
           `Terminal WebSocket connected: ${sessionId} for user ${user.id} (device: ${deviceId})`
         );
 
         try {
           let session;
 
-          // If device ID is provided, use device-based session management
-          if (deviceId) {
-            fastify.log.info(
-              `Using device-based session management for device ${deviceId}`
+          // First, try to find the requested session by ID
+          session = sessionManager.getSession(sessionId);
+          fastify.log.debug(
+            `Looking for requested session ${sessionId}, found in memory: ${!!session}`
+          );
+
+          if (session) {
+            // Session exists, attach to it
+            fastify.log.debug(
+              `Session ${sessionId} exists in memory, buffer length: ${session.outputBuffer.length}`
+            );
+            session = await sessionManager.attachToSession(
+              sessionId,
+              user.id,
+              deviceId || undefined
+            );
+          } else if (deviceId) {
+            // Session not found, check if we have a session for this device
+            fastify.log.debug(
+              `Session ${sessionId} not found, checking device-based session for device ${deviceId}`
             );
 
             session = await sessionManager.getOrCreateSessionForDevice(
@@ -179,42 +195,27 @@ export default async function (fastify: FastifyInstance) {
               }
             );
 
-            // If the session ID doesn't match requested one, it means we're reusing an existing session
+            // If the session ID doesn't match requested one, it means we're reusing an existing device session
             if (session.id !== sessionId) {
-              fastify.log.info(
-                `Reusing existing session ${session.id} for device ${deviceId} (requested: ${sessionId})`
+              fastify.log.debug(
+                `Reusing existing device session ${session.id} for device ${deviceId} (requested: ${sessionId})`
               );
             }
           } else {
-            // Fallback to traditional session management
-            session = sessionManager.getSession(sessionId);
-            fastify.log.info(
-              `Looking for session ${sessionId}, found in memory: ${!!session}`
+            // No device ID and session not found, create new one
+            fastify.log.debug(
+              `Session ${sessionId} not found and no device ID, creating new session`
             );
-
-            if (!session) {
-              // Sessions are ephemeral now, create new one
-              fastify.log.info(
-                `Session ${sessionId} not found, creating new session`
-              );
-              session = await sessionManager.createSession(user.id, {
-                sessionId,
-              });
-            } else {
-              // Session exists in memory, attach to it
-              fastify.log.info(
-                `Session ${sessionId} exists in memory, buffer length: ${session.outputBuffer.length}`
-              );
-              session = await sessionManager.attachToSession(
-                sessionId,
-                user.id
-              );
-            }
+            session = await sessionManager.createSession(user.id, {
+              sessionId,
+            });
           }
 
           // Handle terminal data from PTY
           const onData = (sessionId: string, data: string) => {
             if (sessionId !== session!.id) return;
+            
+            
             connection.socket.send(
               JSON.stringify({
                 type: "terminal_data",
@@ -284,19 +285,20 @@ export default async function (fastify: FastifyInstance) {
             let data: any;
             try {
               data = JSON.parse(message.toString());
+              
 
               switch (data.type) {
                 case "terminal_input":
-                  // fastify.log.debug(`Received terminal input for session ${sessionId}: ${JSON.stringify(data.data)}`);
-                  sessionManager.writeToSession(sessionId, data.data);
+                  const inputData = data.data || "";
+                  sessionManager.writeToSession(session.id, inputData);
                   break;
 
                 case "terminal_resize":
-                  sessionManager.resizeSession(sessionId, data.cols, data.rows);
+                  sessionManager.resizeSession(session.id, data.cols, data.rows);
                   break;
 
                 case "get_history":
-                  const currentSession = sessionManager.getSession(sessionId);
+                  const currentSession = sessionManager.getSession(session.id);
                   const history = currentSession ? currentSession.history : [];
                   connection.socket.send(
                     JSON.stringify({
@@ -367,7 +369,7 @@ export default async function (fastify: FastifyInstance) {
                   break;
 
                 default:
-                  fastify.log.warn(`Unknown message type: ${data.type}`);
+                  fastify.log.debug(`Unknown message type: ${data.type}`);
               }
             } catch (err) {
               fastify.log.error("WebSocket message error:", {
@@ -410,7 +412,7 @@ export default async function (fastify: FastifyInstance) {
 
           // Cleanup on disconnect
           connection.socket.on("close", () => {
-            fastify.log.info(
+            fastify.log.debug(
               `Terminal WebSocket disconnected: ${session.id} (device: ${deviceId})`
             );
 
@@ -453,7 +455,7 @@ export default async function (fastify: FastifyInstance) {
 
           // Send buffered output if session was restored
           if (session.outputBuffer.length > 0) {
-            fastify.log.info(
+            fastify.log.debug(
               `Sending buffered output for session ${sessionId}, buffer length: ${session.outputBuffer.length}`
             );
 
@@ -477,7 +479,7 @@ export default async function (fastify: FastifyInstance) {
               ); // Last N chunks based on config
               const historyBlock = recentOutput.join(""); // Join without adding extra newlines
 
-              fastify.log.info(
+              fastify.log.debug(
                 `Sending history for session ${sessionId}, chunks: ${recentOutput.length}, ` +
                   `bytes: ${
                     historyBlock.length
@@ -493,13 +495,13 @@ export default async function (fastify: FastifyInstance) {
                   })
                 );
               } else {
-                fastify.log.warn(
+                fastify.log.debug(
                   `Session ${sessionId} has empty history block`
                 );
               }
             }, 50);
           } else {
-            fastify.log.info(`Session ${sessionId} has no buffered output`);
+            fastify.log.debug(`Session ${sessionId} has no buffered output`);
             // Send a welcome message to new terminal
             setTimeout(() => {
               connection.socket.send(
@@ -551,7 +553,7 @@ export default async function (fastify: FastifyInstance) {
       timestamp: new Date(),
     });
 
-    fastify.log.info(
+    fastify.log.debug(
       `Broadcasting session update to ${sessionListConnections.size} connections:`,
       {
         sessionId: sessionInfo.id,
@@ -567,13 +569,13 @@ export default async function (fastify: FastifyInstance) {
         // WebSocket.OPEN
         try {
           socket.send(message);
-          fastify.log.info(`Sent session update to WebSocket connection`);
+          fastify.log.debug(`Sent session update to WebSocket connection`);
         } catch (error) {
           fastify.log.error("Failed to send message to WebSocket:", error);
           deadConnections.add(socket);
         }
       } else {
-        fastify.log.warn(
+        fastify.log.debug(
           `Removing dead WebSocket connection (state: ${socket.readyState})`
         );
         deadConnections.add(socket);
@@ -585,7 +587,7 @@ export default async function (fastify: FastifyInstance) {
       sessionListConnections.delete(socket);
     });
 
-    fastify.log.info(
+    fastify.log.debug(
       `Active session list connections after cleanup: ${sessionListConnections.size}`
     );
   };
@@ -597,7 +599,7 @@ export default async function (fastify: FastifyInstance) {
       timestamp: new Date(),
     });
 
-    fastify.log.info(
+    fastify.log.debug(
       `Broadcasting session_deleted to ${sessionListConnections.size} connections for session ${sessionId}`
     );
 
@@ -606,7 +608,7 @@ export default async function (fastify: FastifyInstance) {
       if (socket.readyState === 1) {
         // WebSocket.OPEN
         socket.send(message);
-        fastify.log.info(
+        fastify.log.debug(
           `Sent session_deleted message to a WebSocket connection`
         );
       }
@@ -615,17 +617,17 @@ export default async function (fastify: FastifyInstance) {
 
   // Listen to session manager events
   sessionManager.on("session_created", (sessionInfo) => {
-    fastify.log.info(`SessionManager emitted session_created event`);
+    fastify.log.debug(`SessionManager emitted session_created event`);
     broadcastSessionUpdate(sessionInfo, "created");
   });
 
   sessionManager.on("session_updated", (sessionInfo) => {
-    fastify.log.info(`SessionManager emitted session_updated event`);
+    fastify.log.debug(`SessionManager emitted session_updated event`);
     broadcastSessionUpdate(sessionInfo, "updated");
   });
 
   sessionManager.on("session_deleted", (sessionId) => {
-    fastify.log.info(
+    fastify.log.debug(
       `SessionManager emitted session_deleted event for ${sessionId}`
     );
     broadcastSessionDeleted(sessionId);
@@ -634,7 +636,7 @@ export default async function (fastify: FastifyInstance) {
   // Handle Claude Code events
   claudeService.on("started", (sessionId, process) => {
     // Broadcast to relevant WebSocket connections
-    fastify.log.info(`Claude Code started for session ${sessionId}`);
+    fastify.log.debug(`Claude Code started for session ${sessionId}`);
   });
 
   claudeService.on("error", (sessionId, error) => {
@@ -642,7 +644,7 @@ export default async function (fastify: FastifyInstance) {
   });
 
   claudeService.on("exit", (sessionId, code) => {
-    fastify.log.info(
+    fastify.log.debug(
       `Claude Code exited for session ${sessionId} with code ${code}`
     );
   });

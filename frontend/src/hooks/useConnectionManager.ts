@@ -44,6 +44,7 @@ export function useConnectionManager(
   
   // Update connection state and notify
   const updateConnectionState = useCallback((state: ConnectionState) => {
+    console.log('[ConnectionManager] State change:', state);
     setConnectionState(state);
     opts.onStateChange?.(state);
   }, [opts]);
@@ -97,7 +98,12 @@ export function useConnectionManager(
   
   // Connect with device ID
   const connect = useCallback(async () => {
-    if (!sessionId || !token || !deviceId) return;
+    console.log('[ConnectionManager] Connect called:', { sessionId, hasToken: !!token, deviceId });
+    
+    if (!sessionId || !token || !deviceId) {
+      console.log('[ConnectionManager] Missing required params, skipping connect');
+      return;
+    }
     
     updateConnectionState(ConnectionState.CONNECTING);
     
@@ -105,30 +111,53 @@ export function useConnectionManager(
       // Create or get WebSocket service instance
       wsServiceRef.current = WebSocketService.getInstance();
       
-      // Set up event handlers
-      wsServiceRef.current.on('connect', () => {
+      // Define event handlers
+      const onConnect = () => {
+        console.log('[ConnectionManager] WebSocket connected event');
         handleConnect();
         opts.onConnect?.();
-      });
-      wsServiceRef.current.on('disconnect', () => {
+      };
+      
+      const onDisconnect = () => {
+        console.log('[ConnectionManager] WebSocket disconnected event');
         handleDisconnect();
         opts.onDisconnect?.();
-      });
-      wsServiceRef.current.on('error', (error: any) => {
-        console.error('WebSocket error:', error);
+      };
+      
+      const onError = (error: any) => {
+        console.error('[ConnectionManager] WebSocket error:', error);
         handleDisconnect();
-      });
-      wsServiceRef.current.on('reconnecting', (attempt: number) => {
+      };
+      
+      const onReconnecting = (attempt: number) => {
+        console.log('[ConnectionManager] WebSocket reconnecting:', attempt);
         opts.onReconnecting?.(attempt);
-      });
-      wsServiceRef.current.on('reconnectFailed', () => {
+      };
+      
+      const onReconnectFailed = () => {
+        console.log('[ConnectionManager] WebSocket reconnect failed');
         opts.onReconnectFailed?.();
-      });
+      };
+      
+      // Clear previous event handlers to avoid duplicates
+      wsServiceRef.current.off('connect', onConnect);
+      wsServiceRef.current.off('disconnect', onDisconnect);
+      wsServiceRef.current.off('error', onError);
+      wsServiceRef.current.off('reconnecting', onReconnecting);
+      wsServiceRef.current.off('reconnectFailed', onReconnectFailed);
+      
+      // Set up event handlers
+      wsServiceRef.current.on('connect', onConnect);
+      wsServiceRef.current.on('disconnect', onDisconnect);
+      wsServiceRef.current.on('error', onError);
+      wsServiceRef.current.on('reconnecting', onReconnecting);
+      wsServiceRef.current.on('reconnectFailed', onReconnectFailed);
       
       // Connect with device ID
+      console.log('[ConnectionManager] Calling wsService.connect');
       await wsServiceRef.current.connect(sessionId, token, { deviceId });
     } catch (error) {
-      console.error('Failed to connect:', error);
+      console.error('[ConnectionManager] Failed to connect:', error);
       updateConnectionState(ConnectionState.FAILED);
       setCanManualReconnect(true);
     }

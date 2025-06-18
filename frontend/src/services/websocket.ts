@@ -43,6 +43,7 @@ export interface ConnectionOptions {
 
 export class WebSocketService {
   private static instance: WebSocketService | null = null;
+  private static instanceId = 0;
   private ws: WebSocket | null = null;
   private sessionId: string | null = null;
   private messageHandlers: Map<string, (message: WebSocketMessage) => void> =
@@ -57,6 +58,12 @@ export class WebSocketService {
   private pingInterval: any = null;
   private pongTimeout: any = null;
   private eventListeners: Map<string, Set<Function>> = new Map();
+  private instanceId: number;
+
+  constructor() {
+    this.instanceId = ++WebSocketService.instanceId;
+    console.log(`[WebSocketService] Instance created #${this.instanceId}`);
+  }
 
   static getInstance(): WebSocketService {
     if (!WebSocketService.instance) {
@@ -67,6 +74,8 @@ export class WebSocketService {
 
   connect(sessionId: string, token: string, options?: ConnectionOptions): Promise<void> {
     return new Promise(async (resolve, reject) => {
+      console.log(`[WebSocketService #${this.instanceId}] connect called for session:`, sessionId);
+      
       this.connectionOptions = options || {};
       
       // Get device ID if not provided
@@ -81,7 +90,7 @@ export class WebSocketService {
         this.sessionId === sessionId
       ) {
         console.log(
-          "Already connected to session:",
+          `[WebSocketService #${this.instanceId}] Already connected to session:`,
           sessionId,
           "reusing connection"
         );
@@ -112,7 +121,7 @@ export class WebSocketService {
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-          console.log("WebSocket connected");
+          console.log("[WebSocket] onopen fired, readyState:", this.ws?.readyState);
           this.reconnectAttempts = 0;
           this.disconnectTime = null;
           
@@ -121,7 +130,7 @@ export class WebSocketService {
           
           // Send any pending resize message
           if (this.pendingResize) {
-            console.log("Sending pending resize:", this.pendingResize);
+            console.log("[WebSocket] Sending pending resize:", this.pendingResize);
             this.ws!.send(
               JSON.stringify({
                 type: "terminal_resize",
@@ -133,6 +142,7 @@ export class WebSocketService {
           }
           
           // Notify connection success
+          console.log("[WebSocket] Emitting 'connect' event");
           this.connectionOptions?.onConnect?.();
           this.emit('connect');
           
@@ -206,17 +216,32 @@ export class WebSocketService {
   }
 
   sendTerminalInput(data: string): void {
+    console.log('[WebSocket] sendTerminalInput called with:', {
+      data: data.replace(/\n/g, '\\n').replace(/\r/g, '\\r'),
+      wsExists: !!this.ws,
+      wsState: this.ws?.readyState,
+      wsStateText: this.ws ? ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][this.ws.readyState] : 'NO_WS',
+      sessionId: this.sessionId,
+      instanceId: this.instanceId
+    });
+    
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("WebSocket not connected, cannot send terminal input");
+      console.warn("WebSocket not connected, cannot send terminal input", {
+        wsExists: !!this.ws,
+        wsState: this.ws?.readyState,
+        wsStateText: this.ws ? ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][this.ws.readyState] : 'NO_WS',
+        sessionId: this.sessionId
+      });
       return;
     }
 
-    this.ws.send(
-      JSON.stringify({
-        type: "terminal_input",
-        data,
-      })
-    );
+    const message = {
+      type: "terminal_input",
+      data,
+    };
+    
+    console.log('[WebSocket] Sending message:', message);
+    this.ws.send(JSON.stringify(message));
   }
 
   sendTerminalResize(cols: number, rows: number): void {
@@ -328,6 +353,12 @@ export class WebSocketService {
   }
 
   private handleMessage(message: WebSocketMessage): void {
+    console.log('[WebSocket] handleMessage:', {
+      type: message.type,
+      dataLength: message.data ? JSON.stringify(message.data).length : 0,
+      timestamp: new Date().toISOString()
+    });
+    
     // Handle ping/pong
     if (message.type === 'ping') {
       this.ws?.send(JSON.stringify({ type: 'pong' }));
@@ -345,7 +376,10 @@ export class WebSocketService {
     
     const handler = this.messageHandlers.get(message.type);
     if (handler) {
+      console.log(`[WebSocket] Calling handler for ${message.type}`);
       handler(message);
+    } else {
+      console.warn(`[WebSocket] No handler registered for message type: ${message.type}`);
     }
 
     // Also call generic handler
@@ -687,6 +721,12 @@ export class SessionListWebSocketService {
   }
 
   private handleMessage(message: WebSocketMessage): void {
+    console.log('[WebSocket] handleMessage:', {
+      type: message.type,
+      dataLength: message.data ? JSON.stringify(message.data).length : 0,
+      timestamp: new Date().toISOString()
+    });
+    
     // Handle ping/pong
     if (message.type === 'ping') {
       this.ws?.send(JSON.stringify({ type: 'pong' }));
@@ -704,7 +744,10 @@ export class SessionListWebSocketService {
     
     const handler = this.messageHandlers.get(message.type);
     if (handler) {
+      console.log(`[WebSocket] Calling handler for ${message.type}`);
       handler(message);
+    } else {
+      console.warn(`[WebSocket] No handler registered for message type: ${message.type}`);
     }
 
     // Also call generic handler

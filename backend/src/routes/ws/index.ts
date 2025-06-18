@@ -35,11 +35,15 @@ export default async function (fastify: FastifyInstance) {
         }
 
         fastify.log.debug(
-          `Session list WebSocket connected for user ${user.id}`
+          `Session list WebSocket connected for user ${user.id}, current connections: ${sessionListConnections.size}`
         );
 
         // Add to global connections
         sessionListConnections.add(connection.socket);
+
+        fastify.log.debug(
+          `Session list connections after add: ${sessionListConnections.size}`
+        );
 
         // Send initial session list
         const userSessions = sessionManager.getUserSessions(user.id);
@@ -116,7 +120,7 @@ export default async function (fastify: FastifyInstance) {
         // Cleanup on disconnect
         connection.socket.on("close", () => {
           fastify.log.debug(
-            `Session list WebSocket disconnected for user ${user.id}`
+            `Session list WebSocket disconnected for user ${user.id}, connections before delete: ${sessionListConnections.size}`
           );
 
           // Clear heartbeat interval
@@ -126,6 +130,10 @@ export default async function (fastify: FastifyInstance) {
           }
 
           sessionListConnections.delete(connection.socket);
+
+          fastify.log.debug(
+            `Session list connections after delete: ${sessionListConnections.size}`
+          );
         });
       }
     );
@@ -214,13 +222,13 @@ export default async function (fastify: FastifyInstance) {
           // Handle terminal data from PTY
           const onData = (sessionId: string, data: string) => {
             if (sessionId !== session!.id) return;
-            
-            
+
             connection.socket.send(
               JSON.stringify({
                 type: "terminal_data",
                 data: data,
                 timestamp: new Date(),
+                v: "1",
               })
             );
           };
@@ -285,7 +293,6 @@ export default async function (fastify: FastifyInstance) {
             let data: any;
             try {
               data = JSON.parse(message.toString());
-              
 
               switch (data.type) {
                 case "terminal_input":
@@ -294,7 +301,11 @@ export default async function (fastify: FastifyInstance) {
                   break;
 
                 case "terminal_resize":
-                  sessionManager.resizeSession(session.id, data.cols, data.rows);
+                  sessionManager.resizeSession(
+                    session.id,
+                    data.cols,
+                    data.rows
+                  );
                   break;
 
                 case "get_history":
@@ -502,27 +513,6 @@ export default async function (fastify: FastifyInstance) {
             }, 50);
           } else {
             fastify.log.debug(`Session ${sessionId} has no buffered output`);
-            // Send a welcome message to new terminal
-            setTimeout(() => {
-              connection.socket.send(
-                JSON.stringify({
-                  type: "terminal_data",
-                  data: "\x1b[1;32mWelcome to Martian Code!\x1b[0m\r\n",
-                })
-              );
-              connection.socket.send(
-                JSON.stringify({
-                  type: "terminal_data",
-                  data: `Session: ${session.name || session.id}\r\n`,
-                })
-              );
-              connection.socket.send(
-                JSON.stringify({
-                  type: "terminal_data",
-                  data: "Type commands to interact with the terminal.\r\n$ ",
-                })
-              );
-            }, 100);
           }
         } catch (err: any) {
           // Log error with full details

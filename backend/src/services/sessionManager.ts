@@ -24,9 +24,12 @@ export class SessionManager extends EventEmitter {
   private sessions = new Map<string, TerminalSession>();
   private commandBuffer = new Map<string, string>();
   private sessionSequenceNumbers = new Map<string, number>();
-  private maxOutputBuffer = parseInt(process.env.MAX_OUTPUT_BUFFER || '5000'); // Maximum chunks to keep in memory
-  private maxOutputBufferBytes = parseInt(process.env.MAX_OUTPUT_BUFFER_MB || '5') * 1024 * 1024; // Default 5MB
-  private reconnectHistorySize = parseInt(process.env.RECONNECT_HISTORY_SIZE || '500'); // Chunks to send on reconnect
+  private maxOutputBuffer = parseInt(process.env.MAX_OUTPUT_BUFFER || "5000"); // Maximum chunks to keep in memory
+  private maxOutputBufferBytes =
+    parseInt(process.env.MAX_OUTPUT_BUFFER_MB || "5") * 1024; // Default 5KB
+  private reconnectHistorySize = parseInt(
+    process.env.RECONNECT_HISTORY_SIZE || "500"
+  ); // Chunks to send on reconnect
   private maxSessions = 50; // Maximum sessions per user
   private cwdCheckTimers = new Map<string, NodeJS.Timeout>(); // Timers for CWD checking
   private outputUpdateTimers = new Map<string, NodeJS.Timeout>(); // Timers for output update delays
@@ -40,7 +43,7 @@ export class SessionManager extends EventEmitter {
     super();
 
     // Buffer configuration (logged at debug level)
-    this.fastify.log.debug('SessionManager buffer configuration:', {
+    this.fastify.log.debug("SessionManager buffer configuration:", {
       maxOutputBuffer: this.maxOutputBuffer,
       maxOutputBufferMB: this.maxOutputBufferBytes / 1024 / 1024,
       reconnectHistorySize: this.reconnectHistorySize,
@@ -94,13 +97,13 @@ export class SessionManager extends EventEmitter {
     } = {}
   ): Promise<TerminalSession> {
     const deviceKey = `${userId}-${deviceId}`;
-    
+
     // Check if we already have a session for this device
     const existingSessionId = this.userDeviceSessions.get(deviceKey);
-    
+
     if (existingSessionId) {
       const session = this.sessions.get(existingSessionId);
-      
+
       // If session exists and is alive, return it
       if (session && session.status !== "dead") {
         this.fastify.log.debug(
@@ -108,50 +111,59 @@ export class SessionManager extends EventEmitter {
         );
         return session;
       }
-      
+
       // Session is dead or missing, clean up the reference
       this.userDeviceSessions.delete(deviceKey);
-      
+
       // Also clean up any other sessions for this user on different devices
       this.cleanupUserOldDeviceSessions(userId, deviceId);
     }
-    
+
     // Create new session with device ID
     const newSession = await this.createSession(userId, {
       ...options,
       deviceId,
-      name: options.name || `Device ${deviceId.substring(0, 8)}`
+      name: options.name || `Device ${deviceId.substring(0, 8)}`,
     });
-    
+
     // Register the device-session mapping
     this.userDeviceSessions.set(deviceKey, newSession.id);
-    
+
     this.fastify.log.debug(
       `Created new session ${newSession.id} for device ${deviceKey}`
     );
-    
+
     return newSession;
   }
 
   /**
    * Clean up old sessions from other devices for the same user
    */
-  private cleanupUserOldDeviceSessions(userId: string, currentDeviceId: string): void {
+  private cleanupUserOldDeviceSessions(
+    userId: string,
+    currentDeviceId: string
+  ): void {
     const sessionsToKill: string[] = [];
-    
+
     // Find all device keys for this user
     for (const [deviceKey, sessionId] of this.userDeviceSessions.entries()) {
-      if (deviceKey.startsWith(`${userId}-`) && !deviceKey.endsWith(currentDeviceId)) {
+      if (
+        deviceKey.startsWith(`${userId}-`) &&
+        !deviceKey.endsWith(currentDeviceId)
+      ) {
         const session = this.sessions.get(sessionId);
-        
+
         // Only clean up detached or inactive sessions
-        if (session && (session.status === "detached" || session.connectedClients === 0)) {
+        if (
+          session &&
+          (session.status === "detached" || session.connectedClients === 0)
+        ) {
           sessionsToKill.push(sessionId);
           this.userDeviceSessions.delete(deviceKey);
         }
       }
     }
-    
+
     // Kill the old sessions
     for (const sessionId of sessionsToKill) {
       this.fastify.log.debug(
@@ -260,11 +272,11 @@ export class SessionManager extends EventEmitter {
             COLORTERM: "truecolor",
           },
         });
-        
+
         this.fastify.log.debug(`[SessionManager] PTY created successfully:`, {
           pid: ptyProcess.pid,
           process: ptyProcess.process,
-          sessionId: sessionId
+          sessionId: sessionId,
         });
       } catch (error: any) {
         this.fastify.log.error(`[SessionManager] Failed to create PTY:`, error);
@@ -288,30 +300,55 @@ export class SessionManager extends EventEmitter {
       deviceId: options.deviceId,
     };
 
-    // Handle PTY data and buffer output
-    ptyProcess.onData((data: string) => {
+    // Add session to map first so addToOutputBuffer can find it
+    this.sessions.set(sessionId, session);
+    this.sessionBufferBytes.set(sessionId, 0); // Initialize buffer byte counter
+
+    // OnData.
+    const onData = (data: string) => {
       this.addToOutputBuffer(sessionId, data); // Note: this is now async but we don't await to avoid blocking
       this.emit("data", sessionId, data);
       this.updateActivity(sessionId);
-    });
+    };
+
+    // Send welcome message first to ensure it appears before any PTY output
+    const welcomeMessage = `\r\n\x1b[1;34m███╗   ███╗ █████╗ ██████╗ ████████╗██╗  █████╗ ███╗   ██║\x1b[0m\r\n` +
+      `\x1b[1;34m████╗ ████║██╔══██╗██╔══██╗╚══██╔══╝██║ ██╔══██╗████╗  ██║\x1b[0m\r\n` +
+      `\x1b[1;36m██╔████╔██║███████║██████╔╝   ██║   ██║ ███████║██╔██╗ ██║\x1b[0m\r\n` +
+      `\x1b[1;36m██║╚██╔╝██║██╔══██║██╔══██╗   ██║   ██║ ██╔══██║██║╚██╗██║\x1b[0m\r\n` +
+      `\x1b[1;35m██║ ╚═╝ ██║██║  ██║██║  ██║   ██║   ██║ ██║  ██║██║ ╚████║\x1b[0m\r\n` +
+      `\x1b[1;35m╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═╝  ╚═╝╚═╝  ╚═══╝\x1b[0m\r\n` +
+      `\r\n` +
+      `\x1b[1;33m          ██████╗  ██████╗ ██████╗ ███████╗\x1b[0m\r\n` +
+      `\x1b[1;33m          ██╔════╝ ██╔═══██╗██╔══██╗██╔════╝\x1b[0m\r\n` +
+      `\x1b[1;32m          ██║      ██║   ██║██║  ██║█████╗  \x1b[0m\r\n` +
+      `\x1b[1;32m          ██║      ██║   ██║██║  ██║██╔══╝  \x1b[0m\r\n` +
+      `\x1b[1;31m          ╚██████╗ ╚██████╔╝██████╔╝███████╗\x1b[0m\r\n` +
+      `\x1b[1;31m           ╚═════╝  ╚═════╝ ╚═════╝ ╚══════╝\x1b[0m\r\n` +
+      `\r\n` +
+      `\x1b[1;32m🚀 Terminal Session: \x1b[0m\x1b[36m${sessionName}\x1b[0m\r\n` +
+      `\x1b[90mType commands to interact with the terminal.\x1b[0m\r\n\r\n`;
+    onData(welcomeMessage);
+
+    // Handle PTY data and buffer output
+    ptyProcess.onData(onData);
 
     // Handle PTY exit
-    ptyProcess.onExit(({ exitCode, signal }: { exitCode: number; signal?: number }) => {
-      this.fastify.log.warn(`Terminal session ${sessionId} exited`, {
-        exitCode,
-        signal,
-      });
-      
-      // Emit exit event first to notify clients
-      this.emit("exit", sessionId, exitCode);
-      
-      // Immediately kill the session to clean up and emit session_deleted event
-      // This ensures the session is removed from memory and API responses
-      this.killSession(sessionId, userId);
-    });
+    ptyProcess.onExit(
+      ({ exitCode, signal }: { exitCode: number; signal?: number }) => {
+        this.fastify.log.warn(`Terminal session ${sessionId} exited`, {
+          exitCode,
+          signal,
+        });
 
-    this.sessions.set(sessionId, session);
-    this.sessionBufferBytes.set(sessionId, 0); // Initialize buffer byte counter
+        // Emit exit event first to notify clients
+        this.emit("exit", sessionId, exitCode);
+
+        // Immediately kill the session to clean up and emit session_deleted event
+        // This ensures the session is removed from memory and API responses
+        this.killSession(sessionId, userId);
+      }
+    );
 
     // Sessions are ephemeral - no database persistence
 
@@ -370,7 +407,11 @@ export class SessionManager extends EventEmitter {
     return session;
   }
 
-  detachFromSession(sessionId: string, userId: string, deviceId?: string): boolean {
+  detachFromSession(
+    sessionId: string,
+    userId: string,
+    deviceId?: string
+  ): boolean {
     const session = this.sessions.get(sessionId);
 
     if (!session || session.userId !== userId) {
@@ -382,7 +423,7 @@ export class SessionManager extends EventEmitter {
 
     if (session.connectedClients === 0 && session.status === "active") {
       session.status = "detached";
-      
+
       // If this was a device-specific session, schedule cleanup
       if (deviceId && session.deviceId === deviceId) {
         this.scheduleSessionCleanup(sessionId, userId, deviceId);
@@ -403,25 +444,33 @@ export class SessionManager extends EventEmitter {
   /**
    * Schedule cleanup for a detached session
    */
-  private scheduleSessionCleanup(sessionId: string, userId: string, deviceId: string): void {
+  private scheduleSessionCleanup(
+    sessionId: string,
+    userId: string,
+    deviceId: string
+  ): void {
     // Wait 10 minutes before cleaning up detached device sessions
     const cleanupDelay = 10 * 60 * 1000; // 10 minutes
-    
+
     setTimeout(() => {
       const session = this.sessions.get(sessionId);
-      
+
       // Only clean up if still detached and no clients
-      if (session && session.status === "detached" && session.connectedClients === 0) {
+      if (
+        session &&
+        session.status === "detached" &&
+        session.connectedClients === 0
+      ) {
         this.fastify.log.debug(
           `Auto-cleaning detached session ${sessionId} for device ${deviceId}`
         );
-        
+
         // Remove from device mapping
         const deviceKey = `${userId}-${deviceId}`;
         if (this.userDeviceSessions.get(deviceKey) === sessionId) {
           this.userDeviceSessions.delete(deviceKey);
         }
-        
+
         // Kill the session
         this.killSession(sessionId, userId);
       }
@@ -474,10 +523,11 @@ export class SessionManager extends EventEmitter {
 
   writeToSession(sessionId: string, data: string): boolean {
     const session = this.sessions.get(sessionId);
-    
-    
+
     if (!session || !session.pty || session.status === "dead") {
-      this.fastify.log.warn(`[SessionManager] Cannot write to session ${sessionId}: session not ready`);
+      this.fastify.log.warn(
+        `[SessionManager] Cannot write to session ${sessionId}: session not ready`
+      );
       return false;
     }
 
@@ -584,7 +634,6 @@ export class SessionManager extends EventEmitter {
       isExecuting: isExecuting,
       deviceId: session.deviceId,
     };
-
 
     return sessionInfo;
   }
@@ -756,7 +805,7 @@ export class SessionManager extends EventEmitter {
     if (!session) return;
 
     // Calculate byte size of new data
-    const dataBytes = Buffer.byteLength(data, 'utf8');
+    const dataBytes = Buffer.byteLength(data, "utf8");
     const currentBytes = this.sessionBufferBytes.get(sessionId) || 0;
     const newTotalBytes = currentBytes + dataBytes;
 
@@ -766,36 +815,40 @@ export class SessionManager extends EventEmitter {
 
     // Check both chunk count and byte size limits
     let needsTrimming = false;
-    
+
     if (session.outputBuffer.length > this.maxOutputBuffer) {
       needsTrimming = true;
     }
-    
+
     if (newTotalBytes > this.maxOutputBufferBytes) {
       needsTrimming = true;
     }
-    
+
     if (needsTrimming) {
       // Remove oldest chunks until we're under both limits
       let removedBytes = 0;
       while (
-        (session.outputBuffer.length > this.maxOutputBuffer || 
-         this.sessionBufferBytes.get(sessionId)! > this.maxOutputBufferBytes) &&
+        (session.outputBuffer.length > this.maxOutputBuffer ||
+          this.sessionBufferBytes.get(sessionId)! >
+            this.maxOutputBufferBytes) &&
         session.outputBuffer.length > 0
       ) {
         const removedChunk = session.outputBuffer.shift();
         if (removedChunk) {
-          removedBytes += Buffer.byteLength(removedChunk, 'utf8');
+          removedBytes += Buffer.byteLength(removedChunk, "utf8");
         }
       }
-      
+
       // Update byte counter
-      const updatedBytes = Math.max(0, (this.sessionBufferBytes.get(sessionId) || 0) - removedBytes);
+      const updatedBytes = Math.max(
+        0,
+        (this.sessionBufferBytes.get(sessionId) || 0) - removedBytes
+      );
       this.sessionBufferBytes.set(sessionId, updatedBytes);
-      
+
       this.fastify.log.debug(
         `Trimmed session ${sessionId} buffer: removed ${removedBytes} bytes, ` +
-        `now ${session.outputBuffer.length} chunks, ${updatedBytes} bytes`
+          `now ${session.outputBuffer.length} chunks, ${updatedBytes} bytes`
       );
     }
 
@@ -963,21 +1016,26 @@ export class SessionManager extends EventEmitter {
 
     for (const [sessionId, session] of this.sessions.entries()) {
       const timeSinceActivity = now.getTime() - session.lastActivity.getTime();
-      
+
       // Clean up dead sessions after 24 hours
-      if (session.status === "dead" && timeSinceActivity > deadSessionThreshold) {
+      if (
+        session.status === "dead" &&
+        timeSinceActivity > deadSessionThreshold
+      ) {
         this.cleanupSession(sessionId, session);
         continue;
       }
-      
+
       // Clean up detached sessions after 2 hours of inactivity
       if (
-        session.status === "detached" && 
-        session.connectedClients === 0 && 
+        session.status === "detached" &&
+        session.connectedClients === 0 &&
         timeSinceActivity > detachedSessionThreshold
       ) {
         this.fastify.log.debug(
-          `Cleaning up detached session ${sessionId} after ${Math.round(timeSinceActivity / 1000 / 60)} minutes of inactivity`
+          `Cleaning up detached session ${sessionId} after ${Math.round(
+            timeSinceActivity / 1000 / 60
+          )} minutes of inactivity`
         );
         this.cleanupSession(sessionId, session);
       }
@@ -987,7 +1045,9 @@ export class SessionManager extends EventEmitter {
     for (const [deviceKey, sessionId] of this.userDeviceSessions.entries()) {
       if (!this.sessions.has(sessionId)) {
         this.userDeviceSessions.delete(deviceKey);
-        this.fastify.log.debug(`Cleaned up orphaned device mapping: ${deviceKey}`);
+        this.fastify.log.debug(
+          `Cleaned up orphaned device mapping: ${deviceKey}`
+        );
       }
     }
   }
@@ -1032,8 +1092,10 @@ export class SessionManager extends EventEmitter {
       }
     }
 
-    this.fastify.log.debug(`Cleaned up session: ${sessionId} (status: ${session.status})`);
-    
+    this.fastify.log.debug(
+      `Cleaned up session: ${sessionId} (status: ${session.status})`
+    );
+
     // Emit deletion event
     this.emit("session_deleted", sessionId);
   }

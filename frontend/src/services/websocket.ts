@@ -76,7 +76,15 @@ export class WebSocketService {
     return new Promise(async (resolve, reject) => {
       console.log(`[WebSocketService #${this.instanceId}] connect called for session:`, sessionId);
       
-      this.connectionOptions = options || {};
+      // Only update connectionOptions if new options are provided
+      if (options) {
+        this.connectionOptions = options;
+      }
+      
+      // Ensure we have connection options
+      if (!this.connectionOptions) {
+        this.connectionOptions = {};
+      }
       
       // Get device ID if not provided
       if (!this.connectionOptions.deviceId) {
@@ -212,7 +220,8 @@ export class WebSocketService {
     this.sessionId = null;
     this.disconnectTime = null;
     this.messageHandlers.clear();
-    this.connectionOptions = null;
+    // Don't clear connectionOptions - we need them for reconnection
+    // this.connectionOptions = null;
   }
 
   sendTerminalInput(data: string): void {

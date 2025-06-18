@@ -482,8 +482,13 @@ export class WebSocketService {
   }
 }
 
+// Global WebSocket tracker for debugging
+(window as any).__websockets = (window as any).__websockets || [];
+
 // Session List WebSocket Service
 export class SessionListWebSocketService {
+  private static instance: SessionListWebSocketService | null = null;
+  private static instanceCount = 0;
   private ws: WebSocket | null = null;
   private messageHandlers: Map<string, (message: WebSocketMessage) => void> =
     new Map();
@@ -495,13 +500,54 @@ export class SessionListWebSocketService {
   private disconnectTime: number | null = null;
   private pingInterval: any = null;
   private pongTimeout: any = null;
+  private instanceId: number;
+
+  constructor() {
+    this.instanceId = ++SessionListWebSocketService.instanceCount;
+    console.log(`[SessionListWS] New instance created #${this.instanceId}`);
+  }
+
+  static getInstance(): SessionListWebSocketService {
+    if (!SessionListWebSocketService.instance) {
+      SessionListWebSocketService.instance = new SessionListWebSocketService();
+    }
+    return SessionListWebSocketService.instance;
+  }
 
   connect(token: string): Promise<void> {
     return new Promise(async (resolve, reject) => {
-      // If already connected, don't create a new connection
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        console.log("Session list WebSocket already connected");
-        resolve();
+      console.log('[SessionListWS] Connect called, current state:', {
+        wsExists: !!this.ws,
+        wsState: this.ws?.readyState,
+        wsStateText: this.ws ? ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][this.ws.readyState] : 'NO_WS'
+      });
+      
+      // If already connected or connecting, don't create a new connection
+      if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+        console.log("[SessionListWS] Already connected or connecting, state:", this.ws.readyState);
+        
+        // If connecting, wait for it to complete
+        if (this.ws.readyState === WebSocket.CONNECTING) {
+          const checkConnection = () => {
+            if (!this.ws) {
+              reject(new Error("WebSocket was destroyed while connecting"));
+              return;
+            }
+            
+            if (this.ws.readyState === WebSocket.OPEN) {
+              console.log("[SessionListWS] Connection completed while waiting");
+              resolve();
+            } else if (this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+              reject(new Error("WebSocket connection failed"));
+            } else {
+              // Still connecting, check again
+              setTimeout(checkConnection, 100);
+            }
+          };
+          checkConnection();
+        } else {
+          resolve();
+        }
         return;
       }
 
@@ -525,8 +571,18 @@ export class SessionListWebSocketService {
       )}&deviceId=${encodeURIComponent(deviceId)}`;
 
       try {
-        console.log("Creating session list WebSocket connection to:", wsUrl);
+        console.log("[SessionListWS] Creating new WebSocket connection to:", wsUrl);
         this.ws = new WebSocket(wsUrl);
+        console.log("[SessionListWS] WebSocket created, state:", this.ws.readyState);
+        
+        // Track WebSocket globally for debugging
+        (window as any).__websockets.push({
+          url: wsUrl,
+          type: 'session_list',
+          ws: this.ws,
+          createdAt: new Date().toISOString(),
+          instanceId: this.instanceId
+        });
 
         this.ws.onopen = () => {
           console.log("Session list WebSocket connected");
@@ -577,6 +633,7 @@ export class SessionListWebSocketService {
   }
 
   disconnect(): void {
+    console.log('[SessionListWS] Disconnect called');
     this.stopHeartbeat();
     
     if (this.reconnectTimeout) {
@@ -595,12 +652,14 @@ export class SessionListWebSocketService {
         this.ws.readyState === WebSocket.OPEN ||
         this.ws.readyState === WebSocket.CONNECTING
       ) {
-        this.ws.close();
+        console.log('[SessionListWS] Closing WebSocket, current state:', this.ws.readyState);
+        this.ws.close(1000, 'Manual disconnect');
       }
       this.ws = null;
     }
     this.token = null;
     this.disconnectTime = null;
+    this.reconnectAttempts = 0; // Reset reconnect attempts
     this.messageHandlers.clear();
   }
 
@@ -727,4 +786,4 @@ export class SessionListWebSocketService {
 
 // Singleton instances
 export const wsService = WebSocketService.getInstance();
-export const sessionListWsService = new SessionListWebSocketService();
+export const sessionListWsService = SessionListWebSocketService.getInstance();

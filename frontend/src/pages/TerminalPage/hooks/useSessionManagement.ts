@@ -46,6 +46,7 @@ export const useSessionManagement = ({
   });
   
   const isCreatingRef = useRef(false);
+  const currentSessionIdRef = useRef<string | null>(null);
   
   // Helper to update operation states
   const updateOperationState = useCallback((updates: Partial<OperationStates>) => {
@@ -241,20 +242,43 @@ export const useSessionManagement = ({
     }
   }, [sessions, operationStates.renaming, refreshSessions, updateOperationState, onError]);
 
+  // Keep currentSessionIdRef in sync
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
   // Load sessions on mount and setup WebSocket
   useEffect(() => {
     if (token) {
       refreshSessions();
       
+      // Use a ref to track if we're already trying to connect
+      let isConnecting = false;
+      let retryTimeout: NodeJS.Timeout | null = null;
+      
       // Connect to session list WebSocket with retry logic
       const connectSessionListWS = () => {
+        if (isConnecting) {
+          console.log('🔄 Already attempting to connect, skipping duplicate connection attempt');
+          return;
+        }
+        
+        isConnecting = true;
         console.log('🔌 Attempting to connect session list WebSocket...');
+        console.log('SessionListWS service instance:', sessionListWsService);
+        
         sessionListWsService.connect(token).then(() => {
           console.log('✅ Connected to session list WebSocket');
+          isConnecting = false;
         }).catch((error) => {
           console.error('❌ Failed to connect to session list WebSocket:', error);
-          // Retry connection after delay
-          setTimeout(connectSessionListWS, 3000);
+          isConnecting = false;
+          
+          // Only retry if the error is not due to an existing connection
+          if (!error.message?.includes('already connected')) {
+            // Retry connection after delay
+            retryTimeout = setTimeout(connectSessionListWS, 3000);
+          }
         });
       };
       
@@ -314,7 +338,7 @@ export const useSessionManagement = ({
         });
         
         // If current session was deleted, clear it
-        if (sessionId === currentSessionId) {
+        if (sessionId === currentSessionIdRef.current) {
           console.log('Deleted session was current session, clearing currentSessionId');
           setCurrentSessionId(null);
         }
@@ -330,6 +354,10 @@ export const useSessionManagement = ({
       }, 60000); // Reduced to 1 minute since we have real-time updates
       
       return () => {
+        // Clear retry timeout if exists
+        if (retryTimeout) {
+          clearTimeout(retryTimeout);
+        }
         clearInterval(interval);
         sessionListWsService.offMessage('session_list');
         sessionListWsService.offMessage('session_updated');
@@ -337,7 +365,7 @@ export const useSessionManagement = ({
         sessionListWsService.disconnect();
       };
     }
-  }, [token, refreshSessions, currentSessionId]);
+  }, [token, refreshSessions]);
 
   // Load sessions alias for compatibility
   const loadSessions = useCallback(() => {

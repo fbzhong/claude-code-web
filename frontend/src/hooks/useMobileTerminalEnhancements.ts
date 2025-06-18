@@ -4,14 +4,16 @@ import { Terminal } from '@xterm/xterm';
 interface MobileTerminalEnhancementsOptions {
   terminal: Terminal | null;
   onSpecialKey?: (key: string) => void;
+  enableGestures?: boolean; // Make gestures optional, default false
 }
 
 export const useMobileTerminalEnhancements = ({ 
   terminal, 
-  onSpecialKey 
+  onSpecialKey,
+  enableGestures = false // Disable gestures by default to improve scrolling
 }: MobileTerminalEnhancementsOptions) => {
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
-  const swipeThreshold = 50;
+  const swipeThreshold = 50; // Increased threshold to reduce false positives
   
   // Handle swipe gestures for navigation
   const handleTouchStart = useCallback((e: TouchEvent) => {
@@ -31,10 +33,11 @@ export const useMobileTerminalEnhancements = ({
     const deltaY = touch.clientY - touchStartRef.current.y;
     const deltaTime = Date.now() - touchStartRef.current.time;
     
-    // Quick swipe detection (under 300ms)
+    // Only handle gestures if they are fast swipes (under 300ms)
+    // This prevents interfering with normal scrolling
     if (deltaTime < 300) {
-      // Horizontal swipe
-      if (Math.abs(deltaX) > swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY)) {
+      // Horizontal swipe - only if it's a clear horizontal gesture
+      if (Math.abs(deltaX) > swipeThreshold * 2 && Math.abs(deltaX) > Math.abs(deltaY) * 2) {
         if (deltaX > 0) {
           // Swipe right - forward in history
           terminal.write('\x1B[A'); // Up arrow for history
@@ -42,19 +45,10 @@ export const useMobileTerminalEnhancements = ({
           // Swipe left - backward in history
           terminal.write('\x1B[B'); // Down arrow for history
         }
-        e.preventDefault();
+        // Note: Can't preventDefault with passive listeners
       }
-      // Vertical swipe
-      else if (Math.abs(deltaY) > swipeThreshold) {
-        if (deltaY > 0) {
-          // Swipe down - Page Down
-          terminal.write('\x1B[6~');
-        } else {
-          // Swipe up - Page Up
-          terminal.write('\x1B[5~');
-        }
-        e.preventDefault();
-      }
+      // Vertical swipe - disabled by default to not interfere with scrolling
+      // Users should use the keyboard toolbar for page up/down
     }
     
     touchStartRef.current = null;
@@ -100,28 +94,34 @@ export const useMobileTerminalEnhancements = ({
   
   // Setup event listeners
   useEffect(() => {
-    if (!terminal) return;
+    if (!terminal || !enableGestures) return;
     
     const element = terminal.element;
     if (!element) return;
     
-    // Add touch event listeners
-    element.addEventListener('touchstart', handleTouchStart, { passive: false });
-    element.addEventListener('touchend', handleTouchEnd, { passive: false });
-    element.addEventListener('touchstart', handleLongPressStart, { passive: false });
-    element.addEventListener('touchend', handleLongPressEnd, { passive: false });
-    element.addEventListener('touchcancel', handleLongPressEnd, { passive: false });
-    element.addEventListener('touchend', handleDoubleTap, { passive: false });
+    // Add touch event listeners with passive for better scrolling
+    // Only prevent default when actually handling gestures
+    const touchStartHandler = (e: TouchEvent) => {
+      handleTouchStart(e);
+      handleLongPressStart(e);
+    };
+    
+    const touchEndHandler = (e: TouchEvent) => {
+      handleTouchEnd(e);
+      handleLongPressEnd();
+      handleDoubleTap(e);
+    };
+    
+    element.addEventListener('touchstart', touchStartHandler, { passive: true });
+    element.addEventListener('touchend', touchEndHandler, { passive: true });
+    element.addEventListener('touchcancel', handleLongPressEnd, { passive: true });
     
     return () => {
-      element.removeEventListener('touchstart', handleTouchStart);
-      element.removeEventListener('touchend', handleTouchEnd);
-      element.removeEventListener('touchstart', handleLongPressStart);
-      element.removeEventListener('touchend', handleLongPressEnd);
+      element.removeEventListener('touchstart', touchStartHandler);
+      element.removeEventListener('touchend', touchEndHandler);
       element.removeEventListener('touchcancel', handleLongPressEnd);
-      element.removeEventListener('touchend', handleDoubleTap);
     };
-  }, [terminal, handleTouchStart, handleTouchEnd, handleLongPressStart, handleLongPressEnd, handleDoubleTap]);
+  }, [terminal, enableGestures, handleTouchStart, handleTouchEnd, handleLongPressStart, handleLongPressEnd, handleDoubleTap]);
   
   // Return useful methods
   return {

@@ -46,6 +46,7 @@ export const useSessionManagement = ({
   });
   
   const isCreatingRef = useRef(false);
+  const currentSessionIdRef = useRef<string | null>(null);
   
   // Helper to update operation states
   const updateOperationState = useCallback((updates: Partial<OperationStates>) => {
@@ -76,11 +77,9 @@ export const useSessionManagement = ({
 
   // Create new session
   const createNewSession = useCallback((name: string, workingDir?: string) => {
-    console.log('createNewSession called with:', name, workingDir);
     
     // Check and set creating state using ref
     if (isCreatingRef.current) {
-      console.log('createNewSession: Already creating, skipping');
       return;
     }
     
@@ -88,48 +87,37 @@ export const useSessionManagement = ({
     isCreatingRef.current = true;
     updateOperationState({ creating: true });
     
-    console.log('createNewSession: Starting async work');
     
     // Use an IIFE to handle the async work
     (async () => {
       try {
-        console.log('createNewSession: Inside async IIFE');
         
         // Disconnect from current session if needed
         if (wsService.isConnected()) {
-          console.log('createNewSession: Disconnecting from current session');
           wsService.disconnect();
         }
         
-        console.log('createNewSession: Calling API to create session');
         const newSession = await sessionApi.createSession({ name, workingDir });
-        console.log('createNewSession: API returned session:', newSession);
         
         // Validate the response has required fields
         if (!newSession || !newSession.id) {
           throw new Error('Invalid session response from server');
         }
         
-        // Update states
-        setSessions(prev => [...prev, newSession]);
+        // Only set the current session ID - the session will be added via WebSocket event
         setCurrentSessionId(newSession.id);
         
-        // Background refresh to sync with server
-        refreshSessions(false);
         
-        console.log('createNewSession: Session created successfully');
       } catch (err: any) {
         console.error('createNewSession: Error occurred:', err);
         onError(err.message || 'Failed to create session');
         refreshSessions(false);
       } finally {
-        console.log('createNewSession: Resetting creating state');
         isCreatingRef.current = false;
         updateOperationState({ creating: false });
       }
     })();
     
-    console.log('createNewSession: Function returning, async work continues');
   }, [refreshSessions, updateOperationState, onError]);
 
   // Select session
@@ -139,7 +127,6 @@ export const useSessionManagement = ({
     
     // If clicking the same session that's already active, just return
     if (currentSessionId === sessionId && wsService.isConnected()) {
-      console.log('Already connected to session:', sessionId);
       return;
     }
     
@@ -151,10 +138,8 @@ export const useSessionManagement = ({
         wsService.disconnect();
       }
       
-      // Only call attachToSession API if we're switching to a different session
-      if (currentSessionId !== sessionId) {
-        await sessionApi.attachToSession(sessionId);
-      }
+      // Don't call attachToSession API here - WebSocket connection will handle it
+      // This avoids double counting of connected clients
       
       setCurrentSessionId(sessionId);
       
@@ -241,20 +226,39 @@ export const useSessionManagement = ({
     }
   }, [sessions, operationStates.renaming, refreshSessions, updateOperationState, onError]);
 
+  // Keep currentSessionIdRef in sync
+  useEffect(() => {
+    currentSessionIdRef.current = currentSessionId;
+  }, [currentSessionId]);
+
   // Load sessions on mount and setup WebSocket
   useEffect(() => {
     if (token) {
       refreshSessions();
       
+      // Use a ref to track if we're already trying to connect
+      let isConnecting = false;
+      let retryTimeout: NodeJS.Timeout | null = null;
+      
       // Connect to session list WebSocket with retry logic
       const connectSessionListWS = () => {
-        console.log('🔌 Attempting to connect session list WebSocket...');
+        if (isConnecting) {
+          return;
+        }
+        
+        isConnecting = true;
+        
         sessionListWsService.connect(token).then(() => {
-          console.log('✅ Connected to session list WebSocket');
+          isConnecting = false;
         }).catch((error) => {
-          console.error('❌ Failed to connect to session list WebSocket:', error);
-          // Retry connection after delay
-          setTimeout(connectSessionListWS, 3000);
+          console.error('Failed to connect to session list WebSocket:', error);
+          isConnecting = false;
+          
+          // Only retry if the error is not due to an existing connection
+          if (!error.message?.includes('already connected')) {
+            // Retry connection after delay
+            retryTimeout = setTimeout(connectSessionListWS, 3000);
+          }
         });
       };
       
@@ -262,60 +266,35 @@ export const useSessionManagement = ({
       
       // Setup session list message handlers
       const handleSessionList = (message: any) => {
-        console.log('Received session list:', message.data);
         setSessions(message.data);
       };
       
       const handleSessionUpdated = (message: any) => {
-        console.log('🔄 Session updated event received:', message.data);
         const { session, eventType } = message.data;
-        
-        console.log('Session data:', {
-          id: session.id,
-          name: session.name,
-          status: session.status,
-          workingDir: session.workingDir,
-          lastCommand: session.lastCommand,
-          isExecuting: session.isExecuting,
-          connectedClients: session.connectedClients
-        });
         
         setSessions(prev => {
           if (eventType === 'created') {
-            console.log('➕ Adding new session to list');
             // Check if session already exists to avoid duplicates
             const exists = prev.find(s => s.id === session.id);
             return exists ? prev : [...prev, session];
           } else {
-            console.log('🔄 Updating existing session in list');
             // Update existing session
             const updated = prev.map(s => s.id === session.id ? session : s);
-            console.log('Updated sessions list:', updated.map(s => ({ 
-              id: s.id.slice(0, 8), 
-              workingDir: s.workingDir, 
-              lastCommand: s.lastCommand, 
-              isExecuting: s.isExecuting,
-              connectedClients: s.connectedClients
-            })));
             return updated;
           }
         });
       };
       
       const handleSessionDeleted = (message: any) => {
-        console.log('🗑️ Session deleted event received:', message.data);
         const { sessionId } = message.data;
         
-        console.log('Current sessions before deletion:', sessions.map(s => s.id));
         setSessions(prev => {
           const filtered = prev.filter(s => s.id !== sessionId);
-          console.log('Sessions after deletion:', filtered.map(s => s.id));
           return filtered;
         });
         
-        // If current session was deleted, clear it
-        if (sessionId === currentSessionId) {
-          console.log('Deleted session was current session, clearing currentSessionId');
+        // If the deleted session was the current one, clear it
+        if (sessionId === currentSessionIdRef.current) {
           setCurrentSessionId(null);
         }
       };
@@ -330,6 +309,10 @@ export const useSessionManagement = ({
       }, 60000); // Reduced to 1 minute since we have real-time updates
       
       return () => {
+        // Clear retry timeout if exists
+        if (retryTimeout) {
+          clearTimeout(retryTimeout);
+        }
         clearInterval(interval);
         sessionListWsService.offMessage('session_list');
         sessionListWsService.offMessage('session_updated');
@@ -337,7 +320,7 @@ export const useSessionManagement = ({
         sessionListWsService.disconnect();
       };
     }
-  }, [token, refreshSessions, currentSessionId]);
+  }, [token, refreshSessions]);
 
   // Load sessions alias for compatibility
   const loadSessions = useCallback(() => {

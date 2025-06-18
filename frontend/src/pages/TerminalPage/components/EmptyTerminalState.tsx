@@ -33,31 +33,66 @@ export const EmptyTerminalState: React.FC<EmptyTerminalStateProps> = ({
       justifyContent: 'center',
       color: 'rgba(255,255,255,0.6)',
       p: 2,
+      position: 'relative',
+      overflow: 'auto',
     }}>
-      <TerminalIcon sx={{ fontSize: { xs: 48, sm: 64 }, mb: 2, opacity: 0.5 }} />
-      <Typography variant={isMobile ? "h6" : "h5"} sx={{ mb: 1 }}>
-        No Session Selected
-      </Typography>
-      <Typography 
-        variant="body2" 
-        sx={{ 
-          mb: 3, 
-          textAlign: 'center', 
-          maxWidth: { xs: '100%', sm: 400 },
-          px: { xs: 2, sm: 0 }
+      {/* ASCII Art Above Content */}
+      <Box
+        sx={{
+          mb: { xs: 2, sm: 3, md: 4 },
+          opacity: 0.3,
+          fontSize: { xs: '0.4rem', sm: '0.6rem', md: '0.8rem' },
+          lineHeight: 1.2,
+          fontFamily: 'monospace',
+          color: '#007AFF',
+          whiteSpace: 'pre',
+          userSelect: 'none',
+          textAlign: 'center',
+          textShadow: '0 0 10px rgba(0, 122, 255, 0.5)',
         }}
       >
-        Open the menu to view sessions or create a new one to start using the terminal.
-      </Typography>
-      <Button
-        variant="contained"
-        size={isMobile ? "large" : "medium"}
-        startIcon={isCreating ? <CircularProgress size={18} /> : <AddIcon />}
-        onClick={onOpenSessions}
-        disabled={isCreating}
-      >
-        {isCreating ? 'Creating...' : 'Open Sessions Menu'}
-      </Button>
+{`     ███╗   ███╗ █████╗ ██████╗ ████████╗██╗  █████╗ ███╗   ██╗
+     ████╗ ████║██╔══██╗██╔══██╗╚══██╔══╝██║ ██╔══██╗████╗  ██║
+     ██╔████╔██║███████║██████╔╝   ██║   ██║ ███████║██╔██╗ ██║
+     ██║╚██╔╝██║██╔══██║██╔══██╗   ██║   ██║ ██╔══██║██║╚██╗██║
+     ██║ ╚═╝ ██║██║  ██║██║  ██║   ██║   ██║ ██║  ██║██║ ╚████║
+     ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═╝  ╚═╝╚═╝  ╚═══╝
+
+               ██████╗  ██████╗ ██████╗ ███████╗
+               ██╔════╝ ██╔═══██╗██╔══██╗██╔════╝
+               ██║      ██║   ██║██║  ██║█████╗  
+               ██║      ██║   ██║██║  ██║██╔══╝  
+               ╚██████╗ ╚██████╔╝██████╔╝███████╗
+                ╚═════╝  ╚═════╝ ╚═════╝ ╚══════╝`}
+      </Box>
+      
+      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            mb: 4, 
+            textAlign: 'center', 
+            maxWidth: { xs: '100%', sm: 400 },
+            px: { xs: 2, sm: 0 },
+            opacity: 0.8,
+          }}
+        >
+          Open the menu to view sessions or create a new one to start using the terminal.
+        </Typography>
+        <Button
+          variant="contained"
+          size={isMobile ? "large" : "medium"}
+          startIcon={isCreating ? <CircularProgress size={18} /> : <AddIcon />}
+          onClick={onOpenSessions}
+          disabled={isCreating}
+          sx={{
+            py: 1.5,
+            px: 3,
+          }}
+        >
+          {isCreating ? 'Creating...' : 'Open Sessions Menu'}
+        </Button>
+      </Box>
     </Box>
   );
 };

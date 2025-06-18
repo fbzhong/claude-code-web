@@ -13,6 +13,7 @@ import {
   CircularProgress,
   Drawer,
   Divider,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -22,9 +23,9 @@ import {
   Close as CloseIcon,
   PlayArrow as PlayArrowIcon,
   RestartAlt as RestartAltIcon,
+  Group as GroupIcon,
 } from '@mui/icons-material';
 import { SessionInfo } from '../../../components/SessionList';
-import { containerApi } from '../../../services/api';
 
 // Props interface
 interface SessionsDrawerProps {
@@ -141,28 +142,6 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
   onRenameSession,
   onRefreshSessions,
 }) => {
-  const [isRestarting, setIsRestarting] = useState(false);
-
-  const handleRestartContainer = async () => {
-    if (!window.confirm('This will restart your container and terminate all active sessions. Continue?')) {
-      return;
-    }
-
-    setIsRestarting(true);
-    try {
-      await containerApi.restart();
-      // Close the drawer and refresh after a short delay
-      setTimeout(() => {
-        onClose();
-        window.location.reload();
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to restart container:', error);
-      alert('Failed to restart container. Please try again.');
-    } finally {
-      setIsRestarting(false);
-    }
-  };
 
   return (
     <Drawer
@@ -171,10 +150,14 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
       onClose={onClose}
       sx={{
         '& .MuiDrawer-paper': {
-          bgcolor: '#1e1e1e',
-          color: '#cccccc',
+          backgroundColor: 'rgba(10, 10, 10, 0.95)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+          color: '#ffffff',
           width: { xs: '85vw', sm: 400 },
           maxWidth: 500,
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
         }
       }}
     >
@@ -185,7 +168,11 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
           justifyContent: 'space-between',
           mb: 2 
         }}>
-          <Typography variant="h6" sx={{ color: '#ffffff' }}>
+          <Typography 
+            variant="h6" 
+            className="gradient-text"
+            sx={{ fontWeight: 700 }}
+          >
             Active Sessions ({sessions.length})
           </Typography>
           <IconButton 
@@ -221,18 +208,6 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
         {operationStates.refreshing && <LinearProgress sx={{ mb: 1 }} />}
 
         <Divider sx={{ my: 2 }} />
-
-        <Button
-          fullWidth
-          variant="outlined"
-          color="warning"
-          startIcon={isRestarting ? <CircularProgress size={18} /> : <RestartAltIcon />}
-          onClick={handleRestartContainer}
-          disabled={isRestarting}
-          sx={{ mb: 2 }}
-        >
-          {isRestarting ? 'Restarting Container...' : 'Restart Container'}
-        </Button>
 
         <Box sx={{ flex: 1, overflow: 'auto' }}>
           {sessions.length === 0 ? (
@@ -290,13 +265,16 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
                         <Typography variant="body2" noWrap sx={{ color: '#ffffff' }}>
                           {session.name}
                         </Typography>
-                        {session.connectedClients > 0 && (
-                          <Chip 
-                            label={session.connectedClients} 
-                            size="small" 
-                            variant="outlined"
-                            sx={{ minWidth: 'auto', height: 18, fontSize: '0.7rem' }}
-                          />
+                        {session.connectedClients > 1 && (
+                          <Tooltip title={`${session.connectedClients} connected clients`}>
+                            <Chip 
+                              icon={<GroupIcon sx={{ fontSize: 12 }} />}
+                              label={session.connectedClients} 
+                              size="small" 
+                              variant="outlined"
+                              sx={{ minWidth: 'auto', height: 18, fontSize: '0.7rem' }}
+                            />
+                          </Tooltip>
                         )}
                       </Box>
                     }

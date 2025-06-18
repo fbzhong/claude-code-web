@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Box,
   AppBar,
@@ -11,7 +11,7 @@ import {
   CircularProgress,
   useTheme,
   useMediaQuery,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Menu as MenuIcon,
   Logout as LogoutIcon,
@@ -19,33 +19,36 @@ import {
   Add as AddIcon,
   Close as CloseIcon,
   Keyboard as KeyboardIcon,
-  GitHub as GitHubIcon,
-  Code as CodeIcon,
-  VpnKey as VpnKeyIcon,
-} from '@mui/icons-material';
-import { Fab } from '@mui/material';
-import { StableTerminal as Terminal } from '../components/StableTerminal';
-import type { StableTerminalHandle as TerminalHandle } from '../components/StableTerminal';
-import { useAuthStore } from '../stores/authStore';
-import { useNavigate } from 'react-router-dom';
-import { MobileKeyboardToolbar, useMobileKeyboardToolbar } from '../components/MobileKeyboardToolbar';
-import { Dialog, DialogContent, DialogTitle } from '@mui/material';
-import GitHubManager from '../components/GitHubManager';
-import { SSHAccessDialog } from '../components/SSHAccessDialog';
-import { SessionsDrawer } from './TerminalPage/components/SessionsDrawer';
-import { useSessionManagement } from './TerminalPage/hooks/useSessionManagement';
-import { useWebSocketConnection } from './TerminalPage/hooks/useWebSocketConnection';
+} from "@mui/icons-material";
+import { Fab } from "@mui/material";
+import { StableTerminal as Terminal } from "../components/StableTerminal";
+import type { StableTerminalHandle as TerminalHandle } from "../components/StableTerminal";
+import { EmptyTerminalState } from "./TerminalPage/components/EmptyTerminalState";
+import { useAuthStore } from "../stores/authStore";
+import { useNavigate } from "react-router-dom";
+import {
+  MobileKeyboardToolbar,
+  useMobileKeyboardToolbar,
+} from "../components/MobileKeyboardToolbar";
+import { Dialog, DialogContent, DialogTitle } from "@mui/material";
+import { IntegrationIcons } from "../components/IntegrationIcons";
+import { SessionsDrawer } from "./TerminalPage/components/SessionsDrawer";
+import { useSessionManagement } from "./TerminalPage/hooks/useSessionManagement";
+import { useWebSocketConnection } from "./TerminalPage/hooks/useWebSocketConnection";
+import {
+  ConnectionStatus,
+  ConnectionStatusMini,
+} from "../components/ConnectionStatus";
 
 export const TerminalPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, token, logout } = useAuthStore();
-  
+
   // UI states
   const [sessionsDrawerOpen, setSessionsDrawerOpen] = useState(false);
-  const [sshInfoOpen, setSSHInfoOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [githubDialogOpen, setGithubDialogOpen] = useState(false);
-  
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   // Session management hook
   const {
     sessions,
@@ -62,23 +65,23 @@ export const TerminalPage: React.FC = () => {
     token,
     onError: setError,
   });
-  
+
   const terminalRef = useRef<TerminalHandle>(null);
-  
+
   // Responsive design
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   // Mobile keyboard toolbar
-  const { 
-    isVisible: isKeyboardToolbarVisible, 
-    toggleToolbar, 
+  const {
+    isVisible: isKeyboardToolbarVisible,
+    toggleToolbar,
     isMobile: isMobileKeyboard,
-    keyboardHeight 
+    keyboardHeight,
   } = useMobileKeyboardToolbar(() => {
     // When keyboard shows, scroll to cursor position to ensure it's visible
     const scrollAttempts = [100, 300, 500];
-    scrollAttempts.forEach(delay => {
+    scrollAttempts.forEach((delay) => {
       setTimeout(() => {
         if (terminalRef.current) {
           console.log(`Attempting cursor scroll after ${delay}ms`);
@@ -93,7 +96,7 @@ export const TerminalPage: React.FC = () => {
       }, delay);
     });
   });
-  
+
   // Handle terminal clear when session changes
   const handleSessionChange = useCallback(() => {
     if (terminalRef.current?.clear) {
@@ -102,30 +105,45 @@ export const TerminalPage: React.FC = () => {
   }, []);
 
   // Wrap createNewSession to clear terminal
-  const createNewSessionWithClear = useCallback((name: string, workingDir?: string) => {
-    createNewSession(name, workingDir);
-    handleSessionChange();
-  }, [createNewSession, handleSessionChange]);
+  const createNewSessionWithClear = useCallback(
+    (name: string, workingDir?: string) => {
+      createNewSession(name, workingDir);
+      handleSessionChange();
+    },
+    [createNewSession, handleSessionChange]
+  );
 
   // Wrap selectSession to clear terminal
-  const selectSessionWithClear = useCallback(async (sessionId: string) => {
-    await selectSession(sessionId);
-    handleSessionChange();
-  }, [selectSession, handleSessionChange]);
+  const selectSessionWithClear = useCallback(
+    async (sessionId: string) => {
+      await selectSession(sessionId);
+      handleSessionChange();
+    },
+    [selectSession, handleSessionChange]
+  );
 
   // Wrap deleteSession to clear terminal when deleting current session
-  const deleteSessionWithClear = useCallback(async (sessionId: string) => {
-    if (sessionId === currentSessionId) {
-      handleSessionChange();
-    }
-    await deleteSession(sessionId);
-  }, [deleteSession, currentSessionId, handleSessionChange]);
+  const deleteSessionWithClear = useCallback(
+    async (sessionId: string) => {
+      if (sessionId === currentSessionId) {
+        handleSessionChange();
+      }
+      await deleteSession(sessionId);
+    },
+    [deleteSession, currentSessionId, handleSessionChange]
+  );
 
   // WebSocket connection state
   const [isTerminalReady, setIsTerminalReady] = useState(false);
 
   // Use WebSocket connection hook
-  const { handleTerminalData, handleTerminalResize } = useWebSocketConnection({
+  const {
+    handleTerminalData,
+    handleTerminalResize,
+    connectionState,
+    canManualReconnect,
+    manualReconnect,
+  } = useWebSocketConnection({
     currentSessionId,
     token,
     isTerminalReady,
@@ -133,6 +151,7 @@ export const TerminalPage: React.FC = () => {
     setSessions,
     setCurrentSessionId,
     setError,
+    setSuccessMessage,
     isMobileKeyboard,
     isKeyboardToolbarVisible,
   });
@@ -144,33 +163,49 @@ export const TerminalPage: React.FC = () => {
 
   // Terminal ready callback
   const handleTerminalReady = useCallback(() => {
-    console.log('Terminal is ready, enabling WebSocket connection');
-    setIsTerminalReady(true);
+    console.log("Terminal is ready, enabling WebSocket connection");
+    // Add a small delay to ensure WebSocket is fully connected
+    setTimeout(() => {
+      setIsTerminalReady(true);
+    }, 100);
   }, []);
 
+  const handleMobileKeyPress = useCallback(
+    (key: string) => {
+      if (!currentSessionId) return;
+      handleTerminalData(key);
 
-  const handleMobileKeyPress = useCallback((key: string) => {
-    if (!currentSessionId) return;
-    handleTerminalData(key);
-    
-    // Keep terminal focused after sending key
-    setTimeout(() => {
-      if (terminalRef.current) {
-        terminalRef.current.focus();
-      }
-    }, 50);
-  }, [currentSessionId, handleTerminalData]);
+      // Keep terminal focused after sending key
+      setTimeout(() => {
+        if (terminalRef.current) {
+          terminalRef.current.focus();
+        }
+      }, 50);
+    },
+    [currentSessionId, handleTerminalData]
+  );
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate("/login");
   };
 
-
   return (
-    <Box sx={{ display: 'flex', height: '100vh', flexDirection: 'column' }}>
-      <AppBar position="static" sx={{ bgcolor: '#2d2d30' }}>
-        <Toolbar sx={{ minHeight: { xs: 56, sm: 64 } }}>
+    <Box sx={{ display: "flex", height: "100vh", flexDirection: "column" }}>
+      <AppBar
+        position="static"
+        className="frosted-glass"
+        sx={{
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 1px 20px rgba(0, 0, 0, 0.3)",
+        }}
+      >
+        <Toolbar
+          sx={{
+            minHeight: { xs: 56, sm: 64 },
+            gap: 1,
+          }}
+        >
           <IconButton
             color="inherit"
             onClick={() => setSessionsDrawerOpen(true)}
@@ -178,88 +213,109 @@ export const TerminalPage: React.FC = () => {
           >
             <MenuIcon />
           </IconButton>
-          
-          <Typography 
-            variant={isMobile ? "subtitle1" : "h6"} 
-            sx={{ 
-              flexGrow: 1, 
-              fontWeight: 600,
-              display: { xs: 'none', sm: 'block' }
+
+          <Typography
+            variant={isMobile ? "subtitle1" : "h6"}
+            className="gradient-text"
+            sx={{
+              flexGrow: 1,
+              fontWeight: 700,
+              letterSpacing: "-0.01em",
+              display: { xs: "none", sm: "block" },
             }}
           >
-            Claude Web Terminal
+            Martian Code
           </Typography>
-          
+
           {/* Simplified mobile header */}
-          <Typography 
-            variant="subtitle1" 
-            sx={{ 
-              flexGrow: 1, 
-              fontWeight: 600,
-              display: { xs: 'block', sm: 'none' }
+          <Typography
+            variant="subtitle1"
+            className="gradient-text"
+            sx={{
+              flexGrow: 1,
+              fontWeight: 700,
+              letterSpacing: "-0.01em",
+              display: { xs: "block", sm: "none" },
             }}
           >
             Terminal
           </Typography>
-          
+
+          {/* Connection Status - Hidden per user request */}
+
           {!isMobile && (
             <Typography variant="body2" sx={{ mr: 2, opacity: 0.9 }}>
               {user?.email}
             </Typography>
           )}
-          
-          <IconButton 
-            color="inherit" 
-            onClick={() => setGithubDialogOpen(true)}
+
+          {/* Dynamic Integration Icons */}
+          <IntegrationIcons isMobile={isMobile} />
+
+          <IconButton
+            color="inherit"
+            onClick={handleLogout}
             size={isMobile ? "medium" : "small"}
-            sx={{ mr: 1 }}
-            title="GitHub Integration"
-          >
-            <GitHubIcon />
-          </IconButton>
-          
-          <IconButton 
-            color="inherit" 
-            onClick={() => setSSHInfoOpen(true)}
-            size={isMobile ? "medium" : "small"}
-            sx={{ mr: 1 }}
-            title="SSH Access Management"
-          >
-            <VpnKeyIcon />
-          </IconButton>
-          
-          <IconButton 
-            color="inherit" 
-            onClick={handleLogout} 
-            size={isMobile ? "medium" : "small"}
+            sx={{
+              transition: "all 0.2s ease",
+              "&:hover": {
+                backgroundColor: "rgba(255, 90, 95, 0.2)",
+                transform: "scale(1.1)",
+              },
+            }}
           >
             <LogoutIcon />
           </IconButton>
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-
-        {/* Terminal Area */}
-        <Box sx={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          bgcolor: '#0a0a0a', 
-          position: 'relative',
+      <Box
+        sx={{
+          display: "flex",
+          flex: 1,
           minHeight: 0,
-          overflow: 'hidden'
-        }}>
+          overflow: "hidden",
+          position: "relative",
+          // Prevent outer container from scrolling
+          touchAction:
+            isKeyboardToolbarVisible && isMobileKeyboard ? "none" : "auto",
+        }}
+      >
+        {/* Terminal Area */}
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            bgcolor: "#0a0a0a",
+            position: "relative",
+            minHeight: 0,
+            overflow: "hidden",
+            // Lock the outer container when keyboard is visible
+            touchAction:
+              isKeyboardToolbarVisible && isMobileKeyboard ? "none" : "auto",
+          }}
+        >
           {currentSessionId ? (
-            <Box sx={{ 
-              flex: 1, 
-              overflow: 'hidden',
-              p: 1,
-              display: 'flex',
-              minHeight: 0,
-              // Adjust height when keyboard is visible
-              pb: isKeyboardToolbarVisible && isMobileKeyboard ? `${keyboardHeight + 100}px` : 1,
-            }}>
+            <Box
+              sx={{
+                flex: 1,
+                overflow: "hidden",
+                p: 1,
+                display: "flex",
+                minHeight: 0,
+                position: "relative",
+                // Use fixed height calculation when keyboard is visible
+                height:
+                  isKeyboardToolbarVisible && isMobileKeyboard
+                    ? `calc(100vh - 64px - ${keyboardHeight + 10}px)` // viewport - appbar - keyboard - toolbar
+                    : "100%",
+                maxHeight:
+                  isKeyboardToolbarVisible && isMobileKeyboard
+                    ? `calc(100vh - 64px - ${keyboardHeight + 10}px)`
+                    : "100%",
+              }}
+            >
               <Terminal
                 key={currentSessionId}
                 ref={terminalRef}
@@ -269,44 +325,13 @@ export const TerminalPage: React.FC = () => {
               />
             </Box>
           ) : (
-            <Box sx={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center', 
-              justifyContent: 'center',
-              color: 'rgba(255,255,255,0.6)',
-              p: 2,
-            }}>
-              <TerminalIcon sx={{ fontSize: { xs: 48, sm: 64 }, mb: 2, opacity: 0.5 }} />
-              <Typography variant={isMobile ? "h6" : "h5"} sx={{ mb: 1 }}>
-                No Session Selected
-              </Typography>
-              <Typography 
-                variant="body2" 
-                sx={{ 
-                  mb: 3, 
-                  textAlign: 'center', 
-                  maxWidth: { xs: '100%', sm: 400 },
-                  px: { xs: 2, sm: 0 }
-                }}
-              >
-                Open the menu to view sessions or create a new one to start using the terminal.
-              </Typography>
-              <Button
-                variant="contained"
-                size={isMobile ? "large" : "medium"}
-                startIcon={operationStates.creating ? <CircularProgress size={18} /> : <AddIcon />}
-                onClick={() => setSessionsDrawerOpen(true)}
-                disabled={operationStates.creating}
-              >
-                {operationStates.creating ? 'Creating...' : 'Open Sessions Menu'}
-              </Button>
-            </Box>
+            <EmptyTerminalState
+              isCreating={operationStates.creating}
+              onOpenSessions={() => setSessionsDrawerOpen(true)}
+            />
           )}
         </Box>
       </Box>
-
 
       {/* Sessions Drawer */}
       <SessionsDrawer
@@ -335,12 +360,12 @@ export const TerminalPage: React.FC = () => {
           size="small"
           onClick={toggleToolbar}
           sx={{
-            position: 'fixed',
+            position: "fixed",
             bottom: 16,
             right: 16,
             zIndex: 1299,
             opacity: 0.7,
-            '&:hover': {
+            "&:hover": {
               opacity: 1,
             },
           }}
@@ -358,49 +383,39 @@ export const TerminalPage: React.FC = () => {
         />
       )}
 
-      {/* SSH Access Dialog */}
-      <SSHAccessDialog
-        open={sshInfoOpen}
-        onClose={() => setSSHInfoOpen(false)}
-      />
-
       {/* Error Snackbar */}
       <Snackbar
         open={!!error}
         autoHideDuration={6000}
         onClose={() => setError(null)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        <Alert 
-          onClose={() => setError(null)} 
-          severity="error" 
+        <Alert
+          onClose={() => setError(null)}
+          severity="error"
           variant="filled"
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           {error}
         </Alert>
       </Snackbar>
 
-      {/* GitHub Manager Dialog */}
-      <Dialog
-        open={githubDialogOpen}
-        onClose={() => setGithubDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        sx={{ '& .MuiDialog-paper': { minHeight: '60vh' } }}
+      {/* Success Snackbar */}
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMessage(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6">GitHub Integration</Typography>
-            <IconButton onClick={() => setGithubDialogOpen(false)}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <GitHubManager />
-        </DialogContent>
-      </Dialog>
+        <Alert
+          onClose={() => setSuccessMessage(null)}
+          severity="success"
+          variant="filled"
+          sx={{ width: "100%" }}
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

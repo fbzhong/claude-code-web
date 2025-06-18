@@ -18,6 +18,12 @@ export class PtyAdapter extends EventEmitter {
 
     // Forward data from Docker stream
     this.execSession.stream.on("data", (data: Buffer) => {
+      console.log(`[PtyAdapter ${sessionId}] received data from Docker:`, {
+        length: data.length,
+        first10Bytes: Array.from(data.slice(0, 10)),
+        preview: data.toString('utf8').substring(0, 50).replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+      });
+      
       // Docker uses multiplexed streams even with Tty: true when using hijack
       // Format: [stream_type(1)][000(3)][size(4)][payload]
       if (data.length > 8 && data[0] !== undefined && data[0] <= 2) {
@@ -25,6 +31,7 @@ export class PtyAdapter extends EventEmitter {
         if (payloadSize > 0 && data.length >= 8 + payloadSize) {
           // Extract payload, skipping the 8-byte header
           const payload = data.slice(8, 8 + payloadSize);
+          console.log(`[PtyAdapter ${sessionId}] demuxed payload:`, payload.toString('utf8').substring(0, 50));
           this.emit("data", payload.toString());
 
           // If there's more data after this packet, process it recursively
@@ -37,6 +44,7 @@ export class PtyAdapter extends EventEmitter {
       }
 
       // Fallback: forward raw data if not multiplexed format
+      console.log(`[PtyAdapter ${sessionId}] forwarding raw data`);
       this.emit("data", data.toString());
     });
 
@@ -62,8 +70,20 @@ export class PtyAdapter extends EventEmitter {
   }
 
   write(data: string): void {
+    console.log(`[PtyAdapter ${this.sessionId}] write called:`, {
+      killed: this.killed,
+      writable: this.execSession.stream.writable,
+      dataLength: data.length,
+      data: data.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+    });
+    
     if (!this.killed && this.execSession.stream.writable) {
-      this.execSession.stream.write(data);
+      try {
+        const written = this.execSession.stream.write(data);
+        console.log(`[PtyAdapter ${this.sessionId}] write result:`, written);
+      } catch (error) {
+        console.error(`[PtyAdapter ${this.sessionId}] write error:`, error);
+      }
     }
   }
 

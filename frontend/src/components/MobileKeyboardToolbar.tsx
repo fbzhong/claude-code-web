@@ -3,10 +3,8 @@ import {
   Box,
   IconButton,
   Button,
-  ButtonGroup,
   useTheme,
   useMediaQuery,
-  Paper,
   Tooltip,
 } from '@mui/material';
 import {
@@ -34,12 +32,7 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
     return null;
   }
 
-  const handleKeyPress = (key: string, event?: React.MouseEvent) => {
-    // Prevent button from taking focus
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+  const handleKeyPress = (key: string) => {
     onKeyPress(key);
   };
 
@@ -52,54 +45,35 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
     <Tooltip title={tooltip || label}>
       <Button
         size={size}
-        variant="contained"
-        onMouseDown={(e) => {
-          e.preventDefault(); // Prevent focus loss
-          handleKeyPress(keyCode, e);
-          // Remove focus after click
-          setTimeout(() => (e.target as HTMLElement).blur(), 0);
-        }}
-        onTouchStart={(e) => {
-          e.preventDefault(); // Prevent focus loss on touch
-          handleKeyPress(keyCode);
-          // Remove focus after touch
-          setTimeout(() => (e.target as HTMLElement).blur(), 0);
-        }}
-        onClick={(e) => e.preventDefault()} // Prevent any default click behavior
+        variant="text"
+        onTouchStart={() => handleKeyPress(keyCode)}
         sx={{
-          minWidth: 50,
-          minHeight: 40,
-          px: 0.5,
-          py: 0.75,
-          fontSize: '0.85rem',
-          fontWeight: '500',
-          backgroundColor: '#2a2a2a',
+          minWidth: 40,
+          minHeight: 30,
+          px: 0.75,
+          py: 0.25,
+          fontSize: '0.75rem',
+          fontWeight: '400',
+          backgroundColor: 'transparent',
           color: '#ffffff',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          borderRadius: 1.5,
+          border: 'none',
+          borderRadius: 0.25,
           textTransform: 'none',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          boxShadow: 'none',
           whiteSpace: 'nowrap',
           flexShrink: 0,
           '&:hover': {
-            backgroundColor: '#3a3a3a',
-            borderColor: 'rgba(255, 255, 255, 0.3)',
-            transform: 'translateY(-1px)',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
           },
           '&:active': {
-            backgroundColor: '#1a1a1a',
-            transform: 'translateY(0)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+            backgroundColor: 'rgba(255, 255, 255, 0.2)',
           },
           '&:focus': {
             outline: 'none',
-            backgroundColor: '#2a2a2a',
+            backgroundColor: 'transparent',
           },
-          '&:focus-visible': {
-            outline: '2px solid rgba(255, 255, 255, 0.3)',
-            outlineOffset: '2px',
-          },
+          // iOS specific fixes
+          '-webkit-tap-highlight-color': 'transparent',
         }}
       >
         {label}
@@ -121,48 +95,29 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
     return (
       <IconButton
         size="small"
-        onMouseDown={(e) => {
-          e.preventDefault(); // Prevent focus loss
-          handleKeyPress(keyCode, e);
-          // Remove focus after click
-          setTimeout(() => (e.target as HTMLElement).blur(), 0);
-        }}
-        onTouchStart={(e) => {
-          e.preventDefault(); // Prevent focus loss on touch
-          handleKeyPress(keyCode);
-          // Remove focus after touch
-          setTimeout(() => (e.target as HTMLElement).blur(), 0);
-        }}
-        onClick={(e) => e.preventDefault()} // Prevent any default click behavior
+        onTouchStart={() => handleKeyPress(keyCode)}
         sx={{
-          padding: 0.75,
-          minWidth: 40,
-          minHeight: 40,
+          padding: 0.25,
+          minWidth: 30,
+          minHeight: 30,
           flexShrink: 0,
-          backgroundColor: '#2a2a2a',
+          backgroundColor: 'transparent',
           color: '#ffffff',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
-          borderRadius: 1.5,
-          boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          border: 'none',
+          borderRadius: 0.25,
+          boxShadow: 'none',
           '&:hover': {
-            backgroundColor: '#3a3a3a',
-            borderColor: 'rgba(255, 255, 255, 0.3)',
-            transform: 'translateY(-1px)',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
           },
           '&:active': {
-            backgroundColor: '#1a1a1a',
-            transform: 'translateY(0)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+            backgroundColor: 'rgba(255, 255, 255, 0.2)',
           },
           '&:focus': {
             outline: 'none',
-            backgroundColor: '#2a2a2a',
+            backgroundColor: 'transparent',
           },
-          '&:focus-visible': {
-            outline: '2px solid rgba(255, 255, 255, 0.3)',
-            outlineOffset: '2px',
-          },
+          // iOS specific fixes
+          '-webkit-tap-highlight-color': 'transparent',
         }}
       >
         {icons[direction]}
@@ -171,19 +126,17 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
   };
 
   return (
-    <Paper
-      elevation={4}
+    <Box
       sx={{
         position: 'fixed',
         bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : 0,
         left: 0,
         right: 0,
         zIndex: 1300,
-        backgroundColor: '#1a1a1a',
-        borderTop: 1,
-        borderColor: 'rgba(255, 255, 255, 0.15)',
-        px: 0.75,
-        py: 0.75,
+        backgroundColor: '#2a2a2a',
+        borderTop: '1px solid #444444',
+        px: 1,
+        py: 0.5,
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
@@ -221,20 +174,7 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
       <KeyButton label="^R" keyCode={'\x12'} tooltip="Search" />
       <KeyButton label="^D" keyCode={'\x04'} tooltip="Exit" />
       <KeyButton label="^Z" keyCode={'\x1A'} tooltip="Suspend" />
-      
-      {/* Scroll indicator */}
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        px: 1,
-        color: 'rgba(255, 255, 255, 0.4)',
-        fontSize: '0.7rem',
-        flexShrink: 0,
-        fontStyle: 'italic',
-      }}>
-        滑动 →
-      </Box>
-    </Paper>
+    </Box>
   );
 };
 

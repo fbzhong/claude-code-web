@@ -1,5 +1,6 @@
-import { useEffect, useCallback, RefObject } from 'react';
-import { wsService } from '../../../services/websocket';
+import { useEffect, useCallback, RefObject, useState } from 'react';
+import { WebSocketService } from '../../../services/websocket';
+import { useConnectionManager, ConnectionState } from '../../../hooks/useConnectionManager';
 import type { StableTerminalHandle as TerminalHandle } from '../../../components/StableTerminal';
 
 interface UseWebSocketConnectionProps {
@@ -10,6 +11,7 @@ interface UseWebSocketConnectionProps {
   setSessions: React.Dispatch<React.SetStateAction<any[]>>;
   setCurrentSessionId: React.Dispatch<React.SetStateAction<string | null>>;
   setError: (error: string | null) => void;
+  setSuccessMessage: (message: string | null) => void;
   isMobileKeyboard: boolean;
   isKeyboardToolbarVisible: boolean;
 }
@@ -17,6 +19,9 @@ interface UseWebSocketConnectionProps {
 interface UseWebSocketConnectionReturn {
   handleTerminalData: (data: string) => void;
   handleTerminalResize: (cols: number, rows: number) => void;
+  connectionState: ConnectionState;
+  canManualReconnect: boolean;
+  manualReconnect: () => void;
 }
 
 export function useWebSocketConnection({
@@ -27,22 +32,49 @@ export function useWebSocketConnection({
   setSessions,
   setCurrentSessionId,
   setError,
+  setSuccessMessage,
   isMobileKeyboard,
   isKeyboardToolbarVisible,
 }: UseWebSocketConnectionProps): UseWebSocketConnectionReturn {
-  // Handle WebSocket connection only after terminal is ready
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  
+  // Get WebSocket service instance
+  const wsService = WebSocketService.getInstance();
+  
+  // Use the connection manager hook
+  const {
+    connectionState,
+    canManualReconnect,
+    manualReconnect: doManualReconnect,
+    deviceId,
+    isConnected,
+  } = useConnectionManager(
+    isTerminalReady ? currentSessionId : null,
+    isTerminalReady ? token : null,
+    {
+      onConnect: () => {
+        console.log('WebSocket connected successfully');
+        setError(null);
+        setReconnectAttempt(0);
+      },
+      onDisconnect: () => {
+        console.log('WebSocket disconnected');
+      },
+      onReconnecting: (attempt) => {
+        console.log(`WebSocket reconnecting (attempt ${attempt})`);
+        setReconnectAttempt(attempt);
+      },
+      onReconnectFailed: () => {
+        console.log('WebSocket reconnection failed');
+        setError('Connection lost. Click reconnect to try again.');
+      },
+    }
+  );
+  
+  // Set up message handlers
   useEffect(() => {
-    if (!token || !currentSessionId || !isTerminalReady) return;
+    if (!isConnected || !currentSessionId) return;
     
-    console.log('Setting up WebSocket connection for session:', currentSessionId, '(terminal ready)');
-    
-    // Connect to WebSocket after terminal is initialized
-    wsService.connect(currentSessionId, token).catch((error) => {
-      console.error('Failed to connect to WebSocket:', error);
-      setError('Failed to connect to session');
-    });
-    
-    // Set up message handlers
     const terminalDataHandler = (message: any) => {
       if (terminalRef.current?.write) {
         terminalRef.current.write(message.data);
@@ -66,8 +98,12 @@ export function useWebSocketConnection({
       const exitCode = message.data?.exitCode || 0;
       console.log(`Session ${currentSessionId} exited with code ${exitCode}`);
       
-      // Show notification
-      setError(`Session terminated (exit code: ${exitCode})`);
+      // Show notification based on exit code
+      if (exitCode === 0) {
+        setSuccessMessage('Session terminated successfully');
+      } else {
+        setError(`Session terminated with error (exit code: ${exitCode})`);
+      }
       
       // Update session status locally to show it's dead
       setSessions(prev => prev.map(s => 
@@ -81,7 +117,6 @@ export function useWebSocketConnection({
       
       // Clear the current session ID
       setCurrentSessionId(null);
-      
     };
     
     wsService.onMessage('terminal_data', terminalDataHandler);
@@ -89,17 +124,37 @@ export function useWebSocketConnection({
     wsService.onMessage('terminal_exit', terminalExitHandler);
     
     return () => {
-      console.log('Cleaning up WebSocket connection for session:', currentSessionId);
+      console.log('Cleaning up WebSocket message handlers');
       wsService.offMessage('terminal_data');
       wsService.offMessage('terminal_clear');
       wsService.offMessage('terminal_exit');
-      wsService.disconnect();
     };
-  }, [currentSessionId, token, isTerminalReady, terminalRef, setSessions, setCurrentSessionId, setError]);
+  }, [isConnected, currentSessionId, terminalRef, setSessions, setCurrentSessionId, setError]);
 
   // Terminal handlers
   const handleTerminalData = useCallback((data: string) => {
-    if (!wsService.isConnected()) return;
+    console.log('[useWebSocketConnection] handleTerminalData called:', {
+      isConnected,
+      connectionState,
+      currentSessionId,
+      wsServiceConnected: wsService.isConnected(),
+      data: data.replace(/\n/g, '\\n').replace(/\r/g, '\\r')
+    });
+    
+    // Double-check connection state using both useConnectionManager and WebSocketService
+    if (!isConnected || !wsService.isConnected()) {
+      console.warn('Cannot send data - WebSocket not connected', {
+        isConnected,
+        wsServiceConnected: wsService.isConnected(),
+        connectionState
+      });
+      
+      // Show user-friendly error message
+      if (connectionState === ConnectionState.CONNECTED && !wsService.isConnected()) {
+        setError('Connection temporarily unavailable. Please wait...');
+      }
+      return;
+    }
     
     wsService.sendTerminalInput(data);
     
@@ -123,14 +178,22 @@ export function useWebSocketConnection({
         }
       }, 50);
     }
-  }, [currentSessionId, setSessions, isMobileKeyboard, isKeyboardToolbarVisible, terminalRef]);
+  }, [currentSessionId, setSessions, isMobileKeyboard, isKeyboardToolbarVisible, terminalRef, isConnected, connectionState, setError]);
 
   const handleTerminalResize = useCallback((cols: number, rows: number) => {
     wsService.sendTerminalResize(cols, rows);
   }, []);
+  
+  const manualReconnect = useCallback(() => {
+    if (!token) return;
+    doManualReconnect();
+  }, [token, doManualReconnect]);
 
   return {
     handleTerminalData,
     handleTerminalResize,
+    connectionState,
+    canManualReconnect,
+    manualReconnect,
   };
 }

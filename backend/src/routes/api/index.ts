@@ -15,6 +15,56 @@ export default async function (fastify: FastifyInstance) {
     };
   });
 
+  // Server configuration status endpoint
+  fastify.get('/config', async (request, reply) => {
+    const config = {
+      features: {
+        github_oauth: {
+          enabled: !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET),
+          client_id_configured: !!process.env.GITHUB_CLIENT_ID,
+          client_secret_configured: !!process.env.GITHUB_CLIENT_SECRET,
+          callback_url_configured: !!process.env.GITHUB_OAUTH_CALLBACK_URL
+        },
+        ssh: {
+          enabled: process.env.SSHPIPER_SSH_HOST ? true : false,
+          host: process.env.SSHPIPER_SSH_HOST || null,
+          port: process.env.SSHPIPER_SSH_PORT ? parseInt(process.env.SSHPIPER_SSH_PORT) : null,
+          sshpiper_configured: !!process.env.SSHPIPER
+        },
+        container_mode: {
+          enabled: process.env.CONTAINER_MODE === 'true',
+          docker_available: false // Will be checked below
+        },
+        authentication: {
+          jwt_secret_configured: !!process.env.JWT_SECRET,
+          invite_code_required: process.env.REQUIRE_INVITE_CODE === 'true'
+        }
+      },
+      environment: process.env.NODE_ENV || 'development'
+    };
+
+    // Check Docker availability if container mode is enabled
+    if (config.features.container_mode.enabled) {
+      try {
+        const { exec } = require('child_process');
+        await new Promise((resolve, reject) => {
+          exec('docker version --format "{{.Server.Version}}"', (error: any, stdout: string) => {
+            if (error) {
+              reject(error);
+            } else {
+              config.features.container_mode.docker_available = true;
+              resolve(stdout);
+            }
+          });
+        });
+      } catch (err) {
+        config.features.container_mode.docker_available = false;
+      }
+    }
+
+    return config;
+  });
+
   // Health check endpoint
   fastify.get('/health', async (request, reply) => {
     const health: any = {

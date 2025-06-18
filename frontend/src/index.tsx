@@ -7,8 +7,11 @@ const root = ReactDOM.createRoot(
   document.getElementById('root') as HTMLElement
 );
 
+// Note: StrictMode causes double rendering in development
+// which can lead to duplicate WebSocket connections
+// Uncomment for production builds
 root.render(
-  <React.StrictMode>
+  // <React.StrictMode>
     <App />
-  </React.StrictMode>
+  // </React.StrictMode>
 );

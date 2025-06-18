@@ -51,14 +51,37 @@ function getCanvasFingerprint(): string {
 }
 
 /**
- * Generate SHA-256 hash
+ * Generate SHA-256 hash with fallback
  */
 async function sha256(text: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hash));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  // Check if crypto.subtle is available (HTTPS required)
+  if (window.crypto?.subtle) {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(text);
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hash));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (error) {
+      console.warn('crypto.subtle failed, falling back to simple hash:', error);
+    }
+  }
+  
+  // Fallback: Simple hash function for non-HTTPS environments
+  return simpleHash(text);
+}
+
+/**
+ * Simple hash function fallback (djb2 algorithm)
+ */
+function simpleHash(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+  }
+  // Convert to positive number and then to hex
+  const positiveHash = hash >>> 0;
+  return positiveHash.toString(16).padStart(8, '0');
 }
 
 /**

@@ -49,8 +49,11 @@ export class WebSocketService {
   private messageHandlers: Map<string, (message: WebSocketMessage) => void> =
     new Map();
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private maxReconnectTime = 5 * 60 * 1000; // 5 minutes
+  private maxReconnectAttempts = 10;
+  private maxReconnectTime = 15 * 60 * 1000; // 15 minutes
+  private baseDelay = 2000; // 2 seconds base delay
+  private maxDelay = 30000; // 30 seconds max delay
+  private jitterFactor = 0.3; // 30% jitter
   private reconnectTimeout: any = null;
   private pendingResize: { cols: number; rows: number } | null = null;
   private disconnectTime: number | null = null;
@@ -59,10 +62,14 @@ export class WebSocketService {
   private pongTimeout: any = null;
   private eventListeners: Map<string, Set<Function>> = new Map();
   private instanceId: number;
+  private networkOnlineHandler: (() => void) | null = null;
+  private networkOfflineHandler: (() => void) | null = null;
+  private isNetworkOnline = true; // 假设初始网络是在线的
 
   constructor() {
     this.instanceId = ++WebSocketService.instanceId;
     console.log(`[WebSocketService] Instance created #${this.instanceId}`);
+    this.setupNetworkStatusMonitoring();
   }
 
   static getInstance(): WebSocketService {
@@ -196,6 +203,7 @@ export class WebSocketService {
 
   disconnect(): void {
     this.stopHeartbeat();
+    this.removeNetworkStatusMonitoring();
     
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -424,10 +432,14 @@ export class WebSocketService {
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(
-      1000 * Math.pow(2, this.reconnectAttempts - 1),
-      10000
-    );
+    
+    // 更平滑的退避算法：线性增长 + 随机抖动
+    const linearDelay = this.baseDelay + (this.reconnectAttempts - 1) * 3000; // 每次增加3秒
+    const cappedDelay = Math.min(linearDelay, this.maxDelay);
+    
+    // 添加随机抖动，避免多个连接同时重连
+    const jitter = cappedDelay * this.jitterFactor * (Math.random() - 0.5);
+    const delay = Math.max(1000, cappedDelay + jitter); // 最小1秒延迟
 
     console.log(
       `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
@@ -483,6 +495,88 @@ export class WebSocketService {
     return this.sessionId;
   }
   
+  private setupNetworkStatusMonitoring(): void {
+    if (typeof window === 'undefined') return;
+    
+    // 初始化网络状态
+    this.isNetworkOnline = navigator.onLine;
+    console.log('[WebSocket] Initial network status:', this.isNetworkOnline ? 'online' : 'offline');
+    
+    // 网络恢复事件处理
+    this.networkOnlineHandler = () => {
+      console.log('[WebSocket] Network status changed to online');
+      this.isNetworkOnline = true;
+      if (this.shouldAttemptReconnect()) {
+        this.attemptImmediateReconnect();
+      }
+    };
+    
+    // 网络断开事件处理
+    this.networkOfflineHandler = () => {
+      console.log('[WebSocket] Network status changed to offline, pausing reconnection attempts');
+      this.isNetworkOnline = false;
+      // 清除当前的重连定时器
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = null;
+        console.log('[WebSocket] Cancelled pending reconnection due to network offline');
+      }
+    };
+    
+    // 注册事件监听器
+    window.addEventListener('online', this.networkOnlineHandler);
+    window.addEventListener('offline', this.networkOfflineHandler);
+  }
+  
+  private removeNetworkStatusMonitoring(): void {
+    if (typeof window === 'undefined') return;
+    
+    if (this.networkOnlineHandler) {
+      window.removeEventListener('online', this.networkOnlineHandler);
+      this.networkOnlineHandler = null;
+    }
+    
+    if (this.networkOfflineHandler) {
+      window.removeEventListener('offline', this.networkOfflineHandler);
+      this.networkOfflineHandler = null;
+    }
+  }
+  
+  private shouldAttemptReconnect(): boolean {
+    return (
+      this.isNetworkOnline && // 网络在线
+      !!this.sessionId && // 有会话需要重连
+      (!this.ws || this.ws.readyState !== WebSocket.OPEN) && // 当前未连接
+      this.reconnectAttempts < this.maxReconnectAttempts && // 未超过最大重连次数
+      (!this.disconnectTime || Date.now() - this.disconnectTime < this.maxReconnectTime) // 未超过最大重连时间
+    );
+  }
+  
+  private attemptImmediateReconnect(): void {
+    if (!this.sessionId || !this.connectionOptions) return;
+    
+    // 清除当前的重连定时器
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    // 获取当前 token（从 localStorage 或其他来源）
+    const token = this.getCurrentToken();
+    if (token) {
+      console.log('[WebSocket] Attempting immediate reconnect due to network recovery');
+      this.connect(this.sessionId, token, this.connectionOptions);
+    }
+  }
+  
+  private getCurrentToken(): string | null {
+    // 从 localStorage 获取 token
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage.getItem('auth_token');
+    }
+    return null;
+  }
+  
   getConnectionState(): 'connected' | 'connecting' | 'disconnected' | 'reconnecting' | 'failed' {
     if (!this.ws) return 'disconnected';
     
@@ -536,18 +630,25 @@ export class SessionListWebSocketService {
   private messageHandlers: Map<string, (message: WebSocketMessage) => void> =
     new Map();
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private maxReconnectTime = 5 * 60 * 1000; // 5 minutes
+  private maxReconnectAttempts = 10;
+  private maxReconnectTime = 15 * 60 * 1000; // 15 minutes
+  private baseDelay = 2000; // 2 seconds base delay
+  private maxDelay = 30000; // 30 seconds max delay
+  private jitterFactor = 0.3; // 30% jitter
   private reconnectTimeout: any = null;
   private token: string | null = null;
   private disconnectTime: number | null = null;
   private pingInterval: any = null;
   private pongTimeout: any = null;
   private instanceId: number;
+  private networkOnlineHandler: (() => void) | null = null;
+  private networkOfflineHandler: (() => void) | null = null;
+  private isNetworkOnline = true; // 假设初始网络是在线的
 
   constructor() {
     this.instanceId = ++SessionListWebSocketService.instanceCount;
     console.log(`[SessionListWS] New instance created #${this.instanceId}`);
+    this.setupNetworkStatusMonitoring();
   }
 
   static getInstance(): SessionListWebSocketService {
@@ -678,6 +779,7 @@ export class SessionListWebSocketService {
   disconnect(): void {
     console.log('[SessionListWS] Disconnect called');
     this.stopHeartbeat();
+    this.removeNetworkStatusMonitoring();
     
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -769,6 +871,12 @@ export class SessionListWebSocketService {
   private handleReconnect(): void {
     if (!this.token) return;
     
+    // 检查网络状态，如果网络断开则不重连
+    if (!this.isNetworkOnline) {
+      console.log("Network is offline, skipping session list reconnection attempt");
+      return;
+    }
+    
     // Check if we've exceeded the max reconnection time
     if (this.disconnectTime) {
       const timeSinceDisconnect = Date.now() - this.disconnectTime;
@@ -784,10 +892,14 @@ export class SessionListWebSocketService {
     }
 
     this.reconnectAttempts++;
-    const delay = Math.min(
-      1000 * Math.pow(2, this.reconnectAttempts - 1),
-      10000
-    );
+    
+    // 更平滑的退避算法：线性增长 + 随机抖动
+    const linearDelay = this.baseDelay + (this.reconnectAttempts - 1) * 3000; // 每次增加3秒
+    const cappedDelay = Math.min(linearDelay, this.maxDelay);
+    
+    // 添加随机抖动，避免多个连接同时重连
+    const jitter = cappedDelay * this.jitterFactor * (Math.random() - 0.5);
+    const delay = Math.max(1000, cappedDelay + jitter); // 最小1秒延迟
 
     console.log(
       `Reconnecting session list WebSocket in ${delay}ms (attempt ${this.reconnectAttempts})`
@@ -833,6 +945,76 @@ export class SessionListWebSocketService {
 
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+  
+  private setupNetworkStatusMonitoring(): void {
+    if (typeof window === 'undefined') return;
+    
+    // 初始化网络状态
+    this.isNetworkOnline = navigator.onLine;
+    console.log('[SessionListWS] Initial network status:', this.isNetworkOnline ? 'online' : 'offline');
+    
+    // 网络恢复事件处理
+    this.networkOnlineHandler = () => {
+      console.log('[SessionListWS] Network status changed to online');
+      this.isNetworkOnline = true;
+      if (this.shouldAttemptReconnect()) {
+        this.attemptImmediateReconnect();
+      }
+    };
+    
+    // 网络断开事件处理
+    this.networkOfflineHandler = () => {
+      console.log('[SessionListWS] Network status changed to offline, pausing reconnection attempts');
+      this.isNetworkOnline = false;
+      // 清除当前的重连定时器
+      if (this.reconnectTimeout) {
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = null;
+        console.log('[SessionListWS] Cancelled pending reconnection due to network offline');
+      }
+    };
+    
+    // 注册事件监听器
+    window.addEventListener('online', this.networkOnlineHandler);
+    window.addEventListener('offline', this.networkOfflineHandler);
+  }
+  
+  private removeNetworkStatusMonitoring(): void {
+    if (typeof window === 'undefined') return;
+    
+    if (this.networkOnlineHandler) {
+      window.removeEventListener('online', this.networkOnlineHandler);
+      this.networkOnlineHandler = null;
+    }
+    
+    if (this.networkOfflineHandler) {
+      window.removeEventListener('offline', this.networkOfflineHandler);
+      this.networkOfflineHandler = null;
+    }
+  }
+  
+  private shouldAttemptReconnect(): boolean {
+    return (
+      this.isNetworkOnline && // 网络在线
+      !!this.token && // 有 token 需要重连
+      (!this.ws || this.ws.readyState !== WebSocket.OPEN) && // 当前未连接
+      this.reconnectAttempts < this.maxReconnectAttempts && // 未超过最大重连次数
+      (!this.disconnectTime || Date.now() - this.disconnectTime < this.maxReconnectTime) // 未超过最大重连时间
+    );
+  }
+  
+  private attemptImmediateReconnect(): void {
+    if (!this.token) return;
+    
+    // 清除当前的重连定时器
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    console.log('[SessionListWS] Attempting immediate reconnect due to network recovery');
+    this.connect(this.token);
   }
 }
 

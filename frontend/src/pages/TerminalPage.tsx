@@ -241,21 +241,7 @@ export const TerminalPage: React.FC = () => {
             Terminal
           </Typography>
 
-          {/* Connection Status */}
-          {currentSessionId &&
-            (isMobile ? (
-              <ConnectionStatusMini
-                connectionState={connectionState}
-                canManualReconnect={canManualReconnect}
-                onManualReconnect={manualReconnect}
-              />
-            ) : (
-              <ConnectionStatus
-                connectionState={connectionState}
-                canManualReconnect={canManualReconnect}
-                onManualReconnect={manualReconnect}
-              />
-            ))}
+{/* Connection Status - Hidden per user request */}
 
           {!isMobile && (
             <Typography variant="body2" sx={{ mr: 2, opacity: 0.9 }}>

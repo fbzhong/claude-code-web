@@ -354,12 +354,13 @@ export class SessionManager extends EventEmitter {
     }
 
     // Increment connected clients
+    const previousCount = session.connectedClients;
     session.connectedClients++;
     session.status = "active";
     session.lastActivity = new Date();
 
-    this.fastify.log.debug(
-      `User ${userId} attached to session ${sessionId} (${session.connectedClients} clients)`
+    this.fastify.log.info(
+      `User ${userId} attached to session ${sessionId}: ${previousCount} -> ${session.connectedClients} clients`
     );
 
     // Emit session list update event
@@ -376,6 +377,7 @@ export class SessionManager extends EventEmitter {
       return false;
     }
 
+    const previousCount = session.connectedClients;
     session.connectedClients = Math.max(0, session.connectedClients - 1);
 
     if (session.connectedClients === 0 && session.status === "active") {
@@ -387,8 +389,8 @@ export class SessionManager extends EventEmitter {
       }
     }
 
-    this.fastify.log.debug(
-      `User ${userId} detached from session ${sessionId} (${session.connectedClients} clients remaining)`
+    this.fastify.log.info(
+      `User ${userId} detached from session ${sessionId}: ${previousCount} -> ${session.connectedClients} clients`
     );
 
     // Emit session list update event

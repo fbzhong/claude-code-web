@@ -138,10 +138,8 @@ export const useSessionManagement = ({
         wsService.disconnect();
       }
       
-      // Only call attachToSession API if we're switching to a different session
-      if (currentSessionId !== sessionId) {
-        await sessionApi.attachToSession(sessionId);
-      }
+      // Don't call attachToSession API here - WebSocket connection will handle it
+      // This avoids double counting of connected clients
       
       setCurrentSessionId(sessionId);
       

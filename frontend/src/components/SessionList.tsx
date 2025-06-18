@@ -24,7 +24,8 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
   Terminal as TerminalIcon,
-  Circle as CircleIcon
+  Circle as CircleIcon,
+  Group as GroupIcon
 } from '@mui/icons-material';
 
 export interface SessionInfo {
@@ -174,13 +175,16 @@ export const SessionList: React.FC<SessionListProps> = ({
                         <Typography variant="body2" noWrap>
                           {session.name}
                         </Typography>
-                        {session.connectedClients > 0 && (
-                          <Chip 
-                            label={session.connectedClients} 
-                            size="small" 
-                            variant="outlined"
-                            sx={{ minWidth: 'auto', height: 20 }}
-                          />
+                        {session.connectedClients > 1 && (
+                          <Tooltip title={`${session.connectedClients} connected clients`}>
+                            <Chip 
+                              icon={<GroupIcon sx={{ fontSize: 14 }} />}
+                              label={session.connectedClients} 
+                              size="small" 
+                              variant="outlined"
+                              sx={{ minWidth: 'auto', height: 20 }}
+                            />
+                          </Tooltip>
                         )}
                       </Box>
                     }

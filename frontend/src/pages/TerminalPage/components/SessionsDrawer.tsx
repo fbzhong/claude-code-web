@@ -13,6 +13,7 @@ import {
   CircularProgress,
   Drawer,
   Divider,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -22,6 +23,7 @@ import {
   Close as CloseIcon,
   PlayArrow as PlayArrowIcon,
   RestartAlt as RestartAltIcon,
+  Group as GroupIcon,
 } from '@mui/icons-material';
 import { SessionInfo } from '../../../components/SessionList';
 import { containerApi } from '../../../services/api';
@@ -298,13 +300,16 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
                         <Typography variant="body2" noWrap sx={{ color: '#ffffff' }}>
                           {session.name}
                         </Typography>
-                        {session.connectedClients > 0 && (
-                          <Chip 
-                            label={session.connectedClients} 
-                            size="small" 
-                            variant="outlined"
-                            sx={{ minWidth: 'auto', height: 18, fontSize: '0.7rem' }}
-                          />
+                        {session.connectedClients > 1 && (
+                          <Tooltip title={`${session.connectedClients} connected clients`}>
+                            <Chip 
+                              icon={<GroupIcon sx={{ fontSize: 12 }} />}
+                              label={session.connectedClients} 
+                              size="small" 
+                              variant="outlined"
+                              sx={{ minWidth: 'auto', height: 18, fontSize: '0.7rem' }}
+                            />
+                          </Tooltip>
                         )}
                       </Box>
                     }

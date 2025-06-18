@@ -35,6 +35,7 @@ import { SSHAccessDialog } from '../components/SSHAccessDialog';
 import { SessionsDrawer } from './TerminalPage/components/SessionsDrawer';
 import { useSessionManagement } from './TerminalPage/hooks/useSessionManagement';
 import { useWebSocketConnection } from './TerminalPage/hooks/useWebSocketConnection';
+import { ConnectionStatus, ConnectionStatusMini } from '../components/ConnectionStatus';
 
 export const TerminalPage: React.FC = () => {
   const navigate = useNavigate();
@@ -125,7 +126,13 @@ export const TerminalPage: React.FC = () => {
   const [isTerminalReady, setIsTerminalReady] = useState(false);
 
   // Use WebSocket connection hook
-  const { handleTerminalData, handleTerminalResize } = useWebSocketConnection({
+  const { 
+    handleTerminalData, 
+    handleTerminalResize,
+    connectionState,
+    canManualReconnect,
+    manualReconnect,
+  } = useWebSocketConnection({
     currentSessionId,
     token,
     isTerminalReady,
@@ -215,6 +222,23 @@ export const TerminalPage: React.FC = () => {
           >
             Terminal
           </Typography>
+          
+          {/* Connection Status */}
+          {currentSessionId && (
+            isMobile ? (
+              <ConnectionStatusMini
+                connectionState={connectionState}
+                canManualReconnect={canManualReconnect}
+                onManualReconnect={manualReconnect}
+              />
+            ) : (
+              <ConnectionStatus
+                connectionState={connectionState}
+                canManualReconnect={canManualReconnect}
+                onManualReconnect={manualReconnect}
+              />
+            )
+          )}
           
           {!isMobile && (
             <Typography variant="body2" sx={{ mr: 2, opacity: 0.9 }}>

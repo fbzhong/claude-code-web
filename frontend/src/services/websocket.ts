@@ -1,4 +1,5 @@
 import { api } from '../config/api';
+import { getDeviceId } from '../utils/deviceId';
 
 const getWsInfo: () => {
   host: string;
@@ -25,23 +26,54 @@ export interface WebSocketMessage {
     | "terminal_exit"
     | "session_list"
     | "session_updated"
-    | "session_deleted";
+    | "session_deleted"
+    | "ping"
+    | "pong";
   data: any;
   timestamp: Date;
 }
 
+export interface ConnectionOptions {
+  deviceId?: string;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
+  onReconnecting?: (attempt: number) => void;
+  onReconnectFailed?: () => void;
+}
+
 export class WebSocketService {
+  private static instance: WebSocketService | null = null;
   private ws: WebSocket | null = null;
   private sessionId: string | null = null;
   private messageHandlers: Map<string, (message: WebSocketMessage) => void> =
     new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  private maxReconnectTime = 5 * 60 * 1000; // 5 minutes
   private reconnectTimeout: any = null;
   private pendingResize: { cols: number; rows: number } | null = null;
+  private disconnectTime: number | null = null;
+  private connectionOptions: ConnectionOptions | null = null;
+  private pingInterval: any = null;
+  private pongTimeout: any = null;
+  private eventListeners: Map<string, Set<Function>> = new Map();
 
-  connect(sessionId: string, token: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+  static getInstance(): WebSocketService {
+    if (!WebSocketService.instance) {
+      WebSocketService.instance = new WebSocketService();
+    }
+    return WebSocketService.instance;
+  }
+
+  connect(sessionId: string, token: string, options?: ConnectionOptions): Promise<void> {
+    return new Promise(async (resolve, reject) => {
+      this.connectionOptions = options || {};
+      
+      // Get device ID if not provided
+      if (!this.connectionOptions.deviceId) {
+        this.connectionOptions.deviceId = await getDeviceId();
+      }
+      
       // If already connected to the same session with a healthy connection, reuse it
       if (
         this.ws &&
@@ -66,12 +98,14 @@ export class WebSocketService {
       }
 
       this.sessionId = sessionId;
+      this.disconnectTime = null;
+      this.reconnectAttempts = 0;
 
-      // Build WebSocket URL with auth token as query parameter
+      // Build WebSocket URL with auth token and device ID as query parameters
       const { host, protocol } = getWsInfo();
       const wsUrl = `${protocol}//${host}/ws/terminal/${sessionId}?token=${encodeURIComponent(
         token
-      )}`;
+      )}&deviceId=${encodeURIComponent(this.connectionOptions.deviceId)}`;
 
       try {
         console.log("Creating new WebSocket connection to:", wsUrl);
@@ -80,6 +114,10 @@ export class WebSocketService {
         this.ws.onopen = () => {
           console.log("WebSocket connected");
           this.reconnectAttempts = 0;
+          this.disconnectTime = null;
+          
+          // Start heartbeat
+          this.startHeartbeat();
           
           // Send any pending resize message
           if (this.pendingResize) {
@@ -94,11 +132,16 @@ export class WebSocketService {
             this.pendingResize = null;
           }
           
+          // Notify connection success
+          this.connectionOptions?.onConnect?.();
+          this.emit('connect');
+          
           resolve();
         };
 
         this.ws.onerror = (error) => {
           console.error("WebSocket error:", error);
+          this.emit('error', error);
           reject(error);
         };
 
@@ -113,6 +156,17 @@ export class WebSocketService {
 
         this.ws.onclose = (event) => {
           console.log("WebSocket closed:", event.code, event.reason);
+          this.stopHeartbeat();
+          
+          // Record disconnect time if not already recorded
+          if (!this.disconnectTime) {
+            this.disconnectTime = Date.now();
+          }
+          
+          // Notify disconnection
+          this.connectionOptions?.onDisconnect?.();
+          this.emit('disconnect');
+          
           this.handleReconnect(token);
         };
       } catch (error) {
@@ -123,6 +177,8 @@ export class WebSocketService {
   }
 
   disconnect(): void {
+    this.stopHeartbeat();
+    
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -144,7 +200,9 @@ export class WebSocketService {
       this.ws = null;
     }
     this.sessionId = null;
+    this.disconnectTime = null;
     this.messageHandlers.clear();
+    this.connectionOptions = null;
   }
 
   sendTerminalInput(data: string): void {
@@ -247,7 +305,44 @@ export class WebSocketService {
     this.messageHandlers.delete(type);
   }
 
+  // Event emitter methods
+  on(event: string, listener: Function): void {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, new Set());
+    }
+    this.eventListeners.get(event)!.add(listener);
+  }
+
+  off(event: string, listener: Function): void {
+    this.eventListeners.get(event)?.delete(listener);
+  }
+
+  private emit(event: string, ...args: any[]): void {
+    this.eventListeners.get(event)?.forEach(listener => {
+      try {
+        listener(...args);
+      } catch (e) {
+        console.error(`Error in event listener for ${event}:`, e);
+      }
+    });
+  }
+
   private handleMessage(message: WebSocketMessage): void {
+    // Handle ping/pong
+    if (message.type === 'ping') {
+      this.ws?.send(JSON.stringify({ type: 'pong' }));
+      return;
+    }
+    
+    if (message.type === 'pong') {
+      // Reset pong timeout
+      if (this.pongTimeout) {
+        clearTimeout(this.pongTimeout);
+        this.pongTimeout = null;
+      }
+      return;
+    }
+    
     const handler = this.messageHandlers.get(message.type);
     if (handler) {
       handler(message);
@@ -267,8 +362,21 @@ export class WebSocketService {
       return;
     }
     
+    // Check if we've exceeded the max reconnection time
+    if (this.disconnectTime) {
+      const timeSinceDisconnect = Date.now() - this.disconnectTime;
+      if (timeSinceDisconnect > this.maxReconnectTime) {
+        console.error("Max reconnection time exceeded, stopping auto-reconnect");
+        this.connectionOptions?.onReconnectFailed?.();
+        this.emit('reconnectFailed');
+        return;
+      }
+    }
+    
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error("Max reconnection attempts reached");
+      this.connectionOptions?.onReconnectFailed?.();
+      this.emit('reconnectFailed');
       return;
     }
 
@@ -281,14 +389,47 @@ export class WebSocketService {
     console.log(
       `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`
     );
+    
+    // Notify reconnecting
+    this.connectionOptions?.onReconnecting?.(this.reconnectAttempts);
+    this.emit('reconnecting', this.reconnectAttempts);
 
     this.reconnectTimeout = setTimeout(() => {
       if (this.sessionId) {
-        this.connect(this.sessionId, token).catch((error) => {
+        this.connect(this.sessionId, token, this.connectionOptions || undefined).catch((error) => {
           console.error("Reconnection failed:", error);
         });
       }
     }, delay);
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    
+    // Send ping every 30 seconds
+    this.pingInterval = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+        
+        // Expect pong within 5 seconds
+        this.pongTimeout = setTimeout(() => {
+          console.error("Pong timeout, connection seems dead");
+          this.ws?.close();
+        }, 5000);
+      }
+    }, 30000);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    
+    if (this.pongTimeout) {
+      clearTimeout(this.pongTimeout);
+      this.pongTimeout = null;
+    }
   }
 
   isConnected(): boolean {
@@ -297,6 +438,47 @@ export class WebSocketService {
 
   getSessionId(): string | null {
     return this.sessionId;
+  }
+  
+  getConnectionState(): 'connected' | 'connecting' | 'disconnected' | 'reconnecting' | 'failed' {
+    if (!this.ws) return 'disconnected';
+    
+    switch (this.ws.readyState) {
+      case WebSocket.OPEN:
+        return 'connected';
+      case WebSocket.CONNECTING:
+        return this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting';
+      case WebSocket.CLOSING:
+      case WebSocket.CLOSED:
+        if (this.reconnectTimeout) return 'reconnecting';
+        if (this.disconnectTime && Date.now() - this.disconnectTime > this.maxReconnectTime) {
+          return 'failed';
+        }
+        return 'disconnected';
+      default:
+        return 'disconnected';
+    }
+  }
+  
+  canManualReconnect(): boolean {
+    return this.getConnectionState() === 'failed' && !!this.sessionId;
+  }
+  
+  manualReconnect(token: string): void {
+    if (!this.canManualReconnect()) return;
+    
+    // Reset state for manual reconnect
+    this.reconnectAttempts = 0;
+    this.disconnectTime = null;
+    
+    // Clear any existing reconnect timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    
+    // Attempt to connect
+    this.connect(this.sessionId!, token, this.connectionOptions || undefined);
   }
 }
 
@@ -307,11 +489,15 @@ export class SessionListWebSocketService {
     new Map();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  private maxReconnectTime = 5 * 60 * 1000; // 5 minutes
   private reconnectTimeout: any = null;
   private token: string | null = null;
+  private disconnectTime: number | null = null;
+  private pingInterval: any = null;
+  private pongTimeout: any = null;
 
   connect(token: string): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       // If already connected, don't create a new connection
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         console.log("Session list WebSocket already connected");
@@ -326,12 +512,17 @@ export class SessionListWebSocketService {
       }
 
       this.token = token;
+      this.disconnectTime = null;
+      this.reconnectAttempts = 0;
+
+      // Get device ID
+      const deviceId = await getDeviceId();
 
       // Build WebSocket URL for session list
       const { host, protocol } = getWsInfo();
       const wsUrl = `${protocol}//${host}/ws/sessions?token=${encodeURIComponent(
         token
-      )}`;
+      )}&deviceId=${encodeURIComponent(deviceId)}`;
 
       try {
         console.log("Creating session list WebSocket connection to:", wsUrl);
@@ -340,6 +531,8 @@ export class SessionListWebSocketService {
         this.ws.onopen = () => {
           console.log("Session list WebSocket connected");
           this.reconnectAttempts = 0;
+          this.disconnectTime = null;
+          this.startHeartbeat();
           resolve();
         };
 
@@ -368,6 +561,12 @@ export class SessionListWebSocketService {
             event.code,
             event.reason
           );
+          this.stopHeartbeat();
+          
+          if (!this.disconnectTime) {
+            this.disconnectTime = Date.now();
+          }
+          
           this.handleReconnect();
         };
       } catch (error) {
@@ -378,6 +577,8 @@ export class SessionListWebSocketService {
   }
 
   disconnect(): void {
+    this.stopHeartbeat();
+    
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -399,6 +600,7 @@ export class SessionListWebSocketService {
       this.ws = null;
     }
     this.token = null;
+    this.disconnectTime = null;
     this.messageHandlers.clear();
   }
 
@@ -426,6 +628,21 @@ export class SessionListWebSocketService {
   }
 
   private handleMessage(message: WebSocketMessage): void {
+    // Handle ping/pong
+    if (message.type === 'ping') {
+      this.ws?.send(JSON.stringify({ type: 'pong' }));
+      return;
+    }
+    
+    if (message.type === 'pong') {
+      // Reset pong timeout
+      if (this.pongTimeout) {
+        clearTimeout(this.pongTimeout);
+        this.pongTimeout = null;
+      }
+      return;
+    }
+    
     const handler = this.messageHandlers.get(message.type);
     if (handler) {
       handler(message);
@@ -440,6 +657,15 @@ export class SessionListWebSocketService {
 
   private handleReconnect(): void {
     if (!this.token) return;
+    
+    // Check if we've exceeded the max reconnection time
+    if (this.disconnectTime) {
+      const timeSinceDisconnect = Date.now() - this.disconnectTime;
+      if (timeSinceDisconnect > this.maxReconnectTime) {
+        console.error("Max session list reconnection time exceeded");
+        return;
+      }
+    }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error("Max session list reconnection attempts reached");
@@ -465,11 +691,40 @@ export class SessionListWebSocketService {
     }, delay);
   }
 
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    
+    // Send ping every 30 seconds
+    this.pingInterval = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+        
+        // Expect pong within 5 seconds
+        this.pongTimeout = setTimeout(() => {
+          console.error("Session list pong timeout, connection seems dead");
+          this.ws?.close();
+        }, 5000);
+      }
+    }, 30000);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    
+    if (this.pongTimeout) {
+      clearTimeout(this.pongTimeout);
+      this.pongTimeout = null;
+    }
+  }
+
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
   }
 }
 
 // Singleton instances
-export const wsService = new WebSocketService();
+export const wsService = WebSocketService.getInstance();
 export const sessionListWsService = new SessionListWebSocketService();

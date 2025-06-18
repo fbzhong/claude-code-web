@@ -48,7 +48,9 @@
       "Bash(touch:*)",
       "Bash(mv:*)",
       "Bash(cp:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(corepack enable)",
+      "Bash(sudo corepack:*)"
     ],
     "deny": []
   }

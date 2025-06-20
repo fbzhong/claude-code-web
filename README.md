@@ -13,6 +13,25 @@ A web-based remote development environment that allows users to access and contr
 - 🎯 **Session Management**: Multi-session support with real-time updates
 - 🎟️ **Invite System**: Optional invite code registration control
 
+## Mobile Experience
+
+Claude Web is fully optimized for mobile devices, enabling "vibe coding" - coding anywhere, anytime, from your phone or tablet.
+
+<p align="center">
+  <img src="images/welcome.jpg" alt="Welcome Screen" width="30%" style="margin: 0 1%;" />
+  <img src="images/shell-session.jpg" alt="Terminal Session" width="30%" style="margin: 0 1%;" />
+  <img src="images/vibe-coding-on-ios.jpg" alt="Vibe Coding on iOS" width="30%" style="margin: 0 1%;" />
+</p>
+
+### Mobile Features
+
+- **Responsive Design**: Automatically adapts to any screen size
+- **Virtual Keyboard Toolbar**: Quick access to terminal shortcuts (ESC, Tab, Ctrl+C, etc.)
+- **Smart Cursor Tracking**: Keeps your input always visible while typing
+- **Touch Gestures**: Native mobile gestures support
+- **iOS Optimized**: Full support for iOS keyboards including Chinese input methods
+- **Session Management**: Easy switch between multiple terminal sessions
+
 ## Quick Start
 
 ### Prerequisites

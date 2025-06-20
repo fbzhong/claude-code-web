@@ -13,6 +13,25 @@
 - 🎯 **会话管理**: 多会话支持，实时状态更新
 - 🎟️ **邀请系统**: 可选的邀请码注册控制
 
+## 移动端体验
+
+Claude Web 针对移动设备进行了全面优化，实现了"vibe coding"——随时随地，在手机或平板上轻松编程。
+
+<p align="center">
+  <img src="images/welcome.jpg" alt="欢迎界面" width="30%" style="margin: 0 1%;" />
+  <img src="images/shell-session.jpg" alt="终端会话" width="30%" style="margin: 0 1%;" />
+  <img src="images/vibe-coding-on-ios.jpg" alt="iOS 上的 Vibe Coding" width="30%" style="margin: 0 1%;" />
+</p>
+
+### 移动端特性
+
+- **响应式设计**: 自动适配任意屏幕尺寸
+- **虚拟键盘工具栏**: 快速访问终端快捷键（ESC、Tab、Ctrl+C 等）
+- **智能光标跟踪**: 输入时始终保持光标可见
+- **触摸手势**: 原生移动端手势支持
+- **iOS 优化**: 完整支持 iOS 键盘，包括中文输入法
+- **会话管理**: 轻松切换多个终端会话
+
 ## 快速开始
 
 ### 前置要求

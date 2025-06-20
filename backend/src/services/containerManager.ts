@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import Docker = require("dockerode");
 import { SSHConfigManager } from "./sshConfigManager";
 import { Readable, Writable } from "stream";
+import { ConfigManager } from "../config/ConfigManager";
 
 export interface ContainerConfig {
   image: string;
@@ -33,6 +34,7 @@ export class ContainerManager extends EventEmitter {
   private defaultImage: string;
   private cleanupInterval?: NodeJS.Timeout;
   private networkName = process.env.CONTAINER_NETWORK || undefined;
+  private configManager: ConfigManager;
 
   private get sshConfigManager(): SSHConfigManager {
     if (!this.fastify.sshConfigManager) {
@@ -45,6 +47,9 @@ export class ContainerManager extends EventEmitter {
 
   constructor(private fastify: any) {
     super();
+    
+    // Initialize ConfigManager
+    this.configManager = ConfigManager.getInstance(fastify.pg);
 
     // Initialize Docker client
     const dockerHost = process.env.CONTAINER_HOST;
@@ -112,12 +117,16 @@ export class ContainerManager extends EventEmitter {
         `[ContainerManager] No existing container found, creating new one...`
       );
 
+      // Get container limits from ConfigManager
+      const memoryLimit = await this.configManager.getContainerMemoryLimit();
+      const cpuLimit = await this.configManager.getContainerCpuLimit();
+
       const containerConfig = {
         image: this.defaultImage,
         name: containerName,
         userId,
-        memory: process.env.CONTAINER_MEMORY_LIMIT || "2g",
-        cpu: process.env.CONTAINER_CPU_LIMIT || "1",
+        memory: memoryLimit,
+        cpu: String(cpuLimit),
         environment: {
           USER: "developer",
           HOME: "/home/developer",
@@ -419,14 +428,12 @@ export class ContainerManager extends EventEmitter {
   /**
    * Start periodic cleanup of inactive containers
    */
-  private startPeriodicCleanup(): void {
-    const intervalHours = parseInt(
-      process.env.CONTAINER_CLEANUP_INTERVAL_HOURS || "1"
-    );
-    const cleanupHours = parseInt(process.env.CONTAINER_CLEANUP_HOURS || "24");
+  private async startPeriodicCleanup(): Promise<void> {
+    const intervalMinutes = await this.configManager.getCleanupIntervalMinutes();
+    const cleanupHours = await this.configManager.getSessionTimeoutHours();
 
     this.fastify.log.info(
-      `Container cleanup configured: check every ${intervalHours} hours, remove after ${cleanupHours} hours of inactivity`
+      `Container cleanup configured: check every ${intervalMinutes} minutes, remove after ${cleanupHours} hours of inactivity`
     );
 
     // Run cleanup periodically
@@ -434,7 +441,7 @@ export class ContainerManager extends EventEmitter {
       this.cleanupInactiveContainers(cleanupHours).catch((err) => {
         this.fastify.log.error("Container cleanup failed:", err);
       });
-    }, intervalHours * 60 * 60 * 1000);
+    }, intervalMinutes * 60 * 1000);
 
     // Run initial cleanup after 5 minutes
     setTimeout(() => {

@@ -240,15 +240,23 @@ server {
 
 #### Managing Invite Codes
 
+Upon first deployment, 5 random invite codes are automatically generated with 30-day expiration. To view them:
+
 ```bash
-# Create invite codes
+# View initial invite codes (generated randomly on first setup)
+docker exec claude-web-backend npm run invite:list
+
+# Create additional invite codes
 docker exec claude-web-backend npm run invite:create -- --count 5
 
-# List codes
-docker exec claude-web-backend npm run invite:list
+# Create codes with custom options
+docker exec claude-web-backend npm run invite:create -- --count 10 --max-uses 3 --expires 7
 
 # Delete code
 docker exec claude-web-backend npm run invite:delete CODE123
+
+# Enable/disable invite-only registration
+docker exec claude-web-backend npm run config:set require_invite_code true
 ```
 
 #### Monitoring

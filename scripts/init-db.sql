@@ -88,16 +88,40 @@ CREATE TABLE IF NOT EXISTS github_repositories (
 -- Create index for github_repositories
 CREATE INDEX IF NOT EXISTS idx_github_repositories_user_id ON github_repositories(user_id);
 
--- Create initial invite codes if REQUIRE_INVITE_CODE is enabled
--- These are example codes that should be changed in production
+-- Create initial invite codes with random values
+-- These codes are generated randomly for better security
 DO $$
+DECLARE
+  random_code VARCHAR(12);
+  i INTEGER;
 BEGIN
   -- Only insert if no invite codes exist yet
   IF NOT EXISTS (SELECT 1 FROM invite_codes LIMIT 1) THEN
-    INSERT INTO invite_codes (code, created_by, max_uses) VALUES
-      ('WELCOME2025', 'system', 10),
-      ('EARLYACCESS', 'system', 5),
-      ('BETA2025', 'system', 20);
+    -- Generate 5 random invite codes for initial setup
+    FOR i IN 1..5 LOOP
+      -- Generate a random 12-character alphanumeric code
+      random_code := UPPER(
+        SUBSTRING(
+          md5(random()::text || clock_timestamp()::text || i::text),
+          1,
+          12
+        )
+      );
+      
+      -- Insert the random code with different max_uses values
+      INSERT INTO invite_codes (code, created_by, max_uses, expires_at) VALUES 
+        (random_code, 'system', 
+         CASE 
+           WHEN i <= 2 THEN 5   -- First 2 codes: 5 uses each
+           WHEN i <= 4 THEN 10  -- Next 2 codes: 10 uses each
+           ELSE 20              -- Last code: 20 uses
+         END,
+         CURRENT_TIMESTAMP + INTERVAL '30 days'  -- All codes expire in 30 days
+        );
+    END LOOP;
+    
+    -- Log the generated codes for initial setup
+    RAISE NOTICE 'Generated 5 random invite codes. Use "npm run invite:list" to view them.';
   END IF;
 END $$;
 

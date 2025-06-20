@@ -5,6 +5,7 @@ import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import authPlugin from "./plugins/auth";
 import databasePlugin from "./plugins/database";
 import { setupInviteCommands } from "./cli/invite-manager";
+import { setupConfigCommands } from './cli/config-manager-cli';
 
 // Check if running as CLI
 const isCliMode =
@@ -45,6 +46,7 @@ async function runCli() {
 
   // Setup CLI commands
   setupInviteCommands(app);
+  setupConfigCommands(app);
 
   // Parse CLI arguments
   program.parse(process.argv);

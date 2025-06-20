@@ -4,6 +4,7 @@ import * as crypto from "crypto";
 import { TerminalSession, CommandHistory } from "../types";
 import { ContainerManager } from "./containerManager";
 import { PtyAdapter } from "./ptyAdapter";
+import { ConfigManager } from "../config/ConfigManager";
 
 // Random words for session naming
 const SESSION_ANIMALS = [
@@ -55,12 +56,9 @@ export class SessionManager extends EventEmitter {
   private sessions = new Map<string, TerminalSession>();
   private commandBuffer = new Map<string, string>();
   private sessionSequenceNumbers = new Map<string, number>();
-  private maxOutputBuffer = parseInt(process.env.MAX_OUTPUT_BUFFER || "5000"); // Maximum chunks to keep in memory
-  private maxOutputBufferBytes =
-    parseInt(process.env.MAX_OUTPUT_BUFFER_MB || "5") * 1024; // Default 5KB
-  private reconnectHistorySize = parseInt(
-    process.env.RECONNECT_HISTORY_SIZE || "500"
-  ); // Chunks to send on reconnect
+  private maxOutputBuffer: number;
+  private maxOutputBufferBytes: number;
+  private reconnectHistorySize: number;
   private maxSessions = 50; // Maximum sessions per user
   private cwdCheckTimers = new Map<string, NodeJS.Timeout>(); // Timers for CWD checking
   private outputUpdateTimers = new Map<string, NodeJS.Timeout>(); // Timers for output update delays
@@ -69,10 +67,22 @@ export class SessionManager extends EventEmitter {
   private readonly useDockerode: boolean = true;
   private userDeviceSessions = new Map<string, string>(); // Map of "userId-deviceId" -> sessionId
   private sessionBufferBytes = new Map<string, number>(); // Track buffer size in bytes per session
+  private configManager: ConfigManager;
 
   constructor(private fastify: any) {
     super();
 
+    // Initialize ConfigManager
+    this.configManager = ConfigManager.getInstance(fastify.pg);
+    
+    // Initialize with default values, will be updated after config loads
+    this.maxOutputBuffer = 5000;
+    this.maxOutputBufferBytes = 5 * 1024 * 1024;
+    this.reconnectHistorySize = 500;
+    
+    // Load configuration values
+    this.loadConfigValues();
+    
     // Buffer configuration (logged at debug level)
     this.fastify.log.debug("SessionManager buffer configuration:", {
       maxOutputBuffer: this.maxOutputBuffer,
@@ -106,6 +116,47 @@ export class SessionManager extends EventEmitter {
     }, 30000); // Every 30 seconds
 
     // Sessions are now ephemeral - no database persistence
+    
+    // Listen for configuration changes
+    this.configManager.on('configChanged', (key: string, oldValue: any, newValue: any) => {
+      this.handleConfigChange(key, oldValue, newValue);
+    });
+  }
+
+  private async loadConfigValues(): Promise<void> {
+    try {
+      await this.configManager.initialize();
+      
+      // Load buffer configuration
+      this.maxOutputBuffer = await this.configManager.getMaxOutputBuffer();
+      this.maxOutputBufferBytes = (await this.configManager.getMaxOutputBufferMB()) * 1024 * 1024;
+      this.reconnectHistorySize = await this.configManager.getReconnectHistorySize();
+      
+      this.fastify.log.info('SessionManager loaded configuration:', {
+        maxOutputBuffer: this.maxOutputBuffer,
+        maxOutputBufferMB: this.maxOutputBufferBytes / 1024 / 1024,
+        reconnectHistorySize: this.reconnectHistorySize,
+      });
+    } catch (error) {
+      this.fastify.log.error('Failed to load configuration, using defaults:', error);
+    }
+  }
+  
+  private handleConfigChange(key: string, oldValue: any, newValue: any): void {
+    switch (key) {
+      case 'max_output_buffer':
+        this.maxOutputBuffer = newValue || 5000;
+        this.fastify.log.info(`Updated maxOutputBuffer: ${oldValue} -> ${newValue}`);
+        break;
+      case 'max_output_buffer_mb':
+        this.maxOutputBufferBytes = (newValue || 5) * 1024 * 1024;
+        this.fastify.log.info(`Updated maxOutputBufferMB: ${oldValue} -> ${newValue}`);
+        break;
+      case 'reconnect_history_size':
+        this.reconnectHistorySize = newValue || 500;
+        this.fastify.log.info(`Updated reconnectHistorySize: ${oldValue} -> ${newValue}`);
+        break;
+    }
   }
 
   static getInstance(fastify: any): SessionManager {
@@ -1145,6 +1196,25 @@ export class SessionManager extends EventEmitter {
 
     // Emit deletion event
     this.emit("session_deleted", sessionId);
+  }
+
+  private async loadConfigValues(): Promise<void> {
+    try {
+      await this.configManager.initialize();
+      
+      // Load buffer configuration
+      this.maxOutputBuffer = await this.configManager.getMaxOutputBuffer();
+      this.maxOutputBufferBytes = (await this.configManager.getMaxOutputBufferMB()) * 1024 * 1024;
+      this.reconnectHistorySize = await this.configManager.getReconnectHistorySize();
+      
+      this.fastify.log.info('SessionManager loaded configuration:', {
+        maxOutputBuffer: this.maxOutputBuffer,
+        maxOutputBufferMB: this.maxOutputBufferBytes / 1024 / 1024,
+        reconnectHistorySize: this.reconnectHistorySize,
+      });
+    } catch (error) {
+      this.fastify.log.error('Failed to load configuration, using defaults:', error);
+    }
   }
 
   // Graceful shutdown

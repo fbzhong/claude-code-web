@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
+import { ConfigManager } from '../../config/ConfigManager';
 
 export default async function (fastify: FastifyInstance) {
   // Debug endpoint
@@ -324,8 +325,8 @@ export default async function (fastify: FastifyInstance) {
           }
 
           // Check if registration requires invite code
-          const requireInviteCode =
-            process.env.REQUIRE_INVITE_CODE?.toLowerCase() === "true";
+          const configManager = ConfigManager.getInstance(fastify.pg);
+          const requireInviteCode = await configManager.getRequireInviteCode();
 
           if (requireInviteCode) {
             if (!inviteCode) {

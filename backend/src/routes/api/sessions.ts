@@ -17,7 +17,6 @@ interface SessionParams {
 
 export default async function sessionsRoutes(fastify: FastifyInstance) {
   const sessionManager = SessionManager.getInstance(fastify);
-  const containerManager = (fastify as any).containerManager;
 
   // Get all user sessions
   fastify.get(
@@ -364,6 +363,7 @@ export default async function sessionsRoutes(fastify: FastifyInstance) {
       try {
         const user = (request as any).user;
 
+        const containerManager = sessionManager.getContainerManager();
         if (!containerManager) {
           return reply.status(503).send({
             success: false,
@@ -406,7 +406,7 @@ export default async function sessionsRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const user = (request as any).user;
-        const containerManager = (fastify as any).containerManager;
+        const containerManager = sessionManager.getContainerManager();
 
         if (!containerManager) {
           return reply.status(503).send({

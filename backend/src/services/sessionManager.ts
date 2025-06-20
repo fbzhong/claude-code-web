@@ -198,6 +198,10 @@ export class SessionManager extends EventEmitter {
     return SessionManager.instance;
   }
 
+  getContainerManager(): ContainerManager | undefined {
+    return this.containerManager;
+  }
+
   /**
    * Get or create a session for a specific user and device
    */

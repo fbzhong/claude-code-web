@@ -52,9 +52,6 @@ cp .env.production.example .env.prod
 ```bash
 # Install pnpm if not already installed
 npm install -g pnpm
-
-# Install dependencies (from project root)
-pnpm install
 ```
 
 2. **Setup database**
@@ -85,10 +82,14 @@ cp .env.example .env
 
 ```bash
 # Terminal 1: Backend (port 12021)
-cd backend && pnpm run dev
+cd backend
+pnpm install --unsafe-perm
+pnpm run dev
 
 # Terminal 2: Frontend (port 12020)
-cd frontend && pnpm start
+cd frontend
+pnpm install
+pnpm start
 ```
 
 ### Project Structure
@@ -118,7 +119,7 @@ claude-web/
 
 # The script will:
 # - Check for .env.prod configuration
-# - Create necessary directories  
+# - Create necessary directories
 # - Generate SSH keys
 # - Build and start all services
 ```
@@ -132,7 +133,7 @@ vim .env.prod
 
 # Required variables:
 # - DATABASE_PASSWORD (generate: openssl rand -hex 32)
-# - JWT_SECRET (generate: openssl rand -hex 32)  
+# - JWT_SECRET (generate: openssl rand -hex 32)
 # - ENCRYPTION_KEY (generate: openssl rand -hex 32)
 # - GITHUB_CLIENT_ID & GITHUB_CLIENT_SECRET (manual setup)
 

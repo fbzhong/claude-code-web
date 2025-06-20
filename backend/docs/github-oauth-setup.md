@@ -11,16 +11,23 @@
 4. Click "Register application"
 5. Copy the **Client ID** and generate a new **Client Secret**
 
-## 2. Configure Environment Variables
+## 2. Configure GitHub OAuth
 
-Update your `backend/.env` file with the GitHub OAuth credentials:
+GitHub OAuth credentials are now managed through the dynamic configuration system:
 
-```env
-# GitHub OAuth Configuration
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-GITHUB_REDIRECT_URI=http://localhost:12020/github/callback
+```bash
+# Set GitHub OAuth credentials
+npm run config:set github_client_id "your-github-client-id"
+npm run config:set github_client_secret "your-github-client-secret"
+npm run config:set github_oauth_callback_url "http://localhost:12020/auth/github/callback"
+
+# For production environments
+docker exec claude-web-backend npm run config:set github_client_id "your-github-client-id"
+docker exec claude-web-backend npm run config:set github_client_secret "your-github-client-secret"
+docker exec claude-web-backend npm run config:set github_oauth_callback_url "https://your-domain.com/auth/github/callback"
 ```
+
+Note: You can also set these values via environment variables for initial setup, but once configured through the dynamic configuration system, the database values take precedence.
 
 ## 3. Run Database Migration
 

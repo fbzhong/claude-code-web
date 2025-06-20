@@ -257,6 +257,14 @@ docker exec claude-web-backend npm run invite:delete CODE123
 
 # Enable/disable invite-only registration
 docker exec claude-web-backend npm run config:set require_invite_code true
+
+# Configure container mode
+docker exec claude-web-backend npm run config:set container_mode true
+
+# Configure GitHub OAuth (if not using environment variables)
+docker exec claude-web-backend npm run config:set github_client_id "your-client-id"
+docker exec claude-web-backend npm run config:set github_client_secret "your-client-secret"
+docker exec claude-web-backend npm run config:set github_oauth_callback_url "https://your-domain.com/api/auth/github/callback"
 ```
 
 #### Monitoring

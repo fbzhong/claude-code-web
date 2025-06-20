@@ -239,15 +239,38 @@ server {
 
 #### 管理邀请码
 
+首次部署时会自动生成 5 个随机邀请码，有效期 30 天。查看方法：
+
 ```bash
-# 创建邀请码
+# 查看初始邀请码（首次设置时随机生成）
+docker exec claude-web-backend npm run invite:list
+
+# 创建额外邀请码
 docker exec claude-web-backend npm run invite:create -- --count 5
 
-# 查看邀请码
-docker exec claude-web-backend npm run invite:list
+# 创建自定义选项的邀请码
+docker exec claude-web-backend npm run invite:create -- --count 10 --max-uses 3 --expires 7
 
 # 删除邀请码
 docker exec claude-web-backend npm run invite:delete CODE123
+
+# 启用/禁用邀请注册
+docker exec claude-web-backend npm run config:set require_invite_code true
+```
+
+#### 系统配置
+
+```bash
+# 配置容器模式
+docker exec claude-web-backend npm run config:set container_mode true
+
+# 配置 GitHub OAuth（如果不使用环境变量）
+docker exec claude-web-backend npm run config:set github_client_id "your-client-id"
+docker exec claude-web-backend npm run config:set github_client_secret "your-client-secret"
+docker exec claude-web-backend npm run config:set github_oauth_callback_url "https://your-domain.com/api/auth/github/callback"
+
+# 查看所有配置
+docker exec claude-web-backend npm run config:list
 ```
 
 #### 监控
@@ -297,18 +320,33 @@ docker exec claude-web-backend npm run cleanup:containers
 - 不存储命令历史
 - 邀请码注册控制
 
-## 环境变量
+## 配置管理
 
-完整配置指南请参考 [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)。
+系统配置通过动态配置管理系统进行管理，支持运行时更新。环境变量主要用于初始配置。
 
-主要变量：
+主要配置项可通过以下方式管理：
 
-- `JWT_SECRET`：JWT 签名密钥
-- `ENCRYPTION_KEY`：数据加密密钥
-- `GITHUB_CLIENT_ID/SECRET`：GitHub OAuth 凭据
-- `CONTAINER_MEMORY_LIMIT`：每用户内存限制（默认：2g）
-- `REQUIRE_INVITE_CODE`：启用邀请系统
-- `SSHPIPER_DIR`：SSHpiper 文件基础目录
+```bash
+# 查看所有配置
+docker exec claude-web-backend npm run config:list
+
+# 设置配置
+docker exec claude-web-backend npm run config:set <key> <value>
+
+# 获取配置
+docker exec claude-web-backend npm run config:get <key>
+```
+
+关键配置：
+
+- `JWT_SECRET`：JWT 签名密钥（环境变量）
+- `ENCRYPTION_KEY`：数据加密密钥（环境变量）
+- `require_invite_code`：启用邀请系统（动态配置）
+- `container_mode`：容器隔离模式（动态配置）
+- `github_client_id/secret`：GitHub OAuth 凭据（动态配置）
+- `container_memory_limit`：每用户内存限制（动态配置，默认：2g）
+
+详细配置说明请参考 [CLAUDE.md](./CLAUDE.md#配置管理)。
 
 ## 开发
 

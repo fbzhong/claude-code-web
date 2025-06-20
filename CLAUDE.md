@@ -193,6 +193,11 @@ Claude Code Web 是一个基于 Web 的远程开发环境，允许用户通过�
     - 实现配置命令行工具，类似邀请码管理
     - 支持配置导入/导出和审计日志
     - 实时配置更新，无需重启服务
+43. **2025-06-20**: 完成环境变量到动态配置的迁移：
+    - 将 REQUIRE_INVITE_CODE、CONTAINER_MODE、GITHUB_CLIENT_ID、GITHUB_CLIENT_SECRET、GITHUB_OAUTH_CALLBACK_URL 迁移到动态配置
+    - 实现配置优先级：数据库管理的配置忽略环境变量
+    - 前端通过 /api/config 获取配置，移除环境变量依赖
+    - CLI 显示实际生效值（包含默认值）
 
 ## 技术特性
 
@@ -353,9 +358,9 @@ Claude Code Web 是一个基于 Web 的远程开发环境，允许用户通过�
 - 端到端测试覆盖关键用户流程
 - 每次提交自动运行回归测试
 
-## 环境变量配置
+## 配置管理
 
-环境变量现在主要用于初始配置，运行时配置通过数据库动态管理。
+系统配置通过动态配置管理系统进行管理，支持运行时更新，无需重启服务。
 
 ### 动态配置管理
 
@@ -401,12 +406,22 @@ npm run config:import config.json
 | require_invite_code | boolean | false | 是否需要邀请码注册 |
 | websocket_ping_interval | number | 30 | WebSocket ping 间隔（秒） |
 | websocket_ping_timeout | number | 60 | WebSocket ping 超时（秒） |
+| container_mode | boolean | false | 是否启用容器隔离模式 |
+| github_client_id | string | - | GitHub OAuth 应用 Client ID |
+| github_client_secret | string | - | GitHub OAuth 应用 Client Secret |
+| github_oauth_callback_url | string | - | GitHub OAuth 回调 URL |
 
 ### 配置优先级
 
-1. 环境变量（最高优先级）
-2. 数据库配置值
-3. 默认值（最低优先级）
+对于数据库管理的配置项（已通过 config:set 设置的）：
+1. 数据库配置值
+2. 默认值
+
+对于未管理的配置项：
+1. 环境变量
+2. 默认值
+
+注意：一旦配置项被存入数据库，相应的环境变量将被忽略，确保配置管理的一致性。
 
 ### 性能优化说明
 
@@ -490,7 +505,7 @@ npm run invite:stats                     # 查看统计信息
 
 ### 注册流程集成
 
-- **环境变量控制**: REQUIRE_INVITE_CODE=true 启用
+- **动态配置控制**: 通过 `npm run config:set require_invite_code true` 启用
 - **前后端同步**: 前后端同时验证，确保一致性
 - **事务处理**: 数据库事务保证原子性操作
 - **错误处理**: 详细的错误信息反馈

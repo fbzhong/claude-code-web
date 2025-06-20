@@ -34,25 +34,25 @@ services:
       DATABASE_URL: postgresql://claude_web:${DATABASE_PASSWORD}@claude-web-postgres:5432/claude_web
       JWT_SECRET: ${JWT_SECRET}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-      # GitHub OAuth
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-      GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL}
+      # GitHub OAuth - Now managed through dynamic configuration
+      # GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      # GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      # GITHUB_OAUTH_CALLBACK_URL: ${GITHUB_OAUTH_CALLBACK_URL}
       # Container settings
-      CONTAINER_MODE: true
+      # CONTAINER_MODE: true  # Now managed through dynamic configuration
       CONTAINER_HOST: ${CONTAINER_HOST:-unix:///var/run/docker.sock}
       CONTAINER_IMAGE: claude-web-dev:latest
       CONTAINER_NETWORK: claude-web-bridge
-      CONTAINER_MEMORY_LIMIT: ${CONTAINER_MEMORY_LIMIT:-2g}
-      CONTAINER_CPU_LIMIT: ${CONTAINER_CPU_LIMIT:-2}
+      # CONTAINER_MEMORY_LIMIT: ${CONTAINER_MEMORY_LIMIT:-2g}  # Now managed through dynamic configuration
+      # CONTAINER_CPU_LIMIT: ${CONTAINER_CPU_LIMIT:-2}  # Now managed through dynamic configuration
       CONTAINER_CLEANUP_HOURS: ${CONTAINER_CLEANUP_HOURS:-24}
       CONTAINER_CLEANUP_INTERVAL_HOURS: ${CONTAINER_CLEANUP_INTERVAL_HOURS:-1}
       # SSHpiper
       SSHPIPER: /sshpiper
       SSHPIPER_SSH_HOST: ${SSHPIPER_SSH_HOST:-localhost}
       SSHPIPER_SSH_PORT: ${SSHPIPER_SSH_PORT:-2222}
-      # Invite code
-      REQUIRE_INVITE_CODE: ${REQUIRE_INVITE_CODE:-false}
+      # Invite code - Now managed through dynamic configuration
+      # REQUIRE_INVITE_CODE: ${REQUIRE_INVITE_CODE:-false}
     ports:
       - "${API_PORT:-12021}:12021"
     volumes:

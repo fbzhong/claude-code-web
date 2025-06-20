@@ -30,7 +30,7 @@ if [ ! -f .env.prod ]; then
     echo "  - DATABASE_PASSWORD (generate: openssl rand -hex 32)"
     echo "  - JWT_SECRET (generate: openssl rand -hex 32)"
     echo "  - ENCRYPTION_KEY (generate: openssl rand -hex 32)"
-    echo "  - GITHUB_CLIENT_ID & GITHUB_CLIENT_SECRET"
+    echo "  Note: GitHub OAuth and other settings are now managed via dynamic configuration"
     echo ""
     exit 1
 fi
@@ -150,17 +150,15 @@ else
     echo "⚠️  Warning: Frontend service may not be ready yet"
 fi
 
-# Create initial invite codes if enabled
-if [ "${REQUIRE_INVITE_CODE:-false}" = "true" ]; then
-    echo "🎟️  Creating initial invite codes..."
-    sleep 5  # Wait for backend to be fully ready
-    if docker exec claude-web-backend npm run invite:create -- --count 5 --prefix LAUNCH 2>/dev/null; then
-        echo "✅ Initial invite codes created"
-        echo "   Use 'docker exec claude-web-backend npm run invite:list' to view them"
-    else
-        echo "⚠️  Failed to create invite codes automatically"
-        echo "   Create them manually: docker exec claude-web-backend npm run invite:create"
-    fi
+# Create initial invite codes (first deployment only)
+echo "🎟️  Creating initial invite codes..."
+sleep 5  # Wait for backend to be fully ready
+if docker exec claude-web-backend npm run invite:create -- --count 5 --prefix LAUNCH 2>/dev/null; then
+    echo "✅ Initial invite codes created"
+    echo "   Use 'docker exec claude-web-backend npm run invite:list' to view them"
+else
+    echo "⚠️  Failed to create invite codes automatically (may already exist)"
+    echo "   Create manually if needed: docker exec claude-web-backend npm run invite:create"
 fi
 
 echo ""
@@ -178,7 +176,7 @@ echo ""
 echo "📋 Next Steps:"
 echo "   1. Configure reverse proxy (nginx/caddy) for HTTPS"
 echo "   2. Update DNS records to point to your server"
-echo "   3. Configure GitHub OAuth if not done already"
+echo "   3. Configure system settings (GitHub OAuth, container mode, etc.)"
 echo ""
 echo "🔧 Management Commands:"
 echo "   • View logs:        docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f"
@@ -191,19 +189,24 @@ echo "   • Create codes:     docker exec claude-web-backend npm run invite:cre
 echo "   • List codes:       docker exec claude-web-backend npm run invite:list"
 echo "   • Delete code:      docker exec claude-web-backend npm run invite:delete <code>"
 echo ""
+echo "⚙️  System Configuration:"
+echo "   • View settings:    docker exec claude-web-backend npm run config:list"
+echo "   • Set value:        docker exec claude-web-backend npm run config:set <key> <value>"
+echo "   • Get value:        docker exec claude-web-backend npm run config:get <key>"
+echo ""
 echo "📊 Service Status:"
 docker compose -f docker-compose.prod.yml --env-file .env.prod ps
 echo ""
 
-# Final configuration reminders
-if [ -z "${GITHUB_CLIENT_ID:-}" ] || [ -z "${GITHUB_CLIENT_SECRET:-}" ]; then
-    echo "⚠️  GitHub OAuth Configuration Needed:"
-    echo "   Edit .env.prod and add your GitHub OAuth credentials:"
-    echo "   GITHUB_CLIENT_ID=your_client_id"
-    echo "   GITHUB_CLIENT_SECRET=your_client_secret"
-    echo "   Then restart: docker compose -f docker-compose.prod.yml --env-file .env.prod restart"
-    echo ""
-fi
+# Configuration management info
+echo "⚙️  Configuration Management:"
+echo "   • View all settings:  docker exec claude-web-backend npm run config:list"
+echo "   • Set a value:        docker exec claude-web-backend npm run config:set <key> <value>"
+echo "   • Common settings:"
+echo "     - require_invite_code (true/false)"
+echo "     - container_mode (true/false)"
+echo "     - github_client_id, github_client_secret"
+echo ""
 
 echo "📖 Documentation:"
 echo "   • Project docs: https://github.com/fbzhong/claude-web"

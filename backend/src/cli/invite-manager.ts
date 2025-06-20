@@ -70,7 +70,8 @@ export class InviteCodeManager {
             WHEN used_by IS NOT NULL THEN 'used'
             WHEN expires_at < NOW() THEN 'expired'
             WHEN current_uses >= max_uses THEN 'exhausted'
-            WHEN is_active = false THEN 'disabled'
+            WHEN is_active = false AND used_by IS NULL AND (expires_at IS NULL OR expires_at >= NOW()) AND current_uses < max_uses THEN 'disabled'
+            WHEN is_active = false THEN 'inactive'
             ELSE 'active'
           END as status
         FROM invite_codes

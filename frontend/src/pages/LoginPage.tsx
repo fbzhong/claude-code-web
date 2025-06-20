@@ -28,6 +28,7 @@ import { useAuthStore, setDebugLogger } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
 import { DebugInfo, useDebugLogger } from "../components/DebugInfo";
 import { useKeyboardAware } from "../hooks/useKeyboardAware";
+import { useRequireInviteCode } from "../hooks/useConfig";
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -57,6 +58,9 @@ export const LoginPage: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Get server configuration
+  const { requireInviteCode, loading: configLoading, error: configError } = useRequireInviteCode();
 
   // Debug logger for mobile debugging
   const debugLogger = useDebugLogger();
@@ -182,6 +186,32 @@ export const LoginPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Show loading spinner while fetching configuration
+  if (configLoading) {
+    return (
+      <Box
+        sx={{
+          height: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          bgcolor: "background.default",
+        }}
+      >
+        <CircularProgress size={40} sx={{ color: '#007AFF', mb: 2 }} />
+        <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+          Loading configuration...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Show error if config fetch failed (but still allow login/register with default config)
+  if (configError) {
+    debugLogger.logError("CONFIG", "Failed to fetch server configuration", configError);
+  }
 
   return (
     <Box
@@ -750,8 +780,7 @@ export const LoginPage: React.FC = () => {
                   },
                 }}
               />
-              {process.env.REACT_APP_REQUIRE_INVITE_CODE?.toLowerCase() ===
-                "true" && (
+              {requireInviteCode && (
                 <TextField
                   fullWidth
                   label="Invite Code"

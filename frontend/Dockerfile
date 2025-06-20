@@ -19,7 +19,7 @@ COPY public/ ./public/
 # Build arguments for environment variables
 ARG REACT_APP_API_URL
 ARG REACT_APP_API_SAME_HOST
-ARG REACT_APP_REQUIRE_INVITE_CODE
+# ARG REACT_APP_REQUIRE_INVITE_CODE  # Now fetched from /api/config
 
 # Build the application
 RUN pnpm run build

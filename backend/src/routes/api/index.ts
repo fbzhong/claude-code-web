@@ -7,7 +7,7 @@ export default async function (fastify: FastifyInstance) {
     return {
       CONTAINER_MODE: process.env.CONTAINER_MODE,
       NODE_ENV: process.env.NODE_ENV,
-      useContainers: process.env.CONTAINER_MODE === 'true',
+      useContainers: process.env.CONTAINER_MODE?.localeCompare('true', undefined, { sensitivity: 'accent' }) === 0,
       allEnv: Object.keys(process.env).filter(key => key.startsWith('CONTAINER')).reduce((acc, key) => {
         acc[key] = process.env[key];
         return acc;
@@ -32,12 +32,12 @@ export default async function (fastify: FastifyInstance) {
           sshpiper_configured: !!process.env.SSHPIPER
         },
         container_mode: {
-          enabled: process.env.CONTAINER_MODE === 'true',
+          enabled: process.env.CONTAINER_MODE?.localeCompare('true', undefined, { sensitivity: 'accent' }) === 0,
           docker_available: false // Will be checked below
         },
         authentication: {
           jwt_secret_configured: !!process.env.JWT_SECRET,
-          invite_code_required: process.env.REQUIRE_INVITE_CODE === 'true'
+          invite_code_required: process.env.REQUIRE_INVITE_CODE?.localeCompare('true', undefined, { sensitivity: 'accent' }) === 0
         }
       },
       environment: process.env.NODE_ENV || 'development'
@@ -114,7 +114,7 @@ export default async function (fastify: FastifyInstance) {
 
 
     // Check container mode if enabled
-    if (process.env.CONTAINER_MODE === 'true') {
+    if (process.env.CONTAINER_MODE?.localeCompare('true', undefined, { sensitivity: 'accent' }) === 0) {
       try {
         const { exec } = require('child_process');
         await new Promise((resolve, reject) => {
@@ -279,7 +279,7 @@ export default async function (fastify: FastifyInstance) {
         }
         
         // Check if registration requires invite code
-        const requireInviteCode = process.env.REQUIRE_INVITE_CODE === 'true';
+        const requireInviteCode = process.env.REQUIRE_INVITE_CODE?.localeCompare('true', undefined, { sensitivity: 'accent' }) === 0;
         
         if (requireInviteCode) {
           if (!inviteCode) {

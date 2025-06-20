@@ -1,4 +1,4 @@
-# Development container image for Claude Web
+# Development container image for Claude Code Web
 # This image is used for user containers when CONTAINER_MODE=true
 
 FROM ubuntu:22.04

@@ -24,7 +24,7 @@
     "pino-pretty": "^10.2.3",
     "ws": "^8.14.2"
   },
-  "description": "Backend service for Claude Web with Fastify",
+  "description": "Backend service for Claude Code Web with Fastify",
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/jest": "^29.5.8",

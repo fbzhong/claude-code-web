@@ -21,7 +21,7 @@ function getBrowserFingerprint(): string {
     // Add canvas fingerprint for more uniqueness
     getCanvasFingerprint(),
   ];
-  
+
   return components.join('|');
 }
 
@@ -33,17 +33,17 @@ function getCanvasFingerprint(): string {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return 'no-canvas';
-    
+
     ctx.textBaseline = 'top';
     ctx.font = '14px Arial';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#f60';
     ctx.fillRect(125, 1, 62, 20);
     ctx.fillStyle = '#069';
-    ctx.fillText('Claude Web', 2, 15);
+    ctx.fillText('Claude Code Web', 2, 15);
     ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
-    ctx.fillText('Claude Web', 4, 17);
-    
+    ctx.fillText('Claude Code Web', 4, 17);
+
     return canvas.toDataURL();
   } catch (e) {
     return 'canvas-error';
@@ -66,7 +66,7 @@ async function sha256(text: string): Promise<string> {
       console.warn('crypto.subtle failed, falling back to simple hash:', error);
     }
   }
-  
+
   // Fallback: Simple hash function for non-HTTPS environments
   return simpleHash(text);
 }
@@ -90,21 +90,21 @@ function simpleHash(str: string): string {
 export async function getDeviceId(): Promise<string> {
   // Check if device ID already exists
   let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-  
+
   if (!deviceId) {
     // Generate new device ID
     const fingerprint = getBrowserFingerprint();
     const timestamp = Date.now().toString();
     const random = Math.random().toString(36).substring(2);
-    
+
     // Combine all components and hash
     const combined = `${fingerprint}|${timestamp}|${random}`;
     deviceId = await sha256(combined);
-    
+
     // Store in localStorage
     localStorage.setItem(DEVICE_ID_KEY, deviceId);
   }
-  
+
   return deviceId;
 }
 

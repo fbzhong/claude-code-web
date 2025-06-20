@@ -1,4 +1,4 @@
-# Claude Web
+# Claude Code Web
 
 A web-based remote development environment that allows users to access and control Claude Code and VS Code on remote servers through their browsers.
 
@@ -15,7 +15,7 @@ A web-based remote development environment that allows users to access and contr
 
 ## Mobile Experience
 
-Claude Web is fully optimized for mobile devices, enabling "vibe coding" - coding anywhere, anytime, from your phone or tablet.
+Claude Code Web is fully optimized for mobile devices, enabling "vibe coding" - coding anywhere, anytime, from your phone or tablet.
 
 <p align="center">
   <img src="images/welcome.jpg" alt="Welcome Screen" width="30%" style="margin: 0 1%;" />

@@ -1,8 +1,8 @@
-# Claude Web 项目记忆
+# Claude Code Web 项目记忆
 
 ## 项目概述
 
-Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览器访问和控制远程服务器上的 Claude Code 和 VS Code (Cursor)。
+Claude Code Web 是一个基于 Web 的远程开发环境，允许用户通过浏览器访问和控制远程服务器上的 Claude Code 和 VS Code (Cursor)。
 
 ## 技术栈决策
 

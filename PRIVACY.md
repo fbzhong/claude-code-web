@@ -1,8 +1,8 @@
-# Privacy Policy for Claude Web
+# Privacy Policy for Claude Code Web
 
 ## Overview
 
-Claude Web is designed with privacy as a core principle. We believe in minimal data collection and maximum user privacy.
+Claude Code Web is designed with privacy as a core principle. We believe in minimal data collection and maximum user privacy.
 
 ## What We Store
 
@@ -12,7 +12,7 @@ Claude Web is designed with privacy as a core principle. We believe in minimal d
   - Email address (required for authentication)
   - Password hash (bcrypt encrypted)
   - Account creation timestamp
-  
+
 - **Session Metadata**:
   - Session ID
   - Session name

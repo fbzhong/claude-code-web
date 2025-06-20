@@ -1,8 +1,8 @@
-# Claude Web 功能需求文档
+# Claude Code Web 功能需求文档
 
 ## 项目概述
 
-Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览器访问和控制远程服务器上的 Claude Code 和 VS Code (Cursor)。
+Claude Code Web 是一个基于 Web 的远程开发环境，允许用户通过浏览器访问和控制远程服务器上的 Claude Code 和 VS Code (Cursor)。
 
 ## 核心需求
 
@@ -14,7 +14,7 @@ Claude Web 是一个基于 Web 的远程开发环境，允许用户通过浏览�
   - 支持终端颜色和格式化输出
   - 支持文件上传下载
 - **技术实现**: 基于 ttyd + 扩展服务
-- **测试要求**: 
+- **测试要求**:
   - 终端基础命令测试
   - 颜色输出测试
   - 文件传输测试

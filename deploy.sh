@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Claude Web Production Deployment Script
-# Automated deployment of Claude Web to production environment
+# Claude Code Web Production Deployment Script
+# Automated deployment of Claude Code Web to production environment
 
 set -e
 
 SCRIPT_DIR="$(dirname "$0")"
 
-echo "🚀 Starting Claude Web deployment..."
+echo "🚀 Starting Claude Code Web deployment..."
 echo ""
 
 # Check if .env exists for production
@@ -48,7 +48,7 @@ DATABASE_DIR=${DATABASE:-./data/postgres}
 
 # Create directory structure
 mkdir -p "$SSHPIPER_DIR/workingdir"
-mkdir -p "$SSHPIPER_DIR/hostkeys" 
+mkdir -p "$SSHPIPER_DIR/hostkeys"
 mkdir -p "$DATABASE_DIR"
 
 # Set proper permissions
@@ -166,13 +166,13 @@ fi
 echo ""
 echo "🎉 Deployment complete!"
 echo ""
-echo "===========================================" 
-echo "           Claude Web is Ready!"
+echo "==========================================="
+echo "           Claude Code Web is Ready!"
 echo "==========================================="
 echo ""
 echo "🌐 Access Points:"
 echo "   • Frontend:    http://localhost:${WEB_PORT:-12020}"
-echo "   • Backend API: http://localhost:${API_PORT:-12021}" 
+echo "   • Backend API: http://localhost:${API_PORT:-12021}"
 echo "   • SSH Access:  ssh user@localhost -p ${SSHPIPER_SSH_PORT:-2222}"
 echo ""
 echo "📋 Next Steps:"
@@ -209,4 +209,4 @@ echo "📖 Documentation:"
 echo "   • Project docs: https://github.com/fbzhong/claude-web"
 echo "   • Report issues: https://github.com/fbzhong/claude-web/issues"
 echo ""
-echo "✨ Happy coding with Claude Web!"
+echo "✨ Happy coding with Claude Code Web!"

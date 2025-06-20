@@ -2,7 +2,7 @@
 
 # Rebuild the development container image
 
-echo "=== Rebuilding Claude Web Development Container Image ==="
+echo "=== Rebuilding Claude Code Web Development Container Image ==="
 
 # Colors for output
 GREEN='\033[0;32m'

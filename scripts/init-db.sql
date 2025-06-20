@@ -1,4 +1,4 @@
--- Claude Web Database Initialization Script
+-- Claude Code Web Database Initialization Script
 -- This script creates all necessary tables for a fresh installation
 
 -- Enable required extensions
@@ -94,7 +94,7 @@ DO $$
 BEGIN
   -- Only insert if no invite codes exist yet
   IF NOT EXISTS (SELECT 1 FROM invite_codes LIMIT 1) THEN
-    INSERT INTO invite_codes (code, created_by, max_uses) VALUES 
+    INSERT INTO invite_codes (code, created_by, max_uses) VALUES
       ('WELCOME2025', 'system', 10),
       ('EARLYACCESS', 'system', 5),
       ('BETA2025', 'system', 20);

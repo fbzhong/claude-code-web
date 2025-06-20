@@ -5,7 +5,7 @@
 1. Go to https://github.com/settings/developers
 2. Click "New OAuth App"
 3. Fill in the application details:
-   - **Application name**: Claude Web (or your preferred name)
+   - **Application name**: Claude Code Web (or your preferred name)
    - **Homepage URL**: http://localhost:12020 (or your production URL)
    - **Authorization callback URL**: http://localhost:12020/auth/github/callback
 4. Click "Register application"

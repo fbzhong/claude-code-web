@@ -56,7 +56,7 @@
   ],
   "name": "MOUNTAIN",
   "orientation": "any",
-  "short_name": "Claude Web",
+  "short_name": "Claude Code Web",
   "start_url": "/",
   "theme_color": "#007AFF"
 }

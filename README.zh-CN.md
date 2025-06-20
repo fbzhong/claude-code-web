@@ -1,4 +1,4 @@
-# Claude Web
+# Claude Code Web
 
 基于 Web 的远程开发环境，允许用户通过浏览器访问和控制远程服务器上的 Claude Code 和 VS Code。
 
@@ -15,7 +15,7 @@
 
 ## 移动端体验
 
-Claude Web 针对移动设备进行了全面优化，实现了"vibe coding"——随时随地，在手机或平板上轻松编程。
+Claude Code Web 针对移动设备进行了全面优化，实现了"vibe coding"——随时随地，在手机或平板上轻松编程。
 
 <p align="center">
   <img src="images/welcome.jpg" alt="欢迎界面" width="30%" style="margin: 0 1%;" />

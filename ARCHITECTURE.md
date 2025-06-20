@@ -1,4 +1,4 @@
-# Claude Web 架构设计
+# Claude Code Web 架构设计
 
 ## 系统架构概览
 
@@ -47,7 +47,7 @@
 **推荐方案**: 自定义 Node.js 服务
 - **前端**: xterm.js
 - **后端**: Express + Socket.IO + node-pty
-- **优势**: 
+- **优势**:
   - 完全控制终端行为
   - 易于集成Claude Code特定功能
   - 支持会话管理和历史记录
@@ -147,20 +147,20 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    
+
   terminal-service:
     build: ./backend
     environment:
       - NODE_ENV=production
-    
+
   code-server:
     image: codercom/code-server:latest
     environment:
       - PASSWORD=secure-password
-    
+
   redis:
     image: redis:alpine
-    
+
   postgres:
     image: postgres:13
     environment:

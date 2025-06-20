@@ -1,6 +1,6 @@
 # Favicon and App Icon Configuration
 
-This directory contains a complete set of favicon and app icon files for the Martian Code web application.
+This directory contains a complete set of favicon and app icon files for the MOUNTAIN web application.
 
 ## Files Overview
 

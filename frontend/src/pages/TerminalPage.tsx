@@ -224,7 +224,7 @@ export const TerminalPage: React.FC = () => {
               display: { xs: "none", sm: "block" },
             }}
           >
-            Martian Code
+            MOUNTAIN
           </Typography>
 
           {/* Simplified mobile header */}

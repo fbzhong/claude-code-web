@@ -28,10 +28,10 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
           });
 
           for (const config of configs) {
-            const currentValue = await configManager.get(config.key);
+            const currentValue = await configManager.getEffectiveValue(config.key);
             table.push([
               config.key,
-              currentValue !== null ? String(currentValue) : '(null)',
+              currentValue !== null && currentValue !== undefined ? String(currentValue) : '(not set)',
               config.type,
               config.defaultValue || '(none)',
               config.description || '(no description)'
@@ -46,10 +46,10 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
           });
 
           for (const config of configs) {
-            const currentValue = await configManager.get(config.key);
+            const currentValue = await configManager.getEffectiveValue(config.key);
             table.push([
               config.key,
-              currentValue !== null ? String(currentValue) : '(null)',
+              currentValue !== null && currentValue !== undefined ? String(currentValue) : '(not set)',
               config.type
             ]);
           }
@@ -70,7 +70,7 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
     .action(async (key) => {
       try {
         await configManager.initialize(0);
-        const value = await configManager.get(key);
+        const value = await configManager.getEffectiveValue(key);
         
         if (value !== null && value !== undefined) {
           console.log(`${key}: ${JSON.stringify(value)}`);
@@ -95,7 +95,6 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
   program
     .command('config:set <key> <value>')
     .description('Set a configuration value')
-    .option('-r, --reason <reason>', 'Reason for the change')
     .action(async (key, value, options) => {
       try {
         await configManager.initialize(0);
@@ -113,7 +112,7 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
           }
         }
 
-        await configManager.set(key, parsedValue, 'cli', options.reason);
+        await configManager.set(key, parsedValue);
         console.log(`Configuration '${key}' set to: ${JSON.stringify(parsedValue)}`);
       } catch (error) {
         console.error('Error setting configuration:', error);
@@ -126,7 +125,6 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
   program
     .command('config:reset <key>')
     .description('Reset a configuration to its default value')
-    .option('-r, --reason <reason>', 'Reason for the reset')
     .action(async (key, options) => {
       try {
         await configManager.initialize(0);
@@ -144,7 +142,7 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
           process.exit(1);
         }
 
-        await configManager.set(key, null, 'cli', options.reason || 'Reset to default');
+        await configManager.set(key, null);
         console.log(`Configuration '${key}' reset to default: ${config.defaultValue}`);
       } catch (error) {
         console.error('Error resetting configuration:', error);
@@ -157,11 +155,10 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
   program
     .command('config:delete <key>')
     .description('Delete a configuration setting')
-    .option('-r, --reason <reason>', 'Reason for deletion')
     .action(async (key, options) => {
       try {
         await configManager.initialize(0);
-        await configManager.delete(key, 'cli', options.reason);
+        await configManager.delete(key);
         console.log(`Configuration '${key}' deleted successfully`);
       } catch (error) {
         console.error('Error deleting configuration:', error);
@@ -171,45 +168,6 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
       }
     });
 
-  program
-    .command('config:history [key]')
-    .description('Show configuration change history')
-    .option('-l, --limit <number>', 'Limit number of entries', '50')
-    .action(async (key, options) => {
-      try {
-        await configManager.initialize(0);
-        const history = await configManager.getAuditLog(key, parseInt(options.limit));
-
-        if (history.length === 0) {
-          console.log('No configuration history found');
-          return;
-        }
-
-        const table = new Table({
-          head: ['Date', 'Key', 'Old Value', 'New Value', 'Changed By', 'Reason'],
-          colWidths: [20, 25, 20, 20, 15, 30],
-          wordWrap: true
-        });
-
-        for (const entry of history) {
-          table.push([
-            new Date(entry.created_at).toLocaleString(),
-            entry.key,
-            entry.old_value || '(null)',
-            entry.new_value || '(null)',
-            entry.changed_by || 'system',
-            entry.change_reason || '(no reason)'
-          ]);
-        }
-
-        console.log(table.toString());
-      } catch (error) {
-        console.error('Error getting configuration history:', error);
-        process.exit(1);
-      } finally {
-        await configManager.shutdown();
-      }
-    });
 
   program
     .command('config:export')
@@ -242,7 +200,6 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
   program
     .command('config:import <file>')
     .description('Import configurations from JSON file')
-    .option('-r, --reason <reason>', 'Reason for import')
     .action(async (file, options) => {
       try {
         await configManager.initialize(0);
@@ -253,7 +210,7 @@ export function setupConfigCommands(fastify: FastifyInstance): void {
         let imported = 0;
         for (const [key, config] of Object.entries(data)) {
           if (typeof config === 'object' && config !== null && 'value' in config) {
-            await configManager.set(key, config.value, 'cli-import', options.reason || `Imported from ${file}`);
+            await configManager.set(key, config.value);
             imported++;
           }
         }

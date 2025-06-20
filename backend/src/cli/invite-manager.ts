@@ -109,7 +109,7 @@ export class InviteCodeManager {
         WHERE code = $1 AND used_by IS NULL
       `, [code]);
 
-      return result.rowCount > 0;
+      return (result.rowCount || 0) > 0;
     } finally {
       client.release();
     }
@@ -125,7 +125,7 @@ export class InviteCodeManager {
         WHERE code = $1
       `, [code]);
 
-      return result.rowCount > 0;
+      return (result.rowCount || 0) > 0;
     } finally {
       client.release();
     }

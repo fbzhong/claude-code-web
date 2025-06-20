@@ -1,107 +1,41 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
+import { buildApiUrl } from '../config/api';
 
-interface ServerConfig {
-  features: {
-    github_oauth: {
-      enabled: boolean;
-      client_id_configured: boolean;
-      client_secret_configured: boolean;
-      callback_url_configured: boolean;
-    };
-    ssh: {
-      enabled: boolean;
-      host: string | null;
-      port: number | null;
-      sshpiper_configured: boolean;
-    };
-    container_mode: {
-      enabled: boolean;
-      docker_available: boolean;
-    };
-    authentication: {
-      jwt_secret_configured: boolean;
-      invite_code_required: boolean;
-    };
-  };
-  environment: string;
-}
+// 全局缓存，页面加载时读一次
+let cachedRequireInviteCode: boolean | null = null;
 
-const defaultConfig: ServerConfig = {
-  features: {
-    github_oauth: {
-      enabled: false,
-      client_id_configured: false,
-      client_secret_configured: false,
-      callback_url_configured: false,
-    },
-    ssh: {
-      enabled: false,
-      host: null,
-      port: null,
-      sshpiper_configured: false,
-    },
-    container_mode: {
-      enabled: false,
-      docker_available: false,
-    },
-    authentication: {
-      jwt_secret_configured: false,
-      invite_code_required: false,
-    },
-  },
-  environment: 'development',
+const fetchRequireInviteCode = async (): Promise<boolean> => {
+  if (cachedRequireInviteCode !== null) {
+    return cachedRequireInviteCode;
+  }
+
+  try {
+    const response = await fetch(buildApiUrl('/config'));
+    if (!response.ok) {
+      throw new Error('Failed to fetch config');
+    }
+    const config = await response.json();
+    cachedRequireInviteCode = config.features?.authentication?.invite_code_required || false;
+  } catch (err) {
+    console.error('Failed to fetch config:', err);
+    cachedRequireInviteCode = true; // 默认值
+  }
+
+  return cachedRequireInviteCode!; // 这里肯定不是 null
 };
 
-export const useConfig = () => {
-  const [config, setConfig] = useState<ServerConfig>(defaultConfig);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export const useRequireInviteCode = () => {
+  const [requireInviteCode, setRequireInviteCode] = React.useState(cachedRequireInviteCode ?? true);
+  const [loading, setLoading] = React.useState(cachedRequireInviteCode === null);
 
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await fetch('/api/config');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch config: ${response.status}`);
-        }
-        
-        const configData: ServerConfig = await response.json();
-        setConfig(configData);
-      } catch (err) {
-        console.error('Failed to fetch server config:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch config');
-        // Keep default config on error
-      } finally {
+  React.useEffect(() => {
+    if (cachedRequireInviteCode === null) {
+      fetchRequireInviteCode().then((value) => {
+        setRequireInviteCode(value);
         setLoading(false);
-      }
-    };
-
-    fetchConfig();
+      });
+    }
   }, []);
 
-  return {
-    config,
-    loading,
-    error,
-    refetch: () => {
-      setLoading(true);
-      setError(null);
-      // Re-run the effect
-      window.location.reload();
-    },
-  };
-};
-
-// Hook to get just the invite code requirement
-export const useRequireInviteCode = () => {
-  const { config, loading, error } = useConfig();
-  
-  return {
-    requireInviteCode: config.features.authentication.invite_code_required,
-    loading,
-    error,
-  };
+  return { requireInviteCode, loading, error: null };
 };

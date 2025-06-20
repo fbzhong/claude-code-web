@@ -35,6 +35,8 @@ export class ContainerManager extends EventEmitter {
   private cleanupInterval?: NodeJS.Timeout;
   private networkName = process.env.CONTAINER_NETWORK || undefined;
   private configManager: ConfigManager;
+  private isInitialized = false;
+  private cleanupInProgress = false;
 
   private get sshConfigManager(): SSHConfigManager {
     if (!this.fastify.sshConfigManager) {
@@ -78,8 +80,30 @@ export class ContainerManager extends EventEmitter {
 
     this.fastify.log.info(`Using container image: ${this.defaultImage}`);
 
-    // Start periodic cleanup of inactive containers
-    this.startPeriodicCleanup();
+    // Start periodic cleanup of inactive containers after config is loaded
+    this.initializeAsync();
+  }
+
+  /**
+   * Initialize async components after config is loaded
+   */
+  private async initializeAsync(): Promise<void> {
+    if (this.isInitialized) {
+      return; // Already initialized
+    }
+    
+    try {
+      // Ensure ConfigManager is initialized
+      await this.configManager.initialize();
+      
+      // Start periodic cleanup
+      await this.startPeriodicCleanup();
+      
+      this.isInitialized = true;
+      this.fastify.log.info('ContainerManager initialized successfully');
+    } catch (error) {
+      this.fastify.log.error('Failed to initialize ContainerManager async components:', error);
+    }
   }
 
   /**
@@ -429,26 +453,49 @@ export class ContainerManager extends EventEmitter {
    * Start periodic cleanup of inactive containers
    */
   private async startPeriodicCleanup(): Promise<void> {
-    const intervalMinutes = await this.configManager.getCleanupIntervalMinutes();
-    const cleanupHours = await this.configManager.getSessionTimeoutHours();
+    try {
+      // Ensure ConfigManager is initialized before getting values
+      await this.configManager.initialize();
+      
+      const intervalMinutes = await this.configManager.getCleanupIntervalMinutes();
+      const cleanupHours = await this.configManager.getSessionTimeoutHours();
 
-    this.fastify.log.info(
-      `Container cleanup configured: check every ${intervalMinutes} minutes, remove after ${cleanupHours} hours of inactivity`
-    );
+      // Validate configuration values
+      if (!intervalMinutes || intervalMinutes <= 0) {
+        this.fastify.log.warn(`Invalid cleanup interval: ${intervalMinutes}, using default 60 minutes`);
+      }
+      if (!cleanupHours || cleanupHours <= 0) {
+        this.fastify.log.warn(`Invalid cleanup hours: ${cleanupHours}, using default 24 hours`);
+      }
 
-    // Run cleanup periodically
-    this.cleanupInterval = setInterval(() => {
-      this.cleanupInactiveContainers(cleanupHours).catch((err) => {
-        this.fastify.log.error("Container cleanup failed:", err);
-      });
-    }, intervalMinutes * 60 * 1000);
+      const validIntervalMinutes = intervalMinutes && intervalMinutes > 0 ? intervalMinutes : 60;
+      const validCleanupHours = cleanupHours && cleanupHours > 0 ? cleanupHours : 24;
 
-    // Run initial cleanup after 5 minutes
-    setTimeout(() => {
-      this.cleanupInactiveContainers(cleanupHours).catch((err) => {
-        this.fastify.log.error("Initial container cleanup failed:", err);
-      });
-    }, 5 * 60 * 1000);
+      this.fastify.log.info(
+        `Container cleanup configured: check every ${validIntervalMinutes} minutes, remove after ${validCleanupHours} hours of inactivity`
+      );
+
+      // Stop any existing cleanup interval
+      if (this.cleanupInterval) {
+        clearInterval(this.cleanupInterval);
+      }
+
+      // Run cleanup periodically
+      this.cleanupInterval = setInterval(() => {
+        this.cleanupInactiveContainers(validCleanupHours).catch((err) => {
+          this.fastify.log.error("Container cleanup failed:", err);
+        });
+      }, validIntervalMinutes * 60 * 1000);
+
+      // Run initial cleanup after 5 minutes
+      setTimeout(() => {
+        this.cleanupInactiveContainers(validCleanupHours).catch((err) => {
+          this.fastify.log.error("Initial container cleanup failed:", err);
+        });
+      }, 5 * 60 * 1000);
+    } catch (error) {
+      this.fastify.log.error("Failed to start periodic cleanup:", error);
+    }
   }
 
   /**
@@ -465,6 +512,19 @@ export class ContainerManager extends EventEmitter {
    * Clean up inactive containers based on last activity
    */
   async cleanupInactiveContainers(inactiveHours: number = 24): Promise<void> {
+    // Prevent multiple cleanup runs
+    if (this.cleanupInProgress) {
+      this.fastify.log.debug('Container cleanup already in progress, skipping');
+      return;
+    }
+    
+    // Validate inactiveHours parameter
+    if (!inactiveHours || inactiveHours <= 0) {
+      this.fastify.log.warn(`Invalid inactiveHours parameter: ${inactiveHours}, using default 24 hours`);
+      inactiveHours = 24;
+    }
+    
+    this.cleanupInProgress = true;
     this.fastify.log.info(
       `Starting container cleanup (inactive threshold: ${inactiveHours} hours)`
     );
@@ -539,6 +599,8 @@ export class ContainerManager extends EventEmitter {
       }
     } catch (error: any) {
       this.fastify.log.error("Failed to cleanup inactive containers:", error);
+    } finally {
+      this.cleanupInProgress = false;
     }
   }
 

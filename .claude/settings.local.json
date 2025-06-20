@@ -51,7 +51,8 @@
       "Bash(pnpm build:*)",
       "Bash(corepack enable)",
       "Bash(sudo corepack:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": []
   }

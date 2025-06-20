@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import { FastifyInstance } from 'fastify';
 import { SSHConfigManager } from '../services/sshConfigManager';
+import { ConfigManager } from '../config/ConfigManager';
 
 export default fp(async function (fastify: FastifyInstance) {
   // PostgreSQL connection
@@ -83,32 +84,30 @@ export default fp(async function (fastify: FastifyInstance) {
           ('container_cpu_limit', NULL, 'number', 'CPU limit for user containers (number of CPUs)', '2'),
           ('require_invite_code', NULL, 'boolean', 'Whether invite code is required for registration', 'false'),
           ('websocket_ping_interval', NULL, 'number', 'WebSocket ping interval in seconds', '30'),
-          ('websocket_ping_timeout', NULL, 'number', 'WebSocket ping timeout in seconds', '60')
+          ('websocket_ping_timeout', NULL, 'number', 'WebSocket ping timeout in seconds', '60'),
+          ('container_mode', NULL, 'boolean', 'Whether to use container mode for user isolation', 'false'),
+          ('github_client_id', NULL, 'string', 'GitHub OAuth Client ID for GitHub integration', ''),
+          ('github_client_secret', NULL, 'string', 'GitHub OAuth Client Secret for GitHub integration', ''),
+          ('github_oauth_callback_url', NULL, 'string', 'GitHub OAuth callback URL', '')
         ON CONFLICT (key) DO NOTHING
       `);
 
-      // Audit log for configuration changes
-      await client.query(`
-        CREATE TABLE IF NOT EXISTS config_audit_log (
-          id SERIAL PRIMARY KEY,
-          key VARCHAR(255) NOT NULL,
-          old_value TEXT,
-          new_value TEXT,
-          changed_by VARCHAR(255),
-          change_reason TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-
-      // Index for audit log queries
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_config_audit_log_key ON config_audit_log(key)`);
-      await client.query(`CREATE INDEX IF NOT EXISTS idx_config_audit_log_created_at ON config_audit_log(created_at)`);
 
       fastify.log.info('Database initialized successfully with minimal tables for privacy');
     } catch (err) {
       fastify.log.error('Database initialization failed:', err);
     } finally {
       client.release();
+    }
+    
+    // Initialize ConfigManager
+    try {
+      const configManager = ConfigManager.getInstance(fastify.pg);
+      await configManager.initialize();
+      fastify.log.info('ConfigManager initialized successfully');
+    } catch (err) {
+      fastify.log.error('ConfigManager initialization failed:', err);
+      // Don't fail the entire app, but this might cause issues
     }
     
     // Initialize SSH Configuration Manager

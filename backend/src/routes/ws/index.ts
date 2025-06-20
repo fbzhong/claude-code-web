@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { ClaudeService } from "../../services/claude";
 import { SessionManager } from "../../services/sessionManager";
+import { ConfigManager } from "../../config/ConfigManager";
 
 export default async function (fastify: FastifyInstance) {
   // Get the singleton SessionManager instance
@@ -58,9 +59,14 @@ export default async function (fastify: FastifyInstance) {
         // Set up heartbeat for session list connection
         let heartbeatInterval: NodeJS.Timeout | null = null;
         let isAlive = true;
+        
+        const configManager = ConfigManager.getInstance(fastify.pg);
+        const pingInterval = await configManager.getWebsocketPingInterval();
+        
+        fastify.log.debug(`Session list WebSocket ping interval: ${pingInterval}s`);
 
         heartbeatInterval = setInterval(() => {
-          if (!isAlive) {
+          if (isAlive === false) {
             fastify.log.warn(
               `Session list WebSocket heartbeat failed for user ${user.id}, closing connection`
             );
@@ -70,7 +76,7 @@ export default async function (fastify: FastifyInstance) {
 
           isAlive = false;
           connection.socket.ping();
-        }, 30000);
+        }, pingInterval * 1000);
 
         connection.socket.on("pong", () => {
           isAlive = true;
@@ -399,10 +405,15 @@ export default async function (fastify: FastifyInstance) {
           // Set up heartbeat to detect stale connections
           let heartbeatInterval: NodeJS.Timeout | null = null;
           let isAlive = true;
+          
+          const configManager = ConfigManager.getInstance(fastify.pg);
+          const pingInterval = await configManager.getWebsocketPingInterval();
+          
+          fastify.log.debug(`Terminal WebSocket ping interval: ${pingInterval}s`);
 
-          // Send ping every 30 seconds
+          // Send ping based on configuration
           heartbeatInterval = setInterval(() => {
-            if (!isAlive) {
+            if (isAlive === false) {
               fastify.log.warn(
                 `Terminal WebSocket heartbeat failed for session ${sessionId}, closing connection`
               );
@@ -412,7 +423,7 @@ export default async function (fastify: FastifyInstance) {
 
             isAlive = false;
             connection.socket.ping();
-          }, 30000);
+          }, pingInterval * 1000);
 
           // Handle pong responses
           connection.socket.on("pong", () => {

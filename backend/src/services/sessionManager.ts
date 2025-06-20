@@ -90,8 +90,8 @@ export class SessionManager extends EventEmitter {
       reconnectHistorySize: this.reconnectHistorySize,
     });
 
-    // Check if container mode is enabled
-    this.useContainers = process.env.CONTAINER_MODE?.toLowerCase() === "true";
+    // Container mode will be loaded from config
+    this.useContainers = false;
 
     if (this.useContainers) {
       this.containerManager = new ContainerManager(fastify);
@@ -132,10 +132,26 @@ export class SessionManager extends EventEmitter {
       this.maxOutputBufferBytes = (await this.configManager.getMaxOutputBufferMB()) * 1024 * 1024;
       this.reconnectHistorySize = await this.configManager.getReconnectHistorySize();
       
+      // Load container mode configuration
+      this.useContainers = await this.configManager.getContainerMode();
+      
+      if (this.useContainers && !this.containerManager) {
+        this.containerManager = new ContainerManager(this.fastify);
+        // Register containerManager on fastify instance for other routes to access
+        this.fastify.decorate("containerManager", this.containerManager);
+        this.fastify.log.debug(
+          `Container mode enabled (dockerode: ${this.useDockerode})`
+        );
+      } else if (!this.useContainers && this.containerManager) {
+        this.fastify.log.debug("Container mode disabled, switching to local shell mode");
+        this.containerManager = undefined;
+      }
+      
       this.fastify.log.info('SessionManager loaded configuration:', {
         maxOutputBuffer: this.maxOutputBuffer,
         maxOutputBufferMB: this.maxOutputBufferBytes / 1024 / 1024,
         reconnectHistorySize: this.reconnectHistorySize,
+        useContainers: this.useContainers,
       });
     } catch (error) {
       this.fastify.log.error('Failed to load configuration, using defaults:', error);
@@ -155,6 +171,22 @@ export class SessionManager extends EventEmitter {
       case 'reconnect_history_size':
         this.reconnectHistorySize = newValue || 500;
         this.fastify.log.info(`Updated reconnectHistorySize: ${oldValue} -> ${newValue}`);
+        break;
+      case 'container_mode':
+        const newContainerMode = newValue || false;
+        if (this.useContainers !== newContainerMode) {
+          this.useContainers = newContainerMode;
+          this.fastify.log.info(`Updated container mode: ${oldValue} -> ${newValue}`);
+          
+          if (this.useContainers && !this.containerManager) {
+            this.containerManager = new ContainerManager(this.fastify);
+            this.fastify.decorate("containerManager", this.containerManager);
+            this.fastify.log.info("Container mode enabled - ContainerManager initialized");
+          } else if (!this.useContainers && this.containerManager) {
+            this.fastify.log.info("Container mode disabled - switching to local shell mode");
+            this.containerManager = undefined;
+          }
+        }
         break;
     }
   }
@@ -809,7 +841,7 @@ export class SessionManager extends EventEmitter {
                 );
                 resolve(cwd || null);
               } else {
-                this.fastify.log.debug(`No CWD found for PID ${pid}`);
+                // this.fastify.log.debug(`No CWD found for PID ${pid}`);
                 resolve(null);
               }
             }
@@ -1196,25 +1228,6 @@ export class SessionManager extends EventEmitter {
 
     // Emit deletion event
     this.emit("session_deleted", sessionId);
-  }
-
-  private async loadConfigValues(): Promise<void> {
-    try {
-      await this.configManager.initialize();
-      
-      // Load buffer configuration
-      this.maxOutputBuffer = await this.configManager.getMaxOutputBuffer();
-      this.maxOutputBufferBytes = (await this.configManager.getMaxOutputBufferMB()) * 1024 * 1024;
-      this.reconnectHistorySize = await this.configManager.getReconnectHistorySize();
-      
-      this.fastify.log.info('SessionManager loaded configuration:', {
-        maxOutputBuffer: this.maxOutputBuffer,
-        maxOutputBufferMB: this.maxOutputBufferBytes / 1024 / 1024,
-        reconnectHistorySize: this.reconnectHistorySize,
-      });
-    } catch (error) {
-      this.fastify.log.error('Failed to load configuration, using defaults:', error);
-    }
   }
 
   // Graceful shutdown

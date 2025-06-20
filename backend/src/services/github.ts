@@ -1,5 +1,6 @@
 import axios from "axios";
 import { FastifyInstance } from "fastify";
+import { ConfigManager } from "../config/ConfigManager";
 
 export interface GitHubUser {
   id: number;
@@ -32,21 +33,33 @@ export interface GitHubTokenResponse {
 }
 
 export class GitHubService {
-  private clientId: string;
-  private clientSecret: string;
-  private redirectUri: string;
+  private configManager: ConfigManager;
 
   constructor(private fastify: FastifyInstance) {
-    this.clientId = process.env.GITHUB_CLIENT_ID || "";
-    this.clientSecret = process.env.GITHUB_CLIENT_SECRET || "";
-    this.redirectUri = process.env.GITHUB_OAUTH_CALLBACK_URL || "";
-
-    if (!this.clientId || !this.clientSecret) {
-      this.fastify.log.warn("GitHub OAuth credentials not configured");
-    }
+    this.configManager = ConfigManager.getInstance(fastify.pg);
   }
 
-  getAuthorizationUrl(state: string): string {
+  private async getCredentials(): Promise<{ clientId: string; clientSecret: string; redirectUri: string }> {
+    const [clientId, clientSecret, redirectUri] = await Promise.all([
+      this.configManager.getGithubClientId(),
+      this.configManager.getGithubClientSecret(),
+      this.configManager.getGithubOauthCallbackUrl()
+    ]);
+
+    if (!clientId || !clientSecret) {
+      throw new Error("GitHub OAuth credentials not configured");
+    }
+
+    return {
+      clientId: clientId || "",
+      clientSecret: clientSecret || "",
+      redirectUri: redirectUri || ""
+    };
+  }
+
+  async getAuthorizationUrl(state: string): Promise<string> {
+    const { clientId, redirectUri } = await this.getCredentials();
+    
     // GitHub OAuth Apps scopes - using minimal permissions
     // 'repo' scope includes:
     // - Full control of private/public repositories
@@ -56,8 +69,8 @@ export class GitHubService {
     const scope = "repo";
 
     const params = new URLSearchParams({
-      client_id: this.clientId,
-      redirect_uri: this.redirectUri,
+      client_id: clientId,
+      redirect_uri: redirectUri,
       scope: scope,
       state,
     });
@@ -67,13 +80,15 @@ export class GitHubService {
 
   async exchangeCodeForToken(code: string): Promise<GitHubTokenResponse> {
     try {
+      const { clientId, clientSecret, redirectUri } = await this.getCredentials();
+      
       const response = await axios.post(
         "https://github.com/login/oauth/access_token",
         {
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
+          client_id: clientId,
+          client_secret: clientSecret,
           code,
-          redirect_uri: this.redirectUri,
+          redirect_uri: redirectUri,
         },
         {
           headers: {
@@ -133,13 +148,15 @@ export class GitHubService {
 
   async refreshToken(refreshToken: string): Promise<GitHubTokenResponse> {
     try {
+      const { clientId, clientSecret } = await this.getCredentials();
+      
       const response = await axios.post(
         "https://github.com/login/oauth/access_token",
         {
           grant_type: "refresh_token",
           refresh_token: refreshToken,
-          client_id: this.clientId,
-          client_secret: this.clientSecret,
+          client_id: clientId,
+          client_secret: clientSecret,
         },
         {
           headers: {
@@ -157,12 +174,14 @@ export class GitHubService {
 
   async revokeToken(accessToken: string): Promise<void> {
     try {
+      const { clientId, clientSecret } = await this.getCredentials();
+      
       await axios.delete(
-        `https://api.github.com/applications/${this.clientId}/token`,
+        `https://api.github.com/applications/${clientId}/token`,
         {
           auth: {
-            username: this.clientId,
-            password: this.clientSecret,
+            username: clientId,
+            password: clientSecret,
           },
           data: {
             access_token: accessToken,

@@ -78,7 +78,7 @@ services:
       args:
         REACT_APP_API_URL: ${API_URL}
         REACT_APP_API_SAME_HOST: ${API_SAME_HOST}
-        REACT_APP_REQUIRE_INVITE_CODE: ${REQUIRE_INVITE_CODE:-false}
+        # REACT_APP_REQUIRE_INVITE_CODE: ${REQUIRE_INVITE_CODE:-false}  # Now fetched from /api/config
     container_name: claude-web-frontend
     ports:
       - "${WEB_PORT:-12020}:80"

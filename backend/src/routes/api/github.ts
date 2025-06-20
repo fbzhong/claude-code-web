@@ -30,7 +30,7 @@ const githubRoutes: FastifyPluginAsync = async (fastify) => {
       const user = request.user as UserPayload;
       oauthStates.set(`github_oauth_state_${user.id}`, state);
 
-      const authUrl = githubService.getAuthorizationUrl(state);
+      const authUrl = await githubService.getAuthorizationUrl(state);
 
       return reply.send({ authUrl });
     }

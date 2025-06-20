@@ -1,4 +1,3 @@
-import { Pool } from 'pg';
 import { EventEmitter } from 'events';
 
 interface ConfigValue {
@@ -15,17 +14,17 @@ interface ConfigCache {
 
 export class ConfigManager extends EventEmitter {
   private static instance: ConfigManager;
-  private pool: Pool;
+  private pool: any;
   private cache: ConfigCache = {};
   private cacheLoaded = false;
   private refreshInterval: NodeJS.Timeout | null = null;
 
-  private constructor(pool: Pool) {
+  private constructor(pool: any) {
     super();
     this.pool = pool;
   }
 
-  static getInstance(pool: Pool): ConfigManager {
+  static getInstance(pool: any): ConfigManager {
     if (!ConfigManager.instance) {
       ConfigManager.instance = new ConfigManager(pool);
     }
@@ -52,7 +51,7 @@ export class ConfigManager extends EventEmitter {
 
   private async loadCache(): Promise<void> {
     try {
-      const result = await this.pool.query<ConfigValue>('SELECT * FROM config_settings');
+      const result = await this.pool.query('SELECT * FROM config_settings');
       const newCache: ConfigCache = {};
 
       for (const row of result.rows) {
@@ -115,26 +114,34 @@ export class ConfigManager extends EventEmitter {
       await this.loadCache();
     }
 
-    const envKey = key.toUpperCase().replace(/\./g, '_');
-    const envValue = process.env[envKey];
-
-    // Environment variable takes precedence
-    if (envValue !== undefined) {
-      const configType = await this.getConfigType(key);
-      return this.parseValue(envValue, configType || 'string') as T;
+    // Check if this key is managed by the config system
+    const isConfigManaged = await this.isConfigManaged(key);
+    
+    if (!isConfigManaged) {
+      // For non-managed configs, still check environment variables
+      const envKey = key.toUpperCase().replace(/\./g, '_');
+      const envValue = process.env[envKey];
+      
+      if (envValue !== undefined) {
+        const configType = await this.getConfigType(key);
+        return this.parseValue(envValue, configType || 'string') as T;
+      }
     }
 
-    // Return from cache or default
-    return (this.cache[key] !== undefined ? this.cache[key] : defaultValue) as T;
+    // Return from cache or default (ignore env vars for managed configs)
+    const cacheValue = this.cache[key];
+    const result = (cacheValue ?? defaultValue) as T;
+    
+    return result;
   }
 
-  async set(key: string, value: any, changedBy = 'system', reason?: string): Promise<void> {
+  async set(key: string, value: any): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
 
       // Get current value and type
-      const currentResult = await client.query<ConfigValue>(
+      const currentResult = await client.query(
         'SELECT * FROM config_settings WHERE key = $1',
         [key]
       );
@@ -143,8 +150,8 @@ export class ConfigManager extends EventEmitter {
       let oldValue: string | null = null;
 
       if (currentResult.rows.length > 0) {
-        type = currentResult.rows[0].type;
-        oldValue = currentResult.rows[0].value;
+        type = currentResult.rows[0]?.type || 'string';
+        oldValue = currentResult.rows[0]?.value || null;
       } else {
         // Auto-detect type for new entries
         if (typeof value === 'boolean') type = 'boolean';
@@ -163,12 +170,6 @@ export class ConfigManager extends EventEmitter {
         [key, newValue, type]
       );
 
-      // Log the change
-      await client.query(
-        `INSERT INTO config_audit_log (key, old_value, new_value, changed_by, change_reason)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [key, oldValue, newValue, changedBy, reason]
-      );
 
       await client.query('COMMIT');
 
@@ -183,13 +184,13 @@ export class ConfigManager extends EventEmitter {
     }
   }
 
-  async delete(key: string, changedBy = 'system', reason?: string): Promise<void> {
+  async delete(key: string): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
 
       // Get current value
-      const currentResult = await client.query<ConfigValue>(
+      const currentResult = await client.query(
         'SELECT * FROM config_settings WHERE key = $1',
         [key]
       );
@@ -198,23 +199,17 @@ export class ConfigManager extends EventEmitter {
         throw new Error(`Configuration key '${key}' not found`);
       }
 
-      const oldValue = currentResult.rows[0].value;
+      const oldValue = currentResult.rows[0]?.value || null;
 
       // Delete config
       await client.query('DELETE FROM config_settings WHERE key = $1', [key]);
 
-      // Log the change
-      await client.query(
-        `INSERT INTO config_audit_log (key, old_value, new_value, changed_by, change_reason)
-         VALUES ($1, $2, NULL, $3, $4)`,
-        [key, oldValue, changedBy, reason]
-      );
 
       await client.query('COMMIT');
 
       // Update cache
       delete this.cache[key];
-      this.emit('configChanged', key, this.parseValue(oldValue, currentResult.rows[0].type), null);
+      this.emit('configChanged', key, this.parseValue(oldValue, currentResult.rows[0]?.type || 'string'), null);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -224,34 +219,27 @@ export class ConfigManager extends EventEmitter {
   }
 
   async list(): Promise<ConfigValue[]> {
-    const result = await this.pool.query<ConfigValue>(
+    const result = await this.pool.query(
       'SELECT * FROM config_settings ORDER BY key'
     );
     return result.rows;
   }
 
-  async getAuditLog(key?: string, limit = 100): Promise<any[]> {
-    let query = 'SELECT * FROM config_audit_log';
-    const params: any[] = [];
-
-    if (key) {
-      query += ' WHERE key = $1';
-      params.push(key);
-    }
-
-    query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1);
-    params.push(limit);
-
-    const result = await this.pool.query(query, params);
-    return result.rows;
-  }
 
   private async getConfigType(key: string): Promise<string | null> {
-    const result = await this.pool.query<ConfigValue>(
+    const result = await this.pool.query(
       'SELECT type FROM config_settings WHERE key = $1',
       [key]
     );
-    return result.rows.length > 0 ? result.rows[0].type : null;
+    return result.rows.length > 0 ? result.rows[0]?.type || null : null;
+  }
+
+  private async isConfigManaged(key: string): Promise<boolean> {
+    const result = await this.pool.query(
+      'SELECT 1 FROM config_settings WHERE key = $1',
+      [key]
+    );
+    return result.rows.length > 0;
   }
 
   // Helper methods for common configurations
@@ -285,5 +273,65 @@ export class ConfigManager extends EventEmitter {
 
   async getContainerCpuLimit(): Promise<number> {
     return this.get('container_cpu_limit', 2);
+  }
+
+  async getContainerMode(): Promise<boolean> {
+    return this.get('container_mode', false);
+  }
+
+  async getGithubClientId(): Promise<string | null> {
+    return this.get('github_client_id', null);
+  }
+
+  async getGithubClientSecret(): Promise<string | null> {
+    return this.get('github_client_secret', null);
+  }
+
+  async getGithubOauthCallbackUrl(): Promise<string | null> {
+    return this.get('github_oauth_callback_url', null);
+  }
+
+  async getWebsocketPingInterval(): Promise<number> {
+    return this.get('websocket_ping_interval', 30);
+  }
+
+  async getWebsocketPingTimeout(): Promise<number> {
+    return this.get('websocket_ping_timeout', 60);
+  }
+
+  // Get effective value with defaults for CLI display
+  async getEffectiveValue(key: string): Promise<any> {
+    switch (key) {
+      case 'max_output_buffer':
+        return this.getMaxOutputBuffer();
+      case 'max_output_buffer_mb':
+        return this.getMaxOutputBufferMB();
+      case 'reconnect_history_size':
+        return this.getReconnectHistorySize();
+      case 'session_timeout_hours':
+        return this.getSessionTimeoutHours();
+      case 'cleanup_interval_minutes':
+        return this.getCleanupIntervalMinutes();
+      case 'require_invite_code':
+        return this.getRequireInviteCode();
+      case 'container_memory_limit':
+        return this.getContainerMemoryLimit();
+      case 'container_cpu_limit':
+        return this.getContainerCpuLimit();
+      case 'container_mode':
+        return this.getContainerMode();
+      case 'github_client_id':
+        return this.getGithubClientId();
+      case 'github_client_secret':
+        return this.getGithubClientSecret();
+      case 'github_oauth_callback_url':
+        return this.getGithubOauthCallbackUrl();
+      case 'websocket_ping_interval':
+        return this.getWebsocketPingInterval();
+      case 'websocket_ping_timeout':
+        return this.getWebsocketPingTimeout();
+      default:
+        return this.get(key);
+    }
   }
 }

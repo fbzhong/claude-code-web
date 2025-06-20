@@ -20,15 +20,30 @@ export default async function (fastify: FastifyInstance) {
 
   // Server configuration status endpoint
   fastify.get("/config", async (request, reply) => {
+    const configManager = ConfigManager.getInstance(fastify.pg);
+    
+    // Get dynamic config values
+    const [
+      githubClientId,
+      githubClientSecret, 
+      githubOauthCallbackUrl,
+      containerMode,
+      requireInviteCode
+    ] = await Promise.all([
+      configManager.getGithubClientId(),
+      configManager.getGithubClientSecret(),
+      configManager.getGithubOauthCallbackUrl(),
+      configManager.getContainerMode(),
+      configManager.getRequireInviteCode()
+    ]);
+    
     const config = {
       features: {
         github_oauth: {
-          enabled: !!(
-            process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
-          ),
-          client_id_configured: !!process.env.GITHUB_CLIENT_ID,
-          client_secret_configured: !!process.env.GITHUB_CLIENT_SECRET,
-          callback_url_configured: !!process.env.GITHUB_OAUTH_CALLBACK_URL,
+          enabled: !!(githubClientId && githubClientSecret),
+          client_id_configured: !!githubClientId,
+          client_secret_configured: !!githubClientSecret,
+          callback_url_configured: !!githubOauthCallbackUrl,
         },
         ssh: {
           enabled: process.env.SSHPIPER_SSH_HOST ? true : false,
@@ -39,13 +54,12 @@ export default async function (fastify: FastifyInstance) {
           sshpiper_configured: !!process.env.SSHPIPER,
         },
         container_mode: {
-          enabled: process.env.CONTAINER_MODE?.toLowerCase() === "true",
+          enabled: containerMode,
           docker_available: true, // Will be checked below
         },
         authentication: {
           jwt_secret_configured: !!process.env.JWT_SECRET,
-          invite_code_required:
-            process.env.REQUIRE_INVITE_CODE?.toLowerCase() === "true",
+          invite_code_required: requireInviteCode,
         },
       },
       environment: process.env.NODE_ENV || "development",
@@ -78,6 +92,9 @@ export default async function (fastify: FastifyInstance) {
 
   // Health check endpoint
   fastify.get("/health", async (request, reply) => {
+    const configManager = ConfigManager.getInstance(fastify.pg);
+    const containerMode = await configManager.getContainerMode();
+    
     const health: any = {
       status: "ok",
       timestamp: new Date().toISOString(),
@@ -128,7 +145,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     // Check container mode if enabled
-    if (process.env.CONTAINER_MODE?.toLowerCase() === "true") {
+    if (containerMode) {
       try {
         const { exec } = require("child_process");
         await new Promise((resolve, reject) => {

@@ -264,7 +264,7 @@ export class ConfigManager extends EventEmitter {
   }
 
   async getRequireInviteCode(): Promise<boolean> {
-    return this.get('require_invite_code', false);
+    return this.get('require_invite_code', true);
   }
 
   async getContainerMemoryLimit(): Promise<string> {
@@ -276,7 +276,7 @@ export class ConfigManager extends EventEmitter {
   }
 
   async getContainerMode(): Promise<boolean> {
-    return this.get('container_mode', false);
+    return this.get('container_mode', true);
   }
 
   async getGithubClientId(): Promise<string | null> {

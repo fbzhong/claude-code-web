@@ -403,10 +403,10 @@ npm run config:import config.json
 | cleanup_interval_minutes | number | 60 | 清理任务运行间隔（分钟） |
 | container_memory_limit | string | 2g | 容器内存限制 |
 | container_cpu_limit | number | 2 | 容器 CPU 限制 |
-| require_invite_code | boolean | false | 是否需要邀请码注册 |
+| require_invite_code | boolean | true | 是否需要邀请码注册 |
 | websocket_ping_interval | number | 30 | WebSocket ping 间隔（秒） |
 | websocket_ping_timeout | number | 60 | WebSocket ping 超时（秒） |
-| container_mode | boolean | false | 是否启用容器隔离模式 |
+| container_mode | boolean | true | 是否启用容器隔离模式 |
 | github_client_id | string | - | GitHub OAuth 应用 Client ID |
 | github_client_secret | string | - | GitHub OAuth 应用 Client Secret |
 | github_oauth_callback_url | string | - | GitHub OAuth 回调 URL |

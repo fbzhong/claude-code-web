@@ -1,571 +1,571 @@
-# Claude Code Web 项目记忆
+# Claude Code Web Project Memory
 
-## 项目概述
+## Project Overview
 
-Claude Code Web 是一个基于 Web 的远程开发环境，允许用户通过浏览器访问和控制远程服务器上的 Claude Code 和 VS Code (Cursor)。
+Claude Code Web is a web-based remote development environment that allows users to access and control Claude Code and VS Code (Cursor) on remote servers through their browser.
 
-## 技术栈决策
+## Technology Stack Decisions
 
-- **架构方案**: 自建 PTY 方案（node-pty + WebSocket）
-- **前端**: React + TypeScript + xterm.js + Material-UI
-- **后端**: Fastify + WebSocket + node-pty
-- **数据库**: PostgreSQL (用户认证)
-- **IDE集成**: code-server
-- **部署**: Docker + Docker Compose
-- **包管理**: pnpm (monorepo)
+- **Architecture**: Self-built PTY solution (node-pty + WebSocket)
+- **Frontend**: React + TypeScript + xterm.js + Material-UI
+- **Backend**: Fastify + WebSocket + node-pty
+- **Database**: PostgreSQL (user authentication)
+- **IDE Integration**: code-server
+- **Deployment**: Docker + Docker Compose
+- **Package Management**: pnpm (monorepo)
 
-## 核心需求
+## Core Requirements
 
-1. 远程服务器上启动 Claude Code
-2. 用户通过 Web 访问终端，查看历史，实时交互
-3. 集成 VS Code (Cursor)，在 Web 上查看代码修改
+1. Launch Claude Code on remote server
+2. Users access terminal via web, view history, real-time interaction
+3. Integrate VS Code (Cursor), view code changes on web
 
-## 开发要求
+## Development Requirements
 
-- 所有功能需求记录在 FEATURE.md
-- 持续保存项目记忆到 CLAUDE.md
-- 必须编写测试用例，持续回归测试
+- All feature requirements recorded in FEATURE.md
+- Continuously save project memory to CLAUDE.md
+- Must write test cases, continuous regression testing
 
-## 项目状态
+## Project Status
 
-- ✅ 技术调研完成
-- ✅ 架构方案确定（自建 PTY 方案）
-- ✅ 需求文档创建 (FEATURE.md)
-- ✅ 项目结构搭建完成
-- ✅ 后端框架实现 (Fastify + WebSocket + node-pty)
-- ✅ 测试框架配置完成
-- ✅ CI/CD 流水线配置
-- ✅ Docker 部署配置
-- ✅ 前端界面开发完成
-- ✅ 用户认证系统实现
-- ✅ WebSocket 连接成功
-- ✅ xterm.js dimensions 错误修复 (StableTerminal)
-- ✅ UI 样式优化（VS Code 风格）
-- ✅ WebSocket 错误处理改进
-- ✅ 会话管理功能实现（创建、切换、删除、重命名）
-- ✅ 会话管理实现（内存中）
-- ✅ 终端高度自适应修复（FitAddon）
-- ✅ 会话输出缓冲实现（内存中）
-- ✅ 会话实时管理功能
-- ✅ 移动端响应式设计实现
-- ✅ Session List 实时更新（WebSocket）
-- ✅ 智能 CWD 检测系统实现
-- ✅ 路径智能缩写显示
-- ✅ 执行状态实时检测
-- ✅ 移动端键盘适配优化
-- ✅ iPhone 登录界面键盘处理
-- ✅ 移动端调试界面实现
-- ✅ 移动端虚拟键盘工具栏（ESC、翻页、方向键等）
-- ✅ 修复移动端终端刷新问题（优化 ANSI 转义序列处理）
-- ✅ 高级 ANSI 序列优化（移动端性能提升）
-- ✅ 虚拟键盘工具栏自动隐藏（与 iOS 原生键盘同步）
-- ✅ 增强虚拟键盘（Shift+Tab、nano 编辑器快捷键）
-- ✅ 移动端终端手势支持 Hooks
-- ✅ 智能 Tab 自动补全 Hook
-- ✅ 移动端虚拟键盘工具栏优化（单排滚动布局）
-- ✅ 自动滚动修复（键盘弹出时终端滚动到底部）
-- ✅ 焦点管理优化（按钮点击后不保持选中状态）
-- ✅ iOS 中文输入法兼容性修复（空格、数字、符号输入）
-- ✅ 智能光标跟踪滚动系统（Claude Code 等中间输入场景）
-- ✅ 容器隔离模式实现（Docker/Podman）
-- ✅ 容器生命周期管理完善（自动清理、会话恢复）
-- ✅ xterm.js 竞态条件彻底修复（延迟初始化+WebSocket时序优化）
-- ✅ GitHub OAuth 集成实现（OAuth认证、仓库管理、Token刷新）
-- ✅ VS Code Remote-SSH 集成方案实现（SSHpiper workingDir 模式）
-- ✅ SSH 公钥认证系统实现（移除密码认证，仅支持公钥）
-- ✅ SSHpiper workingDir 配置自动化
-- ✅ SSH 公钥拖拽上传和智能解析
-- ✅ 多 IDE 支持（VS Code、Cursor、Windsurf）
-- ✅ 一键打开 IDE 功能实现
-- ✅ Dockerode 集成实现（替代 node-pty + docker exec）
-- ✅ 邀请码注册限制系统实现
-- ✅ 动态配置管理系统实现
-- ✅ Inlets 隧道功能实现（类似 ngrok，暴露容器服务到公网）
+- ✅ Technical research completed
+- ✅ Architecture solution determined (self-built PTY solution)
+- ✅ Requirements document created (FEATURE.md)
+- ✅ Project structure setup completed
+- ✅ Backend framework implemented (Fastify + WebSocket + node-pty)
+- ✅ Test framework configuration completed
+- ✅ CI/CD pipeline configured
+- ✅ Docker deployment configured
+- ✅ Frontend interface development completed
+- ✅ User authentication system implemented
+- ✅ WebSocket connection successful
+- ✅ xterm.js dimensions error fixed (StableTerminal)
+- ✅ UI style optimization (VS Code style)
+- ✅ WebSocket error handling improved
+- ✅ Session management features implemented (create, switch, delete, rename)
+- ✅ Session management implemented (in-memory)
+- ✅ Terminal height adaptive fix (FitAddon)
+- ✅ Session output buffering implemented (in-memory)
+- ✅ Real-time session management features
+- ✅ Mobile responsive design implemented
+- ✅ Session List real-time updates (WebSocket)
+- ✅ Smart CWD detection system implemented
+- ✅ Path smart abbreviation display
+- ✅ Execution status real-time detection
+- ✅ Mobile keyboard adaptation optimization
+- ✅ iPhone login interface keyboard handling
+- ✅ Mobile debug interface implemented
+- ✅ Mobile virtual keyboard toolbar (ESC, page navigation, arrow keys, etc.)
+- ✅ Fixed mobile terminal refresh issues (optimized ANSI escape sequence handling)
+- ✅ Advanced ANSI sequence optimization (mobile performance improvement)
+- ✅ Virtual keyboard toolbar auto-hide (synchronized with iOS native keyboard)
+- ✅ Enhanced virtual keyboard (Shift+Tab, nano editor shortcuts)
+- ✅ Mobile terminal gesture support Hooks
+- ✅ Smart Tab auto-completion Hook
+- ✅ Mobile virtual keyboard toolbar optimization (single-row scrolling layout)
+- ✅ Auto-scroll fix (terminal scrolls to bottom when keyboard appears)
+- ✅ Focus management optimization (buttons don't retain selected state after click)
+- ✅ iOS Chinese input method compatibility fix (space, numbers, symbols input)
+- ✅ Smart cursor tracking scroll system (Claude Code mid-input scenarios)
+- ✅ Container isolation mode implemented (Docker/Podman)
+- ✅ Container lifecycle management improved (auto-cleanup, session recovery)
+- ✅ xterm.js race condition thoroughly fixed (delayed initialization + WebSocket timing optimization)
+- ✅ GitHub OAuth integration implemented (OAuth authentication, repository management, Token refresh)
+- ✅ VS Code Remote-SSH integration solution implemented (SSHpiper workingDir mode)
+- ✅ SSH public key authentication system implemented (removed password authentication, public key only)
+- ✅ SSHpiper workingDir configuration automation
+- ✅ SSH public key drag-and-drop upload and smart parsing
+- ✅ Multi-IDE support (VS Code, Cursor, Windsurf)
+- ✅ One-click IDE open feature implemented
+- ✅ Dockerode integration implemented (replacing node-pty + docker exec)
+- ✅ Invite code registration restriction system implemented
+- ✅ Dynamic configuration management system implemented
+- ✅ Inlets tunnel feature implemented (similar to ngrok, expose container services to public internet)
 
-## 关键决策记录
+## Key Decision Records
 
-1. **2025-06-14**: 最初选择 ttyd 混合方案，后决定使用 node-pty 自建方案
-2. **2025-06-14**: 确定使用 Node.js 生态系统，便于快速开发和维护
-3. **2025-06-14**: 选择 Fastify 替代 Express，提升性能
-4. **2025-06-14**: 使用 pnpm 作为包管理器，支持 monorepo 结构
-5. **2025-06-14**: 修复 xterm.js dimensions 错误，降级到 xterm@4.19.0 稳定版本
-6. **2025-06-14**: 创建多个终端组件尝试，最终使用 StableTerminal
-7. **2025-06-14**: 实现会话管理，在内存中维护会话状态和输出缓冲
-8. **2025-06-14**: 使用单例模式确保 SessionManager 一致性
-9. **2025-06-14**: 实现输出缓冲分块存储，保留 ANSI 转义序列
-10. **2025-06-14**: 实现移动端响应式设计，统一使用左侧 Drawer
-11. **2025-06-14**: 实现智能 CWD 检测，使用 lsof (macOS) 和 /proc (Linux)
-12. **2025-06-14**: 采用事件驱动的 CWD 检测策略替代定时检查
-13. **2025-06-14**: 实现路径智能缩写，支持中文目录名显示
-14. **2025-06-14**: 实现移动端键盘自适应，解决 iPhone 键盘遮挡问题
-15. **2025-06-14**: 开发移动端调试界面，支持实时错误追踪
-16. **2025-06-14**: 实现移动端虚拟键盘工具栏，提供 ESC、翻页等终端快捷键
-17. **2025-06-14**: 优化移动端终端渲染性能，修复 ANSI 转义序列刷新问题
-18. **2025-06-14**: 实现 WebSocket 心跳检测和连接数审计机制
-19. **2025-06-14**: 实现高级 ANSI 序列检测和简化，提升移动端性能
-20. **2025-06-14**: 实现虚拟键盘工具栏自动显示/隐藏，与 iOS 键盘同步
-21. **2025-06-14**: 添加 Shift+Tab 和 nano 编辑器快捷键支持
-22. **2025-06-14**: 创建 useMobileTerminalEnhancements 和 useTabCompletion Hooks
-23. **2025-06-14**: 重构虚拟键盘工具栏为单排滚动布局，优化按钮排序和样式
-24. **2025-06-14**: 修复移动端键盘弹出时终端自动滚动问题
-25. **2025-06-14**: 实现按钮点击后焦点管理，防止保持选中状态
-26. **2025-06-15**: 修复 iOS 中文输入法空格、数字、符号无法输入的问题
-27. **2025-06-15**: 实现智能光标跟踪滚动，优化 Claude Code 等中间输入场景
-28. **2025-06-15**: 实现容器隔离模式，支持 Docker/Podman，每个用户独立容器
-29. **2025-06-15**: 实施隐私优先设计：
-    - 移除所有命令历史数据库存储
-    - 移除终端输出缓冲数据库存储
-    - 仅保留最小化的用户认证和会话元数据
-    - 所有敏感数据仅在内存中保存，不持久化
-    - 数据库只存储：用户名、邮箱、密码哈希、会话ID和状态
-30. **2025-06-15**: 完善容器生命周期管理：
-    - 实现自动清理机制，每小时运行
-    - 清理24小时无活动的容器
-    - 支持服务器重启后会话恢复
-    - 用户数据通过Docker Volume持久化
-31. **2025-06-16**: 彻底修复 xterm.js 竞态条件问题：
-    - 实现500ms延迟初始化避免 open()/fit() 过早调用
-    - 添加完整的生命周期管理和状态检查机制
-    - 实现WebSocket在终端就绪后连接的时序控制
-    - 修复 syncScrollArea → this._renderService.dimensions TypeError
-    - 防止 React 双渲染、SSR、路由切换等场景的竞态问题
-32. **2025-06-16**: 实现 GitHub OAuth 集成：
-    - 支持 OAuth 认证流程，用户可连接 GitHub 账号
-    - 实现仓库列表同步和管理功能
-    - 支持获取带 Token 的 clone URL，方便终端中克隆私有仓库
-    - 实现 Token 自动刷新机制，确保长期可用
-    - 添加撤销连接功能，支持完全断开 GitHub 连接
-    - 使用最小权限原则：仅请求 `repo` scope，满足所有需求
-    - 提供清晰的权限说明，让用户了解授权范围
-33. **2025-06-15**: 确定 VS Code Remote-SSH 集成方案：
-    - 选择 SSHpiper 作为 SSH 代理服务器
-    - 基于用户名进行路由转发到对应容器
-    - 单一端口（2222）服务所有用户
-    - 动态配置更新，支持热重载
-34. **2025-06-16**: 实现 SSHpiper workingDir 模式：
-    - 切换到 workingDir 驱动，替代 YAML 配置
-    - 实现公钥认证，移除密码认证提升安全性
-    - SSHpiper 使用预配置密钥连接到容器
-    - 用户公钥存储在 workingDir 的 authorized_keys 文件
-    - 实现数据库和 workingDir 的自动同步机制
-35. **2025-06-16**: 增强 SSH 公钥上传体验：
-    - 支持拖拽上传 .pub 文件
-    - 自动解析 SSH 公钥文件内容和注释
-    - 智能提取密钥名称（从注释中获取 user@hostname）
-    - 支持多种密钥格式（RSA、Ed25519、ECDSA）
-    - 文件验证和错误提示机制
-36. **2025-06-16**: 简化容器初始化流程：
-    - 移除 syncSSHCredentials 方法，不再同步密钥到容器
-    - 容器初始化仅创建 workspace 目录
-    - 通过 Dockerfile 中的启动脚本恢复 SSH 密钥
-    - SSHpiper 公钥保存到 /root/.ssh 作为备份
-37. **2025-06-16**: 优化 IDE 连接体验：
-    - 支持三个主流 IDE：VS Code、Cursor、Windsurf
-    - 一键打开 IDE 功能，使用各自的 URL scheme
-    - 简化 UI，移除冗余的手动连接步骤
-    - 更紧凑的界面设计，避免滚动
-38. **2025-06-16**: 数据库架构优化：
-    - 移除 ssh_password 和 ssh_password_hash 字段
-    - 仅保留 ssh_public_keys 用于公钥认证
-    - 清理 API 响应，移除不需要的 instructions 字段
-39. **2025-06-16**: 实现 Dockerode 集成方案：
-    - 使用 Docker API 替代命令行工具，提升性能和可靠性
-    - 支持远程 Docker daemon 连接 (CONTAINER_HOST)
-    - 解决服务器重启时 exec 进程自动清理问题
-    - 创建 PtyAdapter 适配器，保持与 node-pty 接口兼容
-    - 向后兼容：默认使用原有的 node-pty 实现
-40. **2025-06-17**: 实现邀请码注册限制系统：
-    - 命令行工具管理，无 API 暴露，确保安全性
-    - 支持多种邀请码选项：数量限制、时效性、使用次数、前缀
-    - 集成到主程序，共享数据库连接和配置
-    - 支持 Docker/PM2 等生产环境执行方式
-    - 前后端通过环境变量 REQUIRE_INVITE_CODE 控制启用
-    - 数据库事务确保邀请码使用的原子性
-41. **2025-06-17**: 移除会话持久化功能：
-    - 确认会话无法重新连接的限制
-    - 删除所有会话数据库存储代码
-    - 删除 persistent_sessions 表
-    - 会话现在完全是临时的（ephemeral）
-    - 断开连接后会话无法恢复
-    - 简化架构，提升性能和隐私
-42. **2025-06-20**: 实现动态配置管理系统：
-    - 创建 ConfigManager 类，支持运行时配置更新
-    - 数据库存储配置，环境变量作为覆盖选项
-    - 实现配置命令行工具，类似邀请码管理
-    - 支持配置导入/导出和审计日志
-    - 实时配置更新，无需重启服务
-43. **2025-06-20**: 完成环境变量到动态配置的迁移：
-    - 将 REQUIRE_INVITE_CODE、CONTAINER_MODE、GITHUB_CLIENT_ID、GITHUB_CLIENT_SECRET、GITHUB_OAUTH_CALLBACK_URL 迁移到动态配置
-    - 实现配置优先级：数据库管理的配置忽略环境变量
-    - 前端通过 /api/config 获取配置，移除环境变量依赖
-    - CLI 显示实际生效值（包含默认值）
-44. **2025-06-21**: 实现 Inlets 隧道功能：
-    - 集成 Inlets OSS 作为隧道服务器，支持 HTTP/HTTPS 隧道
-    - 容器预装 inlets 客户端，用户可通过 `tunnel <port>` 命令暴露服务
-    - 实现隧道状态 API，实时显示活跃隧道列表
-    - 支持开发和生产环境配置，生产环境支持 HTTPS 和自定义域名
-    - 通过动态配置管理隧道功能的启用和配置
+1. **2025-06-14**: Initially chose ttyd hybrid solution, later decided to use node-pty self-built solution
+2. **2025-06-14**: Decided to use Node.js ecosystem for rapid development and maintenance
+3. **2025-06-14**: Chose Fastify over Express for performance improvement
+4. **2025-06-14**: Used pnpm as package manager, supporting monorepo structure
+5. **2025-06-14**: Fixed xterm.js dimensions error, downgraded to xterm@4.19.0 stable version
+6. **2025-06-14**: Created multiple terminal component attempts, finally used StableTerminal
+7. **2025-06-14**: Implemented session management, maintaining session state and output buffer in memory
+8. **2025-06-14**: Used singleton pattern to ensure SessionManager consistency
+9. **2025-06-14**: Implemented output buffer chunked storage, preserving ANSI escape sequences
+10. **2025-06-14**: Implemented mobile responsive design, unified left-side Drawer usage
+11. **2025-06-14**: Implemented smart CWD detection, using lsof (macOS) and /proc (Linux)
+12. **2025-06-14**: Adopted event-driven CWD detection strategy replacing scheduled checks
+13. **2025-06-14**: Implemented path smart abbreviation, supporting Chinese directory name display
+14. **2025-06-14**: Implemented mobile keyboard adaptation, solving iPhone keyboard occlusion issues
+15. **2025-06-14**: Developed mobile debug interface, supporting real-time error tracking
+16. **2025-06-14**: Implemented mobile virtual keyboard toolbar, providing ESC, page navigation and other terminal shortcuts
+17. **2025-06-14**: Optimized mobile terminal rendering performance, fixed ANSI escape sequence refresh issues
+18. **2025-06-14**: Implemented WebSocket heartbeat detection and connection count audit mechanism
+19. **2025-06-14**: Implemented advanced ANSI sequence detection and simplification, improving mobile performance
+20. **2025-06-14**: Implemented virtual keyboard toolbar auto show/hide, synchronized with iOS keyboard
+21. **2025-06-14**: Added Shift+Tab and nano editor shortcut support
+22. **2025-06-14**: Created useMobileTerminalEnhancements and useTabCompletion Hooks
+23. **2025-06-14**: Refactored virtual keyboard toolbar to single-row scrolling layout, optimized button ordering and styling
+24. **2025-06-14**: Fixed terminal auto-scroll issue when mobile keyboard appears
+25. **2025-06-14**: Implemented button focus management after click, preventing retained selected state
+26. **2025-06-15**: Fixed iOS Chinese input method space, numbers, symbols input issues
+27. **2025-06-15**: Implemented smart cursor tracking scroll, optimized Claude Code mid-input scenarios
+28. **2025-06-15**: Implemented container isolation mode, supporting Docker/Podman, independent container per user
+29. **2025-06-15**: Implemented privacy-first design:
+    - Removed all command history database storage
+    - Removed terminal output buffer database storage
+    - Retained only minimal user authentication and session metadata
+    - All sensitive data stored only in memory, not persisted
+    - Database only stores: username, email, password hash, session ID and status
+30. **2025-06-15**: Improved container lifecycle management:
+    - Implemented auto-cleanup mechanism, runs hourly
+    - Cleans up containers inactive for 24 hours
+    - Supports session recovery after server restart
+    - User data persisted through Docker Volume
+31. **2025-06-16**: Thoroughly fixed xterm.js race condition issues:
+    - Implemented 500ms delayed initialization to avoid premature open()/fit() calls
+    - Added complete lifecycle management and state checking mechanism
+    - Implemented WebSocket connection timing control after terminal is ready
+    - Fixed syncScrollArea → this._renderService.dimensions TypeError
+    - Prevented race conditions in React double render, SSR, route switching scenarios
+32. **2025-06-16**: Implemented GitHub OAuth integration:
+    - Supports OAuth authentication flow, users can connect GitHub account
+    - Implemented repository list sync and management features
+    - Supports getting clone URL with Token, convenient for cloning private repos in terminal
+    - Implemented Token auto-refresh mechanism, ensuring long-term availability
+    - Added revoke connection feature, supports complete GitHub disconnection
+    - Uses minimal permission principle: only requests `repo` scope, satisfies all needs
+    - Provides clear permission explanations, letting users understand authorization scope
+33. **2025-06-15**: Determined VS Code Remote-SSH integration solution:
+    - Chose SSHpiper as SSH proxy server
+    - Routes based on username to corresponding container
+    - Single port (2222) serves all users
+    - Dynamic configuration updates, supports hot reload
+34. **2025-06-16**: Implemented SSHpiper workingDir mode:
+    - Switched to workingDir driver, replacing YAML configuration
+    - Implemented public key authentication, removed password authentication for improved security
+    - SSHpiper uses pre-configured keys to connect to containers
+    - User public keys stored in workingDir's authorized_keys file
+    - Implemented automatic sync mechanism between database and workingDir
+35. **2025-06-16**: Enhanced SSH public key upload experience:
+    - Supports drag-and-drop upload of .pub files
+    - Automatically parses SSH public key file content and comments
+    - Smart extraction of key name (from user@hostname in comments)
+    - Supports multiple key formats (RSA, Ed25519, ECDSA)
+    - File validation and error prompting mechanism
+36. **2025-06-16**: Simplified container initialization process:
+    - Removed syncSSHCredentials method, no longer syncing keys to containers
+    - Container initialization only creates workspace directory
+    - SSH keys restored through startup script in Dockerfile
+    - SSHpiper public key saved to /root/.ssh as backup
+37. **2025-06-16**: Optimized IDE connection experience:
+    - Supports three major IDEs: VS Code, Cursor, Windsurf
+    - One-click IDE open feature, using respective URL schemes
+    - Simplified UI, removed redundant manual connection steps
+    - More compact interface design, avoiding scrolling
+38. **2025-06-16**: Database architecture optimization:
+    - Removed ssh_password and ssh_password_hash fields
+    - Retained only ssh_public_keys for public key authentication
+    - Cleaned up API responses, removed unnecessary instructions field
+39. **2025-06-16**: Implemented Dockerode integration solution:
+    - Used Docker API instead of command line tools, improving performance and reliability
+    - Supports remote Docker daemon connection (CONTAINER_HOST)
+    - Solved exec process auto-cleanup issue during server restart
+    - Created PtyAdapter to maintain compatibility with node-pty interface
+    - Backward compatible: defaults to original node-pty implementation
+40. **2025-06-17**: Implemented invite code registration restriction system:
+    - Command line tool management, no API exposure, ensuring security
+    - Supports various invite code options: quantity limit, time validity, usage count, prefix
+    - Integrated into main program, shares database connection and configuration
+    - Supports Docker/PM2 production environment execution methods
+    - Frontend and backend controlled via REQUIRE_INVITE_CODE environment variable
+    - Database transactions ensure atomicity of invite code usage
+41. **2025-06-17**: Removed session persistence feature:
+    - Confirmed limitation that sessions cannot be reconnected
+    - Deleted all session database storage code
+    - Deleted persistent_sessions table
+    - Sessions are now completely ephemeral
+    - Sessions cannot be recovered after disconnection
+    - Simplified architecture, improved performance and privacy
+42. **2025-06-20**: Implemented dynamic configuration management system:
+    - Created ConfigManager class, supports runtime configuration updates
+    - Database stores configuration, environment variables as override options
+    - Implemented configuration command line tool, similar to invite code management
+    - Supports configuration import/export and audit logs
+    - Real-time configuration updates, no service restart needed
+43. **2025-06-20**: Completed migration from environment variables to dynamic configuration:
+    - Migrated REQUIRE_INVITE_CODE, CONTAINER_MODE, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GITHUB_OAUTH_CALLBACK_URL to dynamic configuration
+    - Implemented configuration priority: database-managed configurations ignore environment variables
+    - Frontend gets configuration via /api/config, removing environment variable dependency
+    - CLI displays effective values (including defaults)
+44. **2025-06-21**: Implemented Inlets tunnel feature:
+    - Integrated Inlets OSS as tunnel server, supports HTTP/HTTPS tunnels
+    - Containers pre-installed with inlets client, users can expose services via `tunnel <port>` command
+    - Implemented tunnel status API, real-time display of active tunnel list
+    - Supports development and production environment configuration, production supports HTTPS and custom domains
+    - Tunnel feature enablement and configuration managed through dynamic configuration
 
-## 技术特性
+## Technical Features
 
-### 智能 CWD 检测系统
+### Smart CWD Detection System
 
-- **事件驱动检测**: 用户按 Enter 后 1 秒检查 CWD
-- **输出空闲检测**: 终端输出停止 1 秒后检查 CWD
-- **跨平台支持**: macOS 使用 lsof，Linux 使用 /proc
-- **定时器管理**: 每个 session 独立定时器，支持自动清理
-- **精确 lsof 命令**: `lsof -p PID -a -d cwd | tail -n +2 | awk '{print $NF}'`
+- **Event-driven detection**: Check CWD 1 second after user presses Enter
+- **Output idle detection**: Check CWD 1 second after terminal output stops
+- **Cross-platform support**: macOS uses lsof, Linux uses /proc
+- **Timer management**: Independent timer per session, supports auto-cleanup
+- **Precise lsof command**: `lsof -p PID -a -d cwd | tail -n +2 | awk '{print $NF}'`
 
-### 路径智能缩写
+### Path Smart Abbreviation
 
-- **Home 目录**: `/Users/fbzhong/Downloads/简历` → `~/D/简历`
-- **非 Home 目录**: `/var/log/nginx/access.log` → `/V/L/N/access.log`
-- **中文支持**: 支持中文目录名的首字母缩写
-- **智能规则**: 保留最后一级目录完整名称，中间目录首字母大写
+- **Home directory**: `/Users/fbzhong/Downloads/Resume` → `~/D/Resume`
+- **Non-home directory**: `/var/log/nginx/access.log` → `/V/L/N/access.log`
+- **Chinese support**: Supports first-letter abbreviation of Chinese directory names
+- **Smart rules**: Preserves full name of last directory level, capitalizes first letter of intermediate directories
 
-### 实时状态检测
+### Real-time Status Detection
 
-- **执行状态**: 检测 shell 是否有程序正在执行
-- **WebSocket 实时更新**: Session List 实时显示 CWD、命令、状态
-- **视觉指示器**: 执行中显示动画图标，空闲显示状态圆点
-- **自动重连**: WebSocket 连接断开时自动重试
+- **Execution status**: Detects if shell has programs running
+- **WebSocket real-time updates**: Session List displays CWD, commands, status in real-time
+- **Visual indicators**: Shows animated icon during execution, status dot when idle
+- **Auto-reconnect**: Automatically retries when WebSocket connection drops
 
-### 响应式设计
+### Responsive Design
 
-- **统一 Drawer**: PC 和移动端都使用左侧抽屉式 Session 列表
-- **Material-UI**: 使用 Material-UI 组件实现现代化界面
-- **断点适配**: 针对不同屏幕尺寸优化布局和字体大小
+- **Unified Drawer**: Both PC and mobile use left-side drawer-style Session list
+- **Material-UI**: Uses Material-UI components for modern interface
+- **Breakpoint adaptation**: Optimizes layout and font size for different screen sizes
 
-### 移动端键盘适配
+### Mobile Keyboard Adaptation
 
-- **键盘检测**: 使用 visualViewport API 和 resize 事件检测键盘状态
-- **布局自适应**: 键盘打开时自动调整界面布局，避免输入框被遮挡
-- **自动滚动**: 聚焦输入框时自动滚动到可视区域
-- **防缩放**: 设置输入框字体大小为 16px，防止 iOS Safari 自动缩放
-- **调试界面**: 提供可视化调试面板，方便移动端错误排查
+- **Keyboard detection**: Uses visualViewport API and resize events to detect keyboard state
+- **Layout adaptation**: Automatically adjusts interface layout when keyboard opens, avoiding input occlusion
+- **Auto-scroll**: Automatically scrolls to visible area when focusing input
+- **Prevent zoom**: Sets input font size to 16px, preventing iOS Safari auto-zoom
+- **Debug interface**: Provides visual debug panel for mobile error troubleshooting
 
-### 移动端虚拟键盘工具栏
+### Mobile Virtual Keyboard Toolbar
 
-- **单排滚动布局**: 紧凑的横向滚动设计，按使用频率排序
-- **核心快捷键**: Tab、Enter、ESC、Ctrl+C、Ctrl+L 等最常用功能
-- **方向键**: 内联排列的上下左右导航键
-- **编辑功能**: Ctrl+U（清行）、Ctrl+W（删词）、Ctrl+R（搜索历史）
-- **程序控制**: Ctrl+D（退出）、Ctrl+Z（挂起）
-- **自动显隐**: 与 iOS 原生键盘同步显示/隐藏
-- **位置自适应**: 自动调整到键盘上方，避免遮挡
-- **焦点管理**: 点击后自动失焦，不保持选中状态
-- **滚动提示**: 右侧"滑动→"提示，引导用户操作
-- **现代样式**: 深色主题、圆角、阴影、悬停效果
+- **Single-row scrolling layout**: Compact horizontal scrolling design, ordered by usage frequency
+- **Core shortcuts**: Tab, Enter, ESC, Ctrl+C, Ctrl+L and other most commonly used functions
+- **Arrow keys**: Inline-arranged up/down/left/right navigation keys
+- **Edit functions**: Ctrl+U (clear line), Ctrl+W (delete word), Ctrl+R (search history)
+- **Program control**: Ctrl+D (exit), Ctrl+Z (suspend)
+- **Auto show/hide**: Synchronized show/hide with iOS native keyboard
+- **Position adaptation**: Automatically adjusts above keyboard, avoiding occlusion
+- **Focus management**: Auto-blur after click, doesn't retain selected state
+- **Scroll hint**: "Slide→" hint on right side, guiding user operation
+- **Modern styling**: Dark theme, rounded corners, shadows, hover effects
 
-### 移动端终端优化
+### Mobile Terminal Optimization
 
-- **DOM 渲染器**: 移动设备使用 DOM 渲染器替代 Canvas，提高稳定性
-- **写入缓冲**: 批量处理终端输出，减少重绘次数
-- **智能刷新**: 检测光标定位序列，优化进度条等更新场景
-- **ANSI 序列优化**: 合并冗余光标移动，简化颜色代码，检测并优化复杂序列
-- **高级 ANSI 检测**: 识别保存/恢复光标、清除行、光标定位等复杂序列
-- **序列简化**: 自动合并连续的光标移动和样式设置命令
-- **Resize 防抖**: 增加尺寸变化阈值和延迟，避免频繁重排
-- **性能调优**: 减少滚动缓冲区大小，禁用光标闪烁
-- **自动滚动**: 键盘弹出时自动滚动到底部，确保输入位置始终可见
-- **智能光标跟踪**: scrollToCursor() 方法实现光标位置智能滚动，适配 Claude Code 等中间输入场景
-- **容器适配**: 动态调整终端容器高度，避免被键盘遮挡
-- **中文输入法优化**: 修复 iOS 中文输入法空格、数字、符号无法输入的问题，改进 IME 组合事件处理
+- **DOM renderer**: Mobile devices use DOM renderer instead of Canvas for improved stability
+- **Write buffer**: Batch processes terminal output, reducing redraw frequency
+- **Smart refresh**: Detects cursor positioning sequences, optimizes progress bar update scenarios
+- **ANSI sequence optimization**: Merges redundant cursor moves, simplifies color codes, detects and optimizes complex sequences
+- **Advanced ANSI detection**: Recognizes save/restore cursor, clear line, cursor positioning and other complex sequences
+- **Sequence simplification**: Automatically merges consecutive cursor movement and style setting commands
+- **Resize debounce**: Adds size change threshold and delay, avoiding frequent reflow
+- **Performance tuning**: Reduces scroll buffer size, disables cursor blink
+- **Auto-scroll**: Automatically scrolls to bottom when keyboard appears, ensuring input position always visible
+- **Smart cursor tracking**: scrollToCursor() method implements smart scrolling to cursor position, adapting to Claude Code mid-input scenarios
+- **Container adaptation**: Dynamically adjusts terminal container height, avoiding keyboard occlusion
+- **Chinese input method optimization**: Fixed iOS Chinese input method space, numbers, symbols input issues, improved IME composition event handling
 
-### 自定义 React Hooks
+### Custom React Hooks
 
-- **useMobileTerminalEnhancements**: 移动端终端手势和增强功能支持
-- **useTabCompletion**: 智能 Tab 自动补全，支持命令、路径、参数补全
-- **手势支持**: 预留双指缩放、左右滑动等手势接口
-- **补全缓存**: Tab 补全结果缓存，提升响应速度
+- **useMobileTerminalEnhancements**: Mobile terminal gestures and enhancement features support
+- **useTabCompletion**: Smart Tab auto-completion, supports command, path, parameter completion
+- **Gesture support**: Reserved two-finger zoom, left/right swipe gesture interfaces
+- **Completion cache**: Tab completion result caching, improves response speed
 
-### 连接管理和稳定性
+### Connection Management and Stability
 
-- **WebSocket 心跳**: 每 30 秒发送 ping/pong 检测连接状态
-- **自动断开**: 心跳失败时自动终止死连接
-- **连接数审计**: 定期检查并修正过期的连接计数
-- **会话清理**: 自动清理超过 24 小时的死会话
-- **实时更新**: 连接/断开事件通过 WebSocket 广播更新
+- **WebSocket heartbeat**: Sends ping/pong every 30 seconds to detect connection status
+- **Auto-disconnect**: Automatically terminates dead connections when heartbeat fails
+- **Connection count audit**: Periodically checks and corrects expired connection counts
+- **Session cleanup**: Automatically cleans up dead sessions older than 24 hours
+- **Real-time updates**: Connection/disconnect events broadcast via WebSocket
 
-### 容器隔离模式
+### Container Isolation Mode
 
-- **用户隔离**: 每个用户独立 Docker/Podman 容器
-- **资源限制**: 支持内存、CPU 限制配置
-- **用户数据**: 通过 Docker Volume 存储用户文件
-- **安全性**: 容器间完全隔离，无法访问宿主机
-- **开发环境**: 使用 claude-web-dev:latest 镜像
-- **会话管理**: 所有会话在用户容器内运行
-- **自动创建**: 首次访问时自动创建用户容器
-- **生命周期管理**:
-  - 容器保持运行，支持会话恢复
-  - 自动清理：每小时检查，移除24小时无活动容器
-  - 服务器重启后自动恢复会话
-  - 容器命名规则：claude-web-user-{userId}
+- **User isolation**: Independent Docker/Podman container per user
+- **Resource limits**: Supports memory, CPU limit configuration
+- **User data**: User files stored via Docker Volume
+- **Security**: Complete isolation between containers, no access to host machine
+- **Development environment**: Uses claude-web-dev:latest image
+- **Session management**: All sessions run within user container
+- **Auto-creation**: Automatically creates user container on first access
+- **Lifecycle management**:
+  - Containers remain running, supporting session recovery
+  - Auto-cleanup: Checks hourly, removes containers inactive for 24 hours
+  - Automatically recovers sessions after server restart
+  - Container naming rule: claude-web-user-{userId}
 
-### xterm.js 竞态条件修复系统
+### xterm.js Race Condition Fix System
 
-- **延迟初始化策略**: 500ms延迟确保DOM完全准备后再调用 terminal.open()
-- **维度验证机制**: hasValidDimensions() 检查容器宽高和连接状态
-- **生命周期状态管理**: isDisposedRef 和 isTerminalAlive() 防止已销毁组件操作
-- **安全fit操作**: safeFit() 函数检查所有条件后再调用 fit()
-- **ResizeObserver防护**: 回调中双重检查销毁状态，避免异步操作冲突
-- **动画帧管理**: 取消 viewport._refreshAnimationFrame 防止销毁后回调
-- **WebSocket时序控制**: 终端完全初始化后通过 onTerminalReady 回调才连接WebSocket
-- **错误降级处理**: 所有关键操作都有 try-catch 和降级策略
+- **Delayed initialization strategy**: 500ms delay ensures DOM is fully ready before calling terminal.open()
+- **Dimension validation mechanism**: hasValidDimensions() checks container width/height and connection status
+- **Lifecycle state management**: isDisposedRef and isTerminalAlive() prevent operations on destroyed components
+- **Safe fit operation**: safeFit() function checks all conditions before calling fit()
+- **ResizeObserver guard**: Double-checks destroyed state in callback, avoiding async operation conflicts
+- **Animation frame management**: Cancels viewport._refreshAnimationFrame to prevent callbacks after destruction
+- **WebSocket timing control**: Terminal fully initialized before connecting WebSocket via onTerminalReady callback
+- **Error fallback handling**: All critical operations have try-catch and fallback strategies
 
-### GitHub OAuth 集成
+### GitHub OAuth Integration
 
-- **OAuth 认证流程**: 支持标准 GitHub OAuth 2.0 流程
-- **安全状态验证**: 使用随机 state 参数防止 CSRF 攻击
-- **仓库管理**:
-  - 自动同步用户的 GitHub 仓库列表
-  - 支持公开和私有仓库
-  - 本地缓存仓库信息，减少 API 调用
-- **Token 管理**:
-  - 安全存储 access_token 和 refresh_token
-  - 自动检测 token 过期并刷新
-  - 支持撤销 token 和断开连接
-- **克隆支持**:
-  - 生成带 OAuth token 的 HTTPS clone URL
-  - 支持在终端中直接克隆私有仓库
-  - 临时 token URL，使用后即失效
-- **用户界面**:
-  - Material-UI 风格的管理界面
-  - 实时显示连接状态和用户信息
-  - 支持搜索、筛选仓库列表
+- **OAuth authentication flow**: Supports standard GitHub OAuth 2.0 flow
+- **Secure state validation**: Uses random state parameter to prevent CSRF attacks
+- **Repository management**:
+  - Automatically syncs user's GitHub repository list
+  - Supports public and private repositories
+  - Locally caches repository information, reducing API calls
+- **Token management**:
+  - Securely stores access_token and refresh_token
+  - Automatically detects token expiration and refreshes
+  - Supports revoking tokens and disconnecting
+- **Clone support**:
+  - Generates HTTPS clone URL with OAuth token
+  - Supports cloning private repositories directly in terminal
+  - Temporary token URL, expires after use
+- **User interface**:
+  - Material-UI style management interface
+  - Real-time display of connection status and user information
+  - Supports searching and filtering repository list
 
-### VS Code Remote-SSH 集成
+### VS Code Remote-SSH Integration
 
-- **SSHpiper 代理服务器**:
-  - 使用 SSHpiper 作为 SSH 代理层
-  - 基于用户名路由到对应容器
-  - 单一端口 (2222) 服务所有用户
-  - 支持动态配置热重载
-- **workingDir 驱动模式**:
-  - 使用文件系统配置替代 YAML
-  - 每个用户独立的 workingDir 目录
-  - 实时同步数据库和文件系统配置
-  - 支持 authorized_keys 和 sshpiper_upstream 文件
-- **SSH 公钥认证**:
-  - 仅支持公钥认证，移除密码认证
-  - 支持拖拽上传 .pub 文件
-  - 智能解析密钥文件内容和注释
-  - 自动提取密钥名称 (user@hostname)
-  - 支持 RSA、Ed25519、ECDSA 格式
-- **多 IDE 支持**:
-  - VS Code、Cursor、Windsurf 一键打开
-  - 使用各自的 URL scheme (vscode-remote://, cursor://, windsurf://)
-  - 自动生成 SSH 连接配置
-  - 简化的连接流程，无需手动配置
+- **SSHpiper proxy server**:
+  - Uses SSHpiper as SSH proxy layer
+  - Routes based on username to corresponding container
+  - Single port (2222) serves all users
+  - Supports dynamic configuration hot reload
+- **workingDir driver mode**:
+  - Uses filesystem configuration instead of YAML
+  - Independent workingDir directory per user
+  - Real-time sync between database and filesystem configuration
+  - Supports authorized_keys and sshpiper_upstream files
+- **SSH public key authentication**:
+  - Only supports public key authentication, removed password authentication
+  - Supports drag-and-drop upload of .pub files
+  - Smart parsing of key file content and comments
+  - Automatic extraction of key name (user@hostname)
+  - Supports RSA, Ed25519, ECDSA formats
+- **Multi-IDE support**:
+  - One-click open for VS Code, Cursor, Windsurf
+  - Uses respective URL schemes (vscode-remote://, cursor://, windsurf://)
+  - Automatically generates SSH connection configuration
+  - Simplified connection flow, no manual configuration needed
 
-### Inlets 隧道系统
+### Inlets Tunnel System
 
-- **隧道服务器架构**:
-  - 使用 Inlets OSS 作为隧道服务器
-  - 独立的 Docker 容器运行 inlets server
-  - 支持 WebSocket 控制平面和 HTTP 数据平面
-  - 内置状态 API 追踪活跃隧道
-- **容器集成**:
-  - 每个开发容器预装 inlets 客户端
-  - 简单的 `tunnel <port>` 命令创建隧道
-  - 自动生成子域名：`[container-id]-[port].tunnel.domain`
-  - 支持 HTTP/HTTPS 协议（OSS 版本限制）
-- **隧道管理**:
-  - 前端实时显示活跃隧道列表
-  - 每5秒轮询更新隧道状态
-  - 用户只能看到自己容器的隧道
-  - 点击隧道 URL 直接在新标签页打开
-- **配置系统**:
-  - 通过动态配置管理所有隧道设置
-  - 支持启用/禁用隧道功能
-  - 可配置服务器 URL、认证令牌、基础域名
-  - 生产环境支持 HTTPS 和自定义域名
-- **安全考虑**:
-  - 共享认证令牌，所有容器使用同一令牌
-  - 隧道仅暴露指定端口，不影响容器其他服务
-  - 用户隔离：只能查看和管理自己的隧道
-  - 生产环境强制使用 HTTPS
+- **Tunnel server architecture**:
+  - Uses Inlets OSS as tunnel server
+  - Independent Docker container runs inlets server
+  - Supports WebSocket control plane and HTTP data plane
+  - Built-in status API tracks active tunnels
+- **Container integration**:
+  - Each development container pre-installed with inlets client
+  - Simple `tunnel <port>` command creates tunnel
+  - Auto-generates subdomain: `[container-id]-[port].tunnel.domain`
+  - Supports HTTP/HTTPS protocols (OSS version limitation)
+- **Tunnel management**:
+  - Frontend real-time display of active tunnel list
+  - Polls every 5 seconds to update tunnel status
+  - Users only see their own container's tunnels
+  - Click tunnel URL to open directly in new tab
+- **Configuration system**:
+  - All tunnel settings managed through dynamic configuration
+  - Supports enabling/disabling tunnel feature
+  - Configurable server URL, auth token, base domain
+  - Production environment supports HTTPS and custom domains
+- **Security considerations**:
+  - Shared auth token, all containers use same token
+  - Tunnels only expose specified ports, don't affect other container services
+  - User isolation: can only view and manage own tunnels
+  - Production environment enforces HTTPS
 
-## 测试策略
+## Testing Strategy
 
-- 单元测试覆盖率 > 80%
-- 集成测试覆盖所有 API
-- 端到端测试覆盖关键用户流程
-- 每次提交自动运行回归测试
+- Unit test coverage > 80%
+- Integration tests cover all APIs
+- End-to-end tests cover critical user flows
+- Automatically run regression tests on each commit
 
-## 配置管理
+## Configuration Management
 
-系统配置通过动态配置管理系统进行管理，支持运行时更新，无需重启服务。
+System configuration is managed through the dynamic configuration management system, supporting runtime updates without service restart.
 
-### 动态配置管理
+### Dynamic Configuration Management
 
-使用配置管理命令行工具管理运行时配置：
+Use configuration management command line tool to manage runtime configuration:
 
 ```bash
-# 查看所有配置
+# View all configurations
 npm run config:list
 
-# 查看详细配置（包含描述）
+# View detailed configuration (including descriptions)
 npm run config:list -- -v
 
-# 获取特定配置
+# Get specific configuration
 npm run config:get max_output_buffer
 
-# 设置配置值
+# Set configuration value
 npm run config:set max_output_buffer 10000
 npm run config:set require_invite_code true -- -r "Enable invite-only registration"
 
-# 重置为默认值
+# Reset to default value
 npm run config:reset max_output_buffer
 
-# 查看配置变更历史
+# View configuration change history
 npm run config:history
 npm run config:history max_output_buffer
 
-# 导出/导入配置
+# Export/import configuration
 npm run config:export > config.json
 npm run config:import config.json
 ```
 
-### 可配置项
+### Configurable Items
 
-| 配置键 | 类型 | 默认值 | 描述 |
-|--------|------|--------|------|
-| max_output_buffer | number | 5000 | 每个 session 保存的最大输出块数量 |
-| max_output_buffer_mb | number | 5 | 每个 session 的最大缓冲区大小（MB） |
-| reconnect_history_size | number | 500 | 重连时发送的历史记录块数量 |
-| session_timeout_hours | number | 24 | 会话超时清理时间（小时） |
-| cleanup_interval_minutes | number | 60 | 清理任务运行间隔（分钟） |
-| container_memory_limit | string | 2g | 容器内存限制 |
-| container_cpu_limit | number | 2 | 容器 CPU 限制 |
-| require_invite_code | boolean | true | 是否需要邀请码注册 |
-| websocket_ping_interval | number | 30 | WebSocket ping 间隔（秒） |
-| websocket_ping_timeout | number | 60 | WebSocket ping 超时（秒） |
-| container_mode | boolean | true | 是否启用容器隔离模式 |
-| github_client_id | string | - | GitHub OAuth 应用 Client ID |
-| github_client_secret | string | - | GitHub OAuth 应用 Client Secret |
-| github_oauth_callback_url | string | - | GitHub OAuth 回调 URL |
-| tunnels_enabled | boolean | false | 是否启用隧道功能 |
-| inlets_server_url | string | - | Inlets 服务器 WebSocket URL |
-| inlets_status_api_url | string | - | Inlets 服务器状态 API 端点 |
-| inlets_shared_token | string | - | 所有容器共享的认证令牌 |
-| tunnel_base_domain | string | - | 隧道主机名的基础域名 |
+| Config Key | Type | Default | Description |
+|------------|------|---------|-------------|
+| max_output_buffer | number | 5000 | Maximum output chunks saved per session |
+| max_output_buffer_mb | number | 5 | Maximum buffer size per session (MB) |
+| reconnect_history_size | number | 500 | Number of history chunks sent on reconnection |
+| session_timeout_hours | number | 24 | Session cleanup timeout (hours) |
+| cleanup_interval_minutes | number | 60 | Cleanup task run interval (minutes) |
+| container_memory_limit | string | 2g | Container memory limit |
+| container_cpu_limit | number | 2 | Container CPU limit |
+| require_invite_code | boolean | true | Whether invite code is required for registration |
+| websocket_ping_interval | number | 30 | WebSocket ping interval (seconds) |
+| websocket_ping_timeout | number | 60 | WebSocket ping timeout (seconds) |
+| container_mode | boolean | true | Whether to enable container isolation mode |
+| github_client_id | string | - | GitHub OAuth app Client ID |
+| github_client_secret | string | - | GitHub OAuth app Client Secret |
+| github_oauth_callback_url | string | - | GitHub OAuth callback URL |
+| tunnels_enabled | boolean | false | Whether to enable tunnel feature |
+| inlets_server_url | string | - | Inlets server WebSocket URL |
+| inlets_status_api_url | string | - | Inlets server status API endpoint |
+| inlets_shared_token | string | - | Shared auth token for all containers |
+| tunnel_base_domain | string | - | Base domain for tunnel hostnames |
 
-### 配置优先级
+### Configuration Priority
 
-对于数据库管理的配置项（已通过 config:set 设置的）：
-1. 数据库配置值
-2. 默认值
+For database-managed configuration items (set via config:set):
+1. Database configuration value
+2. Default value
 
-对于未管理的配置项：
-1. 环境变量
-2. 默认值
+For unmanaged configuration items:
+1. Environment variable
+2. Default value
 
-注意：一旦配置项被存入数据库，相应的环境变量将被忽略，确保配置管理的一致性。
+Note: Once a configuration item is stored in the database, the corresponding environment variable will be ignored, ensuring configuration management consistency.
 
-### 性能优化说明
+### Performance Optimization Notes
 
-- **动态更新**: 配置变更实时生效，无需重启服务
-- **缓存机制**: 配置在内存中缓存，减少数据库查询
-- **审计日志**: 所有配置变更都有完整的审计记录
-- **类型安全**: 自动类型转换和验证
+- **Dynamic updates**: Configuration changes take effect immediately without service restart
+- **Caching mechanism**: Configuration cached in memory, reducing database queries
+- **Audit logs**: All configuration changes have complete audit records
+- **Type safety**: Automatic type conversion and validation
 
-## 常用命令
+## Common Commands
 
 ```bash
-# 初始化 SSHpiper 配置 (首次运行必需)
+# Initialize SSHpiper configuration (required for first run)
 ./scripts/setup-sshpiper.sh
 
-# 开发环境启动
-# 后端 (端口 12021)
+# Development environment startup
+# Backend (port 12021)
 cd backend && pnpm run dev
 
-# 前端 (端口 12020)
+# Frontend (port 12020)
 cd frontend && pnpm start
 
-# Docker 环境启动 (包含 SSHpiper)
+# Docker environment startup (includes SSHpiper)
 docker-compose up -d
 
-# 重建容器镜像 (当更新 Dockerfile 时)
+# Rebuild container images (when updating Dockerfile)
 docker-compose build
 
-# 运行测试
+# Run tests
 pnpm test
 
-# 构建生产版本
+# Build production version
 pnpm build
 
-# 安装依赖
+# Install dependencies
 pnpm install
 
-# 健康检查
+# Health check
 curl http://localhost:12021/health
 
-# 测试 SSHpiper 配置
+# Test SSHpiper configuration
 ./scripts/test-sshpiper-workingdir.sh
 
-# 测试 SSH 公钥解析功能
+# Test SSH public key parsing feature
 ./scripts/test-ssh-key-parsing.sh
 
-# 测试 SSH 公钥错误处理
+# Test SSH public key error handling
 ./scripts/test-ssh-key-error-handling.sh
 
-# 测试 dockerode 集成
+# Test dockerode integration
 node scripts/test-dockerode.js
 
-# 测试环境变量切换
+# Test environment variable switching
 node scripts/test-runtime-switch.js
 
-# 邀请码管理命令
-npm run invite:create -- --count 5       # 创建5个邀请码
-npm run invite:list                      # 查看有效邀请码
-npm run invite:list -- --all             # 查看所有邀请码
-npm run invite:delete <CODE>             # 删除邀请码
-npm run invite:disable <CODE>            # 禁用邀请码
-npm run invite:stats                     # 查看统计信息
+# Invite code management commands
+npm run invite:create -- --count 5       # Create 5 invite codes
+npm run invite:list                      # View valid invite codes
+npm run invite:list -- --all             # View all invite codes
+npm run invite:delete <CODE>             # Delete invite code
+npm run invite:disable <CODE>            # Disable invite code
+npm run invite:stats                     # View statistics
 
-# 隧道功能设置
-./scripts/setup-inlets.sh                 # 开发环境设置
-./scripts/setup-inlets.sh prod            # 生产环境设置
+# Tunnel feature setup
+./scripts/setup-inlets.sh                 # Development environment setup
+./scripts/setup-inlets.sh prod            # Production environment setup
 
-# 测试隧道集成
-./scripts/test-inlets-integration.sh      # 测试隧道功能
+# Test tunnel integration
+./scripts/test-inlets-integration.sh      # Test tunnel feature
 
-# 配置隧道功能
+# Configure tunnel feature
 npm run config:set tunnels_enabled true
 npm run config:set inlets_server_url "ws://localhost:8090"
 npm run config:set inlets_status_api_url "http://localhost:8091/status"
 npm run config:set tunnel_base_domain "tunnel.localhost"
 ```
 
-## 邀请码注册限制系统
+## Invite Code Registration Restriction System
 
-### 系统架构
+### System Architecture
 
-- **命令行管理工具**:
-  - 集成到主程序，使用 commander.js 处理命令行参数
-  - 创建邀请码：支持批量、时效、使用次数、前缀等选项
-  - 查看、删除、禁用邀请码，统计使用情况
-  - 无 HTTP API 暴露，确保安全性
+- **Command line management tool**:
+  - Integrated into main program, uses commander.js to handle command line parameters
+  - Create invite codes: supports batch, time validity, usage count, prefix options
+  - View, delete, disable invite codes, usage statistics
+  - No HTTP API exposure, ensuring security
 
-### 数据库设计
+### Database Design
 
-- **invite_codes 表**:
-  - 存储邀请码信息和使用记录
-  - 支持过期时间、使用次数限制
-  - 记录创建者、使用者、使用时间等审计信息
-  - 索引优化查询性能
+- **invite_codes table**:
+  - Stores invite code information and usage records
+  - Supports expiration time, usage count limits
+  - Records creator, user, usage time and other audit information
+  - Index optimization for query performance
 
-### 注册流程集成
+### Registration Flow Integration
 
-- **动态配置控制**: 通过 `npm run config:set require_invite_code true` 启用
-- **前后端同步**: 前后端同时验证，确保一致性
-- **事务处理**: 数据库事务保证原子性操作
-- **错误处理**: 详细的错误信息反馈
+- **Dynamic configuration control**: Enable via `npm run config:set require_invite_code true`
+- **Frontend-backend sync**: Both frontend and backend validate, ensuring consistency
+- **Transaction processing**: Database transactions ensure atomic operations
+- **Error handling**: Detailed error feedback
 
-### 生产环境支持
+### Production Environment Support
 
 - **Docker**: `docker exec -it claude-web-backend npm run invite:create`
 - **PM2**: `pm2 exec claude-web-backend -- npm run invite:create`
-- **编译后**: `node dist/server.js invite:create`
-- **远程执行**: 支持 SSH 远程管理
+- **After compilation**: `node dist/server.js invite:create`
+- **Remote execution**: Supports SSH remote management

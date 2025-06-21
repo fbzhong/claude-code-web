@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     openssh-server \
     # System tools
     sudo \
+    bash-completion \
     # Locale support
     locales \
     # Dependencies for NodeSource

@@ -299,6 +299,27 @@ export class ConfigManager extends EventEmitter {
     return this.get('websocket_ping_timeout', 60);
   }
 
+  // Inlets configuration helpers
+  async getTunnelsEnabled(): Promise<boolean> {
+    return this.get('tunnels_enabled', false);
+  }
+
+  async getInletsServerUrl(): Promise<string | null> {
+    return this.get('inlets_server_url', null);
+  }
+
+  async getInletsStatusApiUrl(): Promise<string | null> {
+    return this.get('inlets_status_api_url', null);
+  }
+
+  async getInletsSharedToken(): Promise<string | null> {
+    return this.get('inlets_shared_token', null);
+  }
+
+  async getTunnelBaseDomain(): Promise<string | null> {
+    return this.get('tunnel_base_domain', null);
+  }
+
   // Get effective value with defaults for CLI display
   async getEffectiveValue(key: string): Promise<any> {
     switch (key) {
@@ -330,6 +351,16 @@ export class ConfigManager extends EventEmitter {
         return this.getWebsocketPingInterval();
       case 'websocket_ping_timeout':
         return this.getWebsocketPingTimeout();
+      case 'tunnels_enabled':
+        return this.getTunnelsEnabled();
+      case 'inlets_server_url':
+        return this.getInletsServerUrl();
+      case 'inlets_status_api_url':
+        return this.getInletsStatusApiUrl();
+      case 'inlets_shared_token':
+        return this.getInletsSharedToken();
+      case 'tunnel_base_domain':
+        return this.getTunnelBaseDomain();
       default:
         return this.get(key);
     }

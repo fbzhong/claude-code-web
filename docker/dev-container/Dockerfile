@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y \
     # Dependencies for NodeSource
     ca-certificates \
     gnupg \
+    # JSON processing
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 22 from NodeSource
@@ -34,6 +36,13 @@ ENV NODE_MAJOR=22
 RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
+
+# Install inlets OSS client
+RUN curl -sLS https://get.arkade.dev | sh && \
+    arkade get inlets && \
+    mv /root/.arkade/bin/inlets /usr/local/bin/ && \
+    rm -rf /root/.arkade && \
+    chmod +x /usr/local/bin/inlets
 
 # Generate locale
 RUN locale-gen en_US.UTF-8
@@ -54,6 +63,10 @@ RUN mkdir -p /var/run/sshd && \
 
 # Copy SSHpiper's public key for authentication
 COPY sshpiper_id_rsa.pub /tmp/sshpiper_id_rsa.pub
+
+# Copy inlets setup script
+COPY inlets-setup.sh /usr/local/bin/inlets-setup
+RUN chmod +x /usr/local/bin/inlets-setup
 
 # Save SSHpiper's public key to /root/.ssh for later restoration
 RUN mkdir -p /root/.ssh && \
@@ -114,6 +127,12 @@ if ps -p $SSHD_PID > /dev/null 2>&1; then\n\
 else\n\
     echo "Failed to start SSH service"\n\
     exit 1\n\
+fi\n\
+\n\
+# Run inlets setup if environment variables are set\n\
+if [ -n "$CLAUDE_WEB_AUTH_TOKEN" ]; then\n\
+    echo "Running inlets setup..."\n\
+    /usr/local/bin/inlets-setup || echo "Inlets setup failed, continuing anyway"\n\
 fi\n\
 \n\
 # Keep container running\n\

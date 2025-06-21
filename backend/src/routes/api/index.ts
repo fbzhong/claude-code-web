@@ -28,13 +28,19 @@ export default async function (fastify: FastifyInstance) {
       githubClientSecret, 
       githubOauthCallbackUrl,
       containerMode,
-      requireInviteCode
+      requireInviteCode,
+      tunnelsEnabled,
+      inletsServerUrl,
+      inletsStatusApiUrl
     ] = await Promise.all([
       configManager.getGithubClientId(),
       configManager.getGithubClientSecret(),
       configManager.getGithubOauthCallbackUrl(),
       configManager.getContainerMode(),
-      configManager.getRequireInviteCode()
+      configManager.getRequireInviteCode(),
+      configManager.getTunnelsEnabled(),
+      configManager.getInletsServerUrl(),
+      configManager.getInletsStatusApiUrl()
     ]);
     
     const config = {
@@ -60,6 +66,12 @@ export default async function (fastify: FastifyInstance) {
         authentication: {
           jwt_secret_configured: !!process.env.JWT_SECRET,
           invite_code_required: requireInviteCode,
+        },
+        tunnels: {
+          enabled: tunnelsEnabled,
+          configured: !!(inletsServerUrl && inletsStatusApiUrl),
+          inlets_server_configured: !!inletsServerUrl,
+          status_api_configured: !!inletsStatusApiUrl,
         },
       },
       environment: process.env.NODE_ENV || "development",
@@ -498,4 +510,7 @@ export default async function (fastify: FastifyInstance) {
 
   // Register SSH keys management routes
   await fastify.register(import("./ssh-keys.js"));
+
+  // Register tunnels routes
+  await fastify.register(import("./tunnels.js"));
 }

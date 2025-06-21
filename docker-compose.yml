@@ -43,7 +43,37 @@ services:
       - claude-web-dev
     restart: unless-stopped
 
+  # Inlets tunnel server
+  inlets:
+    build:
+      context: ./docker/inlets-server
+      dockerfile: Dockerfile
+    container_name: claude-web-inlets-dev
+    ports:
+      - "8090:8090"  # Control plane (WebSocket)
+      - "8080:8080"  # Data plane (HTTP traffic)
+      - "8091:8091"  # Status API
+    volumes:
+      - ./data/inlets:/data
+    environment:
+      INLETS_TOKEN: "${INLETS_TOKEN:-development-token-change-in-production}"
+      INLETS_DOMAIN: "${INLETS_DOMAIN:-tunnel.localhost}"
+      INLETS_CONTROL_PORT: "8090"
+      INLETS_DATA_PORT: "8080"
+      STATUS_PORT: "8091"
+    networks:
+      - claude-web-dev
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 networks:
+  claude-web-dev:
+    name: claude-web-dev
+    driver: bridge
   claude-web-bridge:
     name: claude-web-bridge
     driver: bridge

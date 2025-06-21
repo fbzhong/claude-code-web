@@ -26,6 +26,7 @@ import {
   Group as GroupIcon,
 } from '@mui/icons-material';
 import { SessionInfo } from '../../../components/SessionList';
+import TunnelList from '../../../components/TunnelList';
 
 // Props interface
 interface SessionsDrawerProps {
@@ -337,6 +338,12 @@ export const SessionsDrawer: React.FC<SessionsDrawerProps> = ({
               ))}
             </List>
           )}
+        </Box>
+        
+        {/* Tunnels Section */}
+        <Divider sx={{ my: 2 }} />
+        <Box sx={{ px: 2 }}>
+          <TunnelList />
         </Box>
       </Box>
     </Drawer>

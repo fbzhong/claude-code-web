@@ -71,6 +71,9 @@ importers:
       js-yaml:
         specifier: ^4.1.0
         version: 4.1.0
+      node-fetch:
+        specifier: ^2.7.0
+        version: 2.7.0
       node-pty:
         specifier: ^1.0.0
         version: 1.0.0
@@ -99,6 +102,9 @@ importers:
       '@types/node':
         specifier: ^20.9.0
         version: 20.19.1
+      '@types/node-fetch':
+        specifier: ^2.6.12
+        version: 2.6.12
       '@types/ws':
         specifier: ^8.5.8
         version: 8.18.1
@@ -748,6 +754,9 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/node-fetch@2.6.12':
+    resolution: {integrity: sha512-8nneRWKCg3rMtF69nLQJnOYUcbafYeFSjqkw3jCRLsqkWFlHaoQrr5mXmofFGOx3DKn7UfmBMyov8ySvLRVldA==}
 
   '@types/node@18.19.112':
     resolution: {integrity: sha512-i+Vukt9POdS/MBI7YrrkkI5fMfwFtOjphSmt4WXYLfwqsfr6z/HdCx7LqT9M7JktGob8WNgj8nFB4TbGNE4Cog==}
@@ -3357,6 +3366,11 @@ snapshots:
   '@types/js-yaml@4.0.9': {}
 
   '@types/json-schema@7.0.15': {}
+
+  '@types/node-fetch@2.6.12':
+    dependencies:
+      '@types/node': 20.19.1
+      form-data: 4.0.3
 
   '@types/node@18.19.112':
     dependencies:

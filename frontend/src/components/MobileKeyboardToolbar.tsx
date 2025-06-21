@@ -33,7 +33,18 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
   }
 
   const handleKeyPress = (key: string) => {
-    onKeyPress(key);
+    // Handle text commands that need to be typed out
+    if (key === 'claude' || key === 'claude --continue') {
+      // Send each character of the command
+      for (const char of key) {
+        onKeyPress(char);
+      }
+      // Send Enter to execute the command
+      onKeyPress('\r');
+    } else {
+      // Send escape sequences or single characters directly
+      onKeyPress(key);
+    }
   };
 
   const KeyButton: React.FC<{ 
@@ -155,25 +166,30 @@ export const MobileKeyboardToolbar: React.FC<MobileKeyboardToolbarProps> = ({
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      {/* Most frequently used first */}
-      <KeyButton label="Tab" keyCode={'\t'} tooltip="Tab" />
-      <KeyButton label="Enter" keyCode={'\r'} tooltip="Enter" />
+      {/* Essential keys */}
       <KeyButton label="ESC" keyCode={'\x1B'} tooltip="Escape" />
-      <KeyButton label="^C" keyCode={'\x03'} tooltip="Stop" />
-      <KeyButton label="^L" keyCode={'\x0C'} tooltip="Clear" />
+      <KeyButton label="Enter" keyCode={'\r'} tooltip="Enter" />
+      <KeyButton label="⇧Enter" keyCode={'\n'} tooltip="Shift+Enter (New line)" />
+      <KeyButton label="Tab" keyCode={'\t'} tooltip="Tab" />
+      <KeyButton label="^C" keyCode={'\x03'} tooltip="Ctrl+C (Stop)" />
       
-      {/* Navigation - inline arrows */}
+      {/* Page navigation */}
+      <KeyButton label="PgUp" keyCode={'\x1B[5~'} tooltip="Page Up" />
+      <KeyButton label="PgDn" keyCode={'\x1B[6~'} tooltip="Page Down" />
+      
+      {/* Scroll in less/vim/nano */}
+      <KeyButton label="↑" keyCode={'\x1B[A'} tooltip="Scroll Up" />
+      <KeyButton label="↓" keyCode={'\x1B[B'} tooltip="Scroll Down" />
+      
+      {/* Arrow keys */}
       <ArrowButton direction="left" keyCode={'\x1B[D'} />
       <ArrowButton direction="up" keyCode={'\x1B[A'} />
       <ArrowButton direction="down" keyCode={'\x1B[B'} />
       <ArrowButton direction="right" keyCode={'\x1B[C'} />
       
-      {/* Less frequent but important */}
-      <KeyButton label="^U" keyCode={'\x15'} tooltip="Clear line" />
-      <KeyButton label="^W" keyCode={'\x17'} tooltip="Delete word" />
-      <KeyButton label="^R" keyCode={'\x12'} tooltip="Search" />
-      <KeyButton label="^D" keyCode={'\x04'} tooltip="Exit" />
-      <KeyButton label="^Z" keyCode={'\x1A'} tooltip="Suspend" />
+      {/* Claude shortcuts */}
+      <KeyButton label="claude" keyCode={'claude'} tooltip="Run claude" />
+      <KeyButton label="claude --continue" keyCode={'claude --continue'} tooltip="Continue claude" />
     </Box>
   );
 };
